@@ -9,9 +9,10 @@
         <div class="section-sub">{{ _('admin_users_sub') }}</div>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <a href="/admin/users/import-printix" class="btn btn-primary btn-sm">📥 Aus Printix importieren</a>
         <a href="/admin/users/invite" class="btn btn-success btn-sm">✉️ {{ _('admin_invite_user') }}</a>
-        <a href="/admin/users/create" class="btn btn-primary btn-sm">+ {{ _('admin_create_user') }}</a>
-        <a href="/admin/users/bulk-import" class="btn btn-secondary btn-sm">📥 Bulk-Import (CSV)</a>
+        <a href="/admin/users/create" class="btn btn-secondary btn-sm">+ {{ _('admin_create_user') }}</a>
+        <a href="/admin/users/bulk-import" class="btn btn-secondary btn-sm" title="CSV-Bulk-Import für User die nicht in Printix existieren">📋 CSV-Import</a>
         <a href="/admin" class="btn btn-secondary btn-sm">← {{ _('admin_title') }}</a>
       </div>
     </div>

@@ -1,18 +1,18 @@
 # =============================================================================
-# Printix MCP — Docker Compose (Referenz-Setup)
+# Printix MCP — Docker Compose (reference setup)
 # =============================================================================
-# Erst-Installation:
-#   1.  cp .env.example .env      # MCP_PUBLIC_URL & Co. anpassen
+# First install:
+#   1.  cp .env.example .env      # tune MCP_PUBLIC_URL etc.
 #   2.  docker compose up -d
-#   3.  Browser: http://localhost:8080   → Erstkonfiguration im Web-UI
+#   3.  Browser: http://localhost:8080   → first-time setup in the web UI
 #
-# Ports ändern: Passe die Einträge unter `ports:` unten an (z.B. "9000:8080").
-# Die linke Seite ist der Host-Port, rechts der Container-Port (nicht ändern).
+# Changing ports: edit the entries under `ports:` below (e.g. "9000:8080").
+# The left side is the host port, the right side is the container port (do not change).
 #
-# Update auf neue Version:
+# Update to a new version:
 #   docker compose pull && docker compose up -d
 #
-# Logs / Health:
+# Logs / health:
 #   docker compose logs -f printix-mcp
 #   docker compose ps
 # =============================================================================
@@ -20,51 +20,51 @@
 services:
   printix-mcp:
     image: ghcr.io/mnimtz/printix-mcp-docker:${PRINTIX_TAG:-latest}
-    # Alternative fürs lokale Bauen (statt image:latest):
+    # Alternative for a local build (instead of the image above):
     #   build: .
     container_name: printix-mcp
     restart: unless-stopped
 
     environment:
-      # --- Basis ---------------------------------------------------------------
-      # Öffentliche URL (z.B. via Cloudflare Tunnel / Reverse Proxy).
-      # Wenn leer: Web-UI funktioniert über den Request-Host (LAN).
-      # Kann auch zur Laufzeit in der Admin-UI (/admin/settings) gesetzt werden —
-      # DB-Setting überschreibt diese Env-Variable.
+      # --- Base ---------------------------------------------------------------
+      # Public URL (e.g. via Cloudflare Tunnel / reverse proxy).
+      # When empty the web UI falls back to the request host (LAN mode).
+      # Can also be set at runtime in the admin UI (/admin/settings) —
+      # the DB setting overrides this env var.
       MCP_PUBLIC_URL: ${MCP_PUBLIC_URL:-}
       MCP_LOG_LEVEL: ${MCP_LOG_LEVEL:-info}
 
-      # --- Ports im CONTAINER (nicht ändern; Mapping erfolgt unter `ports:`) --
+      # --- CONTAINER ports (do not change; mapping is under `ports:`) --------
       WEB_PORT: 8080
       MCP_PORT: 8765
       CAPTURE_PORT: 8775
 
-      # --- Capture-Server (optional) -------------------------------------------
-      # true  = eigener Server auf CAPTURE_PORT (8775) — nur nötig, wenn
-      #         Webhooks von außen auf einem separaten Port ankommen sollen.
-      # false = Webhooks laufen über MCP_PORT (8765). [Default]
+      # --- Capture server (optional) ------------------------------------------
+      # true  = dedicated server on CAPTURE_PORT (8775) — only needed if
+      #         webhooks should arrive from outside on a separate port.
+      # false = webhooks go through MCP_PORT (8765). [default]
       CAPTURE_ENABLED: ${CAPTURE_ENABLED:-false}
 
-      # --- IPP/IPPS Listener (Cloud Print) -------------------------------------
-      # 0 = deaktiviert (IPP läuft nur auf WEB_PORT). 631 = Standard-IPP-Port.
+      # --- IPP/IPPS listener (cloud print) ------------------------------------
+      # 0 = disabled (IPP only runs on WEB_PORT). 631 = standard IPP port.
       IPP_PORT: ${IPP_PORT:-0}
-      # TLS-Zertifikat für IPPS (wenn IPP_PORT > 0):
+      # TLS certificate for IPPS (when IPP_PORT > 0):
       IPPS_CERTFILE: ${IPPS_CERTFILE:-}
       IPPS_KEYFILE: ${IPPS_KEYFILE:-}
 
     ports:
       # Format:  "HOST-PORT:CONTAINER-PORT"
-      # Zum Umziehen auf einen anderen Host-Port NUR die linke Zahl ändern.
-      - "8080:8080"       # Web-UI (Admin, Login, Dashboard)
-      - "8765:8765"       # MCP-Endpoint (Claude, OAuth, SSE)
-      - "8775:8775"       # Capture-Webhook — nur relevant wenn CAPTURE_ENABLED=true
-      # IPP/IPPS nur aktivieren, wenn IPP_PORT gesetzt ist:
+      # To move to a different host port, change ONLY the left-hand number.
+      - "8080:8080"       # web UI (admin, login, dashboard)
+      - "8765:8765"       # MCP endpoint (Claude, OAuth, SSE)
+      - "8775:8775"       # capture webhook — only relevant when CAPTURE_ENABLED=true
+      # IPP/IPPS only when IPP_PORT is set:
       # - "631:631"
 
     volumes:
-      # Persistente Daten: SQLite-DB, Fernet-Key, Session-Key, Report-Templates
+      # Persistent data: SQLite DB, Fernet key, session key, report templates
       - printix-data:/data
-      # Optional: TLS-Zertifikate für IPPS einblenden (read-only)
+      # Optional: mount TLS certificates for IPPS (read-only)
       # - ./certs:/certs:ro
 
     healthcheck:
@@ -82,9 +82,9 @@ services:
 
 volumes:
   printix-data:
-    # Wenn du einen Host-Pfad statt eines Named Volumes willst, ersetze oben
-    # "printix-data:/data" durch "./data:/data" und lösche diesen volumes:-Block.
-    # Wichtig bei Bind-Mount: Ownership 1000:1000 setzen, sonst kann der
-    # Container nicht schreiben:
+    # If you want a host path instead of a named volume, replace the volume
+    # mount above ("printix-data:/data") with "./data:/data" and drop this
+    # volumes: block. Important with bind mounts: set ownership 1000:1000,
+    # otherwise the container cannot write:
     #   mkdir -p ./data && sudo chown -R 1000:1000 ./data
     driver: local

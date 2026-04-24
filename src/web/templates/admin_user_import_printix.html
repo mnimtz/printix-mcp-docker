@@ -1,0 +1,146 @@
+{% extends "base.html" %}
+{% block title %}Aus Printix importieren — {{ _('brand_console_name') }}{% endblock %}
+{% block content %}
+<div class="container">
+  <div class="card">
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; flex-wrap:wrap; gap:10px;">
+      <div>
+        <div class="section-title">📥 Aus Printix importieren</div>
+        <div class="section-sub">
+          Wählt User aus der Printix-Cloud aus und legt sie direkt als lokale
+          Accounts an — optional mit Einladungsmail.
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <a href="/admin/users" class="btn btn-secondary btn-sm">← Benutzerliste</a>
+      </div>
+    </div>
+
+    {% if load_error %}
+      <div class="alert alert-error" style="margin-bottom:16px;">
+        ⚠ Printix-Liste konnte nicht geladen werden: {{ load_error }}
+      </div>
+    {% endif %}
+
+    {% if summary %}
+      <div class="alert {% if summary.failed %}alert-warning{% else %}alert-success{% endif %}" style="margin-bottom:16px;">
+        <strong>Ergebnis:</strong>
+        {{ summary.ok }} angelegt, {{ summary.skipped }} übersprungen,
+        {{ summary.failed }} Fehler, {{ summary.mail_sent }} Einladungsmails versendet.
+      </div>
+    {% endif %}
+
+    {% if results %}
+      <div style="overflow-x:auto;margin-bottom:20px;">
+        <table>
+          <thead>
+            <tr>
+              <th>E-Mail</th>
+              <th>Benutzername</th>
+              <th>Status</th>
+              <th>Detail</th>
+              <th>Temp-Passwort</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for r in results %}
+              <tr>
+                <td>{{ r.email or '—' }}</td>
+                <td>{{ r.username or '—' }}</td>
+                <td>
+                  {% if r.status == 'ok' %}<span class="badge badge-green">✓ OK</span>
+                  {% elif r.status == 'skipped' %}<span class="badge badge-yellow">übersprungen</span>
+                  {% else %}<span class="badge badge-red">Fehler</span>{% endif %}
+                </td>
+                <td style="font-size:.9em;">{{ r.detail }}</td>
+                <td style="font-family:monospace;font-size:.85em;">{{ r.temp_password or '' }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% endif %}
+
+    {% if importable %}
+      <form method="post" action="/admin/users/import-printix">
+        <div style="display:flex; gap:16px; flex-wrap:wrap; align-items:flex-end; margin-bottom:16px;">
+          <div>
+            <label style="font-weight:600;display:block;margin-bottom:4px;">Rolle der neuen User</label>
+            <select name="local_role" class="form-control">
+              <option value="employee" selected>Mitarbeiter</option>
+              <option value="admin">Administrator</option>
+            </select>
+          </div>
+          <div>
+            <label style="font-weight:600;display:block;margin-bottom:4px;">Sprache der Einladungsmail</label>
+            <select name="invite_lang" class="form-control">
+              <option value="de" selected>Deutsch</option>
+              <option value="en">English</option>
+            </select>
+          </div>
+          <div style="padding-bottom:6px;">
+            <label style="font-weight:600;">
+              <input type="checkbox" name="send_invitation" value="1" checked>
+              Einladungsmail mit Temp-Passwort senden
+            </label>
+          </div>
+        </div>
+
+        <div style="margin-bottom:12px;">
+          <label style="font-weight:600;">
+            <input type="checkbox" id="select-all" onchange="document.querySelectorAll('input.import-row').forEach(cb => cb.checked = this.checked);">
+            Alle auswählen ({{ importable|length }})
+          </label>
+        </div>
+
+        <div style="overflow-x:auto;max-height:60vh;overflow-y:auto;border:1px solid #e5e7eb;border-radius:6px;">
+          <table style="margin:0;">
+            <thead style="position:sticky;top:0;background:#f9fafb;">
+              <tr>
+                <th style="width:40px;"></th>
+                <th>Name</th>
+                <th>E-Mail</th>
+                <th>Printix-Rolle</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for r in importable %}
+                <tr>
+                  <td><input type="checkbox" class="import-row" name="selected_ids" value="{{ r.id }}"></td>
+                  <td><strong>{{ r.full_name }}</strong></td>
+                  <td>{{ r.email or '—' }}</td>
+                  <td>
+                    {% if r.role == 'GUEST_USER' %}
+                      <span class="badge badge-yellow">GUEST</span>
+                    {% else %}
+                      <span class="badge badge-blue">USER</span>
+                    {% endif %}
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+
+        <div style="margin-top:16px; display:flex; gap:8px;">
+          <button type="submit" class="btn btn-primary">📥 Ausgewählte importieren</button>
+          <a href="/admin/users" class="btn btn-secondary">Abbrechen</a>
+        </div>
+
+        <p style="color:#6b7280;font-size:.85em;margin-top:12px;">
+          Hinweis: Beim Import wird ein Benutzername aus dem lokalen Teil der
+          E-Mail gebildet und ein temporäres Passwort generiert. Ist die
+          Option oben aktiviert und SMTP konfiguriert, bekommt der User das
+          Passwort per Mail. Andernfalls erscheint es in der Ergebnisliste.
+        </p>
+      </form>
+    {% elif not load_error %}
+      <div class="alert alert-info">
+        Keine importierbaren Printix-User gefunden — entweder sind alle
+        bereits angelegt oder der Tenant enthält keine User vom Typ USER /
+        GUEST_USER.
+      </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

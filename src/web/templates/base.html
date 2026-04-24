@@ -596,9 +596,8 @@
               <a href="/capture">{{ _('nav_capture') }}</a>
               <a href="/logs">{{ _('nav_logs') }}</a>
               <a href="/help">{{ _('nav_help') }}</a>
-              {# v6.7.29: Feedback in Roadmap-Suggestions integriert. Nav-Link entfernt;
-                 Routen /feedback bleiben für Bestandsdaten erreichbar via direkt-URL. #}
-              <a href="/roadmap">{{ _('nav_roadmap') }}</a>
+              {# v7.0.0: Roadmap-Nav-Link ausgeblendet. Routen /roadmap bleiben
+                 für Bestandsdaten via direkt-URL erreichbar. #}
               <a href="/logout">{{ _('nav_logout') }}</a>
             {% endif %}
           {% else %}
@@ -654,8 +653,7 @@
         <a href="/capture"   onclick="closeMobileMenu()">📥 {{ _('nav_capture') }}</a>
         <a href="/logs"      onclick="closeMobileMenu()">📋 {{ _('nav_logs') }}</a>
         <a href="/help"      onclick="closeMobileMenu()">❓ {{ _('nav_help') }}</a>
-        {# v6.7.29: Feedback in Roadmap integriert — Mobile-Nav-Link weg. #}
-        <a href="/roadmap"   onclick="closeMobileMenu()">🗺️ {{ _('nav_roadmap') }}</a>
+        {# v7.0.0: Roadmap-Nav-Link ausgeblendet (Mobile). #}
         <a href="/logout"    onclick="closeMobileMenu()">🚪 {{ _('nav_logout') }}</a>
       {% endif %}
     {% else %}

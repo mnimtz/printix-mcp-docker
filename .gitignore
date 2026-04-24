@@ -1,7 +1,7 @@
-# Environment (enthält ggf. Secrets/PUBLIC_URLs)
+# Environment (may contain secrets / public URLs)
 .env
 
-# Persistente Daten (gehört NIE ins Repo)
+# Persistent data (never goes into the repo)
 data/
 certs/
 
@@ -17,17 +17,20 @@ env/
 .mypy_cache/
 .ruff_cache/
 
-# OS / Editor
+# OS / editor
 .DS_Store
 .vscode/
 .idea/
 *.swp
 *~
 
-# Logs / temporäre Files
+# Logs / temp files
 *.log
 *.sqlite*
 *.bak
 
-# Das Backup-Verzeichnis ist nur lokale Referenz — nicht ins neue Repo
+# HA add-on backup directory — local reference only, not part of the new repo
 backup_HA/
+
+# Claude Code local memory (agent guidance, not for public consumption)
+memory/

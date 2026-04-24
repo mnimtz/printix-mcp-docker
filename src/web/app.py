@@ -2315,6 +2315,227 @@ def create_app(session_secret: str) -> FastAPI:
             **tc,
         })
 
+    # ── Printix-Direkt-Import (Admin) ────────────────────────────────────────
+    # Lädt die User aus der Printix-API, filtert bereits angelegte raus und
+    # zeigt eine Checkbox-Liste an. Admin wählt aus, Klick → lokale User
+    # werden per create_invited_user angelegt (optional mit Einladungsmail).
+    def _list_importable_printix_users_admin(admin: dict) -> tuple[list[dict], str]:
+        try:
+            from db import get_tenant_full_by_user_id, get_all_users
+            tenant = get_tenant_full_by_user_id(admin["id"]) or {}
+            if not tenant.get("printix_tenant_id"):
+                return [], "Kein Printix-Tenant konfiguriert."
+            client = _make_printix_client(tenant)
+
+            existing = get_all_users()
+            existing_emails = {(u.get("email") or "").strip().lower() for u in existing if u.get("email")}
+            existing_pxids = {(u.get("printix_user_id") or "").strip() for u in existing if u.get("printix_user_id")}
+
+            seen: set[str] = set()
+            rows: list[dict] = []
+            for role in ("USER", "GUEST_USER"):
+                try:
+                    raw = client.list_users(role=role, page=0, page_size=500)
+                except Exception as e:
+                    logger.warning("Printix list_users(%s) fehlgeschlagen: %s", role, e)
+                    continue
+                items: list[dict] = []
+                if isinstance(raw, dict):
+                    items = raw.get("users") or raw.get("content") or raw.get("items") or []
+                elif isinstance(raw, list):
+                    items = raw
+                for item in items:
+                    if not isinstance(item, dict):
+                        continue
+                    pxid = (item.get("id") or "").strip()
+                    email = (item.get("email") or item.get("userPrincipalName") or "").strip()
+                    if not pxid or pxid in seen:
+                        continue
+                    if pxid in existing_pxids:
+                        continue
+                    if email and email.lower() in existing_emails:
+                        continue
+                    seen.add(pxid)
+                    full_name = (
+                        item.get("fullName") or item.get("name")
+                        or item.get("displayName") or email or pxid
+                    )
+                    rows.append({
+                        "id": pxid,
+                        "email": email,
+                        "full_name": full_name,
+                        "role": role,
+                    })
+            rows.sort(key=lambda r: ((r.get("full_name") or "").lower(),
+                                      (r.get("email") or "").lower()))
+            return rows, ""
+        except Exception as e:
+            logger.warning("Printix-Direktimport-Liste fehlgeschlagen: %s", e)
+            return [], str(e)
+
+    @app.get("/admin/users/import-printix", response_class=HTMLResponse)
+    async def admin_import_printix_get(request: Request):
+        admin = get_session_user(request)
+        if not admin or not admin.get("is_admin"):
+            return RedirectResponse("/login", status_code=302)
+        rows, err = _list_importable_printix_users_admin(admin)
+        return templates.TemplateResponse("admin_user_import_printix.html", {
+            "request": request, "user": admin,
+            "importable": rows, "load_error": err,
+            "results": None, "summary": None,
+            **t_ctx(request),
+        })
+
+    @app.post("/admin/users/import-printix", response_class=HTMLResponse)
+    async def admin_import_printix_post(
+        request:         Request,
+        selected_ids:    list[str] = Form(default=[]),
+        local_role:      str       = Form(default="employee"),
+        send_invitation: str       = Form(default=""),
+        invite_lang:     str       = Form(default="de"),
+    ):
+        admin = get_session_user(request)
+        if not admin or not admin.get("is_admin"):
+            return RedirectResponse("/login", status_code=302)
+        tc = t_ctx(request)
+
+        want_invite = bool(send_invitation)
+        if local_role not in ("admin", "employee"):
+            local_role = "employee"
+
+        # Printix-Liste frisch holen, um die Auswahl gegen aktuelle Daten zu
+        # validieren (Name, E-Mail).
+        importable, load_err = _list_importable_printix_users_admin(admin)
+        by_id = {r["id"]: r for r in importable}
+
+        # Mail-Ressourcen nur einmal vorbereiten
+        tenant_full = {}
+        mail_ready = False
+        if want_invite:
+            try:
+                from db import get_tenant_full_by_user_id
+                tenant_full = get_tenant_full_by_user_id(admin["id"]) or {}
+                mail_ready = bool(tenant_full.get("mail_api_key") and tenant_full.get("mail_from"))
+            except Exception:
+                tenant_full = {}
+
+        from db import create_invited_user, username_exists, update_user, audit
+
+        def _mk_username(full_name: str, email: str, pxid: str) -> str:
+            base = ""
+            if email and "@" in email:
+                base = email.split("@", 1)[0]
+            elif full_name:
+                base = full_name.strip().replace(" ", ".").lower()
+            else:
+                base = "user-" + pxid[:8]
+            base = "".join(c for c in base if c.isalnum() or c in "._-").strip("._-") or "user"
+            candidate = base
+            i = 1
+            try:
+                while username_exists(candidate):
+                    i += 1
+                    candidate = f"{base}{i}"
+                    if i > 500:
+                        break
+            except Exception:
+                pass
+            return candidate
+
+        results: list[dict] = []
+        summary = {"ok": 0, "skipped": 0, "failed": 0, "mail_sent": 0}
+
+        for pxid in (selected_ids or []):
+            row = by_id.get(pxid)
+            if not row:
+                results.append({"pxid": pxid, "email": "", "username": "",
+                                "status": "skipped",
+                                "detail": "Nicht in aktueller Printix-Liste gefunden"})
+                summary["skipped"] += 1
+                continue
+
+            email = (row.get("email") or "").strip()
+            full_name = (row.get("full_name") or "").strip()
+            if not email:
+                results.append({"pxid": pxid, "email": "", "username": "",
+                                "status": "skipped",
+                                "detail": "Kein E-Mail-Feld in Printix"})
+                summary["skipped"] += 1
+                continue
+
+            username = _mk_username(full_name, email, pxid)
+            temp_password = _generate_temp_password()
+            created = None
+            notes: list[str] = []
+            try:
+                created = create_invited_user(
+                    username=username,
+                    password=temp_password,
+                    email=email,
+                    full_name=full_name,
+                    invited_by_user_id=admin["id"],
+                    invitation_language=invite_lang.strip() or "de",
+                    role_type=local_role,
+                    printix_user_id=pxid,
+                )
+            except Exception as e:
+                results.append({"pxid": pxid, "email": email, "username": username,
+                                "status": "failed",
+                                "detail": f"Anlage fehlgeschlagen: {e}"})
+                summary["failed"] += 1
+                continue
+
+            if want_invite:
+                if not mail_ready:
+                    notes.append("Mail übersprungen (nicht konfiguriert)")
+                else:
+                    try:
+                        from invite_mail import render_invitation_email
+                        from reporting.mail_client import send_report
+                        login_url = f"{_get_base_url(request)}/login"
+                        subject, html_body = render_invitation_email(
+                            lang=invite_lang.strip() or "de",
+                            full_name=full_name,
+                            username=username,
+                            password=temp_password,
+                            login_url=login_url,
+                        )
+                        send_report(
+                            recipients=[email],
+                            subject=subject,
+                            html_body=html_body,
+                            api_key=tenant_full.get("mail_api_key", ""),
+                            mail_from=tenant_full.get("mail_from", ""),
+                            mail_from_name=tenant_full.get("mail_from_name", "") or "Printix Management Console",
+                        )
+                        summary["mail_sent"] += 1
+                        notes.append("Einladung gesendet")
+                    except Exception as e:
+                        logger.error("Printix-Import Mail-Fehler für %s: %s", email, e)
+                        notes.append(f"Mail-Fehler: {e}")
+
+            results.append({"pxid": pxid, "email": email, "username": username,
+                            "status": "ok",
+                            "detail": "; ".join(notes) if notes else "angelegt",
+                            "temp_password": temp_password if not want_invite else ""})
+            summary["ok"] += 1
+
+        try:
+            audit(admin["id"], "import_printix_users",
+                  f"Printix-Direktimport: {summary['ok']} ok, {summary['skipped']} skipped, {summary['failed']} failed",
+                  object_type="user", object_id="")
+        except Exception:
+            pass
+
+        # frische Liste der verbliebenen Printix-User (nach Import)
+        importable_after, _ = _list_importable_printix_users_admin(admin)
+        return templates.TemplateResponse("admin_user_import_printix.html", {
+            "request": request, "user": admin,
+            "importable": importable_after, "load_error": load_err,
+            "results": results, "summary": summary,
+            **tc,
+        })
+
     @app.post("/admin/users/{user_id}/disable")
     async def admin_disable(user_id: str, request: Request):
         admin = get_session_user(request)
