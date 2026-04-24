@@ -383,6 +383,84 @@ def init_db() -> None:
         if "index_fields_json" not in existing_cols:
             conn.execute("ALTER TABLE capture_profiles ADD COLUMN index_fields_json TEXT NOT NULL DEFAULT '[]'")
 
+    # v7.1.0: Guest-Print — E-Mail-basierter Secure-Print-Flow fuer Gaeste.
+    # Ein ueberwachtes Outlook/Exchange-Postfach (via Entra App-Permissions,
+    # Mail.ReadWrite) wird gepollt; Anhaenge von gelisteten Gast-Absendern
+    # werden an die konfigurierte Printix-Queue geschickt, Owner via
+    # change_job_owner auf den Gast umgeschrieben. Guest-User werden in
+    # Printix als GUEST_USER mit expirationTimestamp angelegt (Timebomb).
+    with _conn() as conn:
+        conn.executescript("""
+            CREATE TABLE IF NOT EXISTS guestprint_mailbox (
+                id                   TEXT PRIMARY KEY,
+                tenant_id            TEXT NOT NULL REFERENCES tenants(id),
+                name                 TEXT NOT NULL DEFAULT '',
+                upn                  TEXT NOT NULL,
+                default_printer_id   TEXT NOT NULL DEFAULT '',
+                default_queue_id     TEXT NOT NULL DEFAULT '',
+                poll_interval_sec    INTEGER NOT NULL DEFAULT 60,
+                folder_processed     TEXT NOT NULL DEFAULT 'GuestPrint/Processed',
+                folder_skipped       TEXT NOT NULL DEFAULT 'GuestPrint/Skipped',
+                max_attachment_bytes INTEGER NOT NULL DEFAULT 26214400,
+                enabled              INTEGER NOT NULL DEFAULT 1,
+                last_poll_at         TEXT NOT NULL DEFAULT '',
+                last_error           TEXT NOT NULL DEFAULT '',
+                created_at           TEXT NOT NULL,
+                updated_at           TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_guestprint_mailbox_tenant
+                ON guestprint_mailbox (tenant_id);
+
+            CREATE TABLE IF NOT EXISTS guestprint_guest (
+                id                   TEXT PRIMARY KEY,
+                mailbox_id           TEXT NOT NULL
+                                     REFERENCES guestprint_mailbox(id)
+                                     ON DELETE CASCADE,
+                sender_email         TEXT NOT NULL,
+                full_name            TEXT NOT NULL DEFAULT '',
+                printix_user_id      TEXT NOT NULL DEFAULT '',
+                printix_guest_email  TEXT NOT NULL DEFAULT '',
+                printer_id           TEXT NOT NULL DEFAULT '',
+                queue_id             TEXT NOT NULL DEFAULT '',
+                expiration_days      INTEGER NOT NULL DEFAULT 7,
+                expires_at           TEXT NOT NULL DEFAULT '',
+                enabled              INTEGER NOT NULL DEFAULT 1,
+                last_match_at        TEXT NOT NULL DEFAULT '',
+                created_at           TEXT NOT NULL,
+                updated_at           TEXT NOT NULL
+            );
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_guestprint_guest_unique
+                ON guestprint_guest (mailbox_id, sender_email);
+            CREATE INDEX IF NOT EXISTS idx_guestprint_guest_printix
+                ON guestprint_guest (printix_user_id);
+
+            CREATE TABLE IF NOT EXISTS guestprint_job (
+                id                   INTEGER PRIMARY KEY AUTOINCREMENT,
+                mailbox_id           TEXT NOT NULL,
+                guest_id             TEXT NOT NULL DEFAULT '',
+                message_id           TEXT NOT NULL,
+                sender_email         TEXT NOT NULL DEFAULT '',
+                subject              TEXT NOT NULL DEFAULT '',
+                attachment_name      TEXT NOT NULL DEFAULT '',
+                attachment_bytes     INTEGER NOT NULL DEFAULT 0,
+                printix_job_id       TEXT NOT NULL DEFAULT '',
+                status               TEXT NOT NULL DEFAULT 'pending',
+                error                TEXT NOT NULL DEFAULT '',
+                created_at           TEXT NOT NULL,
+                updated_at           TEXT NOT NULL
+            );
+            -- (mailbox, message, attachment) als Idempotenz-Key:
+            -- eine Mail mit N Anhaengen ergibt N Jobs, aber der gleiche
+            -- Anhang darf nicht zweimal gedruckt werden (z.B. Crash
+            -- zwischen Print und Folder-Move).
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_guestprint_job_dedupe
+                ON guestprint_job (mailbox_id, message_id, attachment_name);
+            CREATE INDEX IF NOT EXISTS idx_guestprint_job_mailbox_created
+                ON guestprint_job (mailbox_id, created_at DESC);
+            CREATE INDEX IF NOT EXISTS idx_guestprint_job_status
+                ON guestprint_job (status, created_at DESC);
+        """)
+
     logger.info("DB initialisiert: %s", DB_PATH)
 
 
@@ -1779,6 +1857,356 @@ def add_capture_log(
     if details:
         full_msg += f" | {details[:500]}"
     add_tenant_log(tenant_id, "INFO" if status == "ok" else "ERROR", "CAPTURE", full_msg)
+
+
+# ─── Guest-Print (v7.1.0) ─────────────────────────────────────────────────────
+#
+# Drei Tabellen:
+#   guestprint_mailbox — ein ueberwachtes Outlook/Exchange-Postfach (UPN)
+#   guestprint_guest   — Gast-Allowlist pro Postfach (sender_email UNIQUE)
+#   guestprint_job     — Verarbeitungslog, Idempotenz via
+#                        (mailbox_id, message_id, attachment_name) UNIQUE
+#
+# Keine Secrets in den Feldern — die Entra-App-Credentials liegen bereits
+# global in settings (entra_*), der Graph-Access-Token wird in-memory
+# gecached. Deshalb hier kein _enc()/_dec().
+
+# --- Mailbox ---
+
+def create_guestprint_mailbox(
+    tenant_id: str,
+    upn: str,
+    name: str = "",
+    default_printer_id: str = "",
+    default_queue_id: str = "",
+    poll_interval_sec: int = 60,
+    folder_processed: str = "GuestPrint/Processed",
+    folder_skipped: str = "GuestPrint/Skipped",
+    max_attachment_bytes: int = 26214400,
+    enabled: bool = True,
+) -> dict:
+    """Legt ein neues ueberwachtes Postfach an."""
+    mid = str(uuid.uuid4())
+    now = _now()
+    with _conn() as conn:
+        conn.execute("""
+            INSERT INTO guestprint_mailbox
+                (id, tenant_id, name, upn, default_printer_id, default_queue_id,
+                 poll_interval_sec, folder_processed, folder_skipped,
+                 max_attachment_bytes, enabled, created_at, updated_at)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
+        """, (
+            mid, tenant_id, (name or upn).strip(), upn.strip().lower(),
+            default_printer_id, default_queue_id,
+            int(poll_interval_sec), folder_processed, folder_skipped,
+            int(max_attachment_bytes), 1 if enabled else 0, now, now,
+        ))
+    return get_guestprint_mailbox(mid)
+
+
+def get_guestprint_mailbox(mailbox_id: str) -> Optional[dict]:
+    with _conn() as conn:
+        row = conn.execute(
+            "SELECT * FROM guestprint_mailbox WHERE id = ?", (mailbox_id,)
+        ).fetchone()
+    return _mailbox_row(row) if row else None
+
+
+def list_guestprint_mailboxes(tenant_id: str, only_enabled: bool = False) -> list[dict]:
+    q = "SELECT * FROM guestprint_mailbox WHERE tenant_id = ?"
+    params: list = [tenant_id]
+    if only_enabled:
+        q += " AND enabled = 1"
+    q += " ORDER BY created_at ASC"
+    with _conn() as conn:
+        rows = conn.execute(q, params).fetchall()
+    return [_mailbox_row(r) for r in rows]
+
+
+def update_guestprint_mailbox(mailbox_id: str, **fields) -> Optional[dict]:
+    """Aktualisiert ein Mailbox-Setting. Erlaubt: name, upn, default_printer_id,
+    default_queue_id, poll_interval_sec, folder_processed, folder_skipped,
+    max_attachment_bytes, enabled, last_poll_at, last_error."""
+    allowed = {
+        "name", "upn", "default_printer_id", "default_queue_id",
+        "poll_interval_sec", "folder_processed", "folder_skipped",
+        "max_attachment_bytes", "enabled", "last_poll_at", "last_error",
+    }
+    parts, params = [], []
+    for k, v in fields.items():
+        if k not in allowed:
+            continue
+        if k == "enabled":
+            v = 1 if v else 0
+        elif k in ("poll_interval_sec", "max_attachment_bytes"):
+            v = int(v)
+        elif k == "upn" and isinstance(v, str):
+            v = v.strip().lower()
+        parts.append(f"{k}=?"); params.append(v)
+    if not parts:
+        return get_guestprint_mailbox(mailbox_id)
+    parts.append("updated_at=?"); params.append(_now())
+    params.append(mailbox_id)
+    with _conn() as conn:
+        conn.execute(
+            f"UPDATE guestprint_mailbox SET {', '.join(parts)} WHERE id = ?", params
+        )
+    return get_guestprint_mailbox(mailbox_id)
+
+
+def delete_guestprint_mailbox(mailbox_id: str) -> bool:
+    # ON DELETE CASCADE auf guestprint_guest wuerde funktionieren, wenn
+    # PRAGMA foreign_keys=ON — haben wir. Jobs bleiben erhalten (historisch).
+    with _conn() as conn:
+        cur = conn.execute("DELETE FROM guestprint_mailbox WHERE id = ?", (mailbox_id,))
+    return cur.rowcount > 0
+
+
+def _mailbox_row(row) -> dict:
+    d = dict(row)
+    return {
+        "id":                   d["id"],
+        "tenant_id":            d["tenant_id"],
+        "name":                 d.get("name", ""),
+        "upn":                  d.get("upn", ""),
+        "default_printer_id":   d.get("default_printer_id", ""),
+        "default_queue_id":     d.get("default_queue_id", ""),
+        "poll_interval_sec":    int(d.get("poll_interval_sec") or 60),
+        "folder_processed":     d.get("folder_processed", "GuestPrint/Processed"),
+        "folder_skipped":       d.get("folder_skipped", "GuestPrint/Skipped"),
+        "max_attachment_bytes": int(d.get("max_attachment_bytes") or 26214400),
+        "enabled":              bool(d.get("enabled", 0)),
+        "last_poll_at":         d.get("last_poll_at", ""),
+        "last_error":           d.get("last_error", ""),
+        "created_at":           d["created_at"],
+        "updated_at":           d["updated_at"],
+    }
+
+
+# --- Guest ---
+
+def create_guestprint_guest(
+    mailbox_id: str,
+    sender_email: str,
+    full_name: str = "",
+    printix_user_id: str = "",
+    printix_guest_email: str = "",
+    printer_id: str = "",
+    queue_id: str = "",
+    expiration_days: int = 7,
+    expires_at: str = "",
+    enabled: bool = True,
+) -> dict:
+    """Legt einen Gast in der Allowlist an. (mailbox_id, sender_email) ist UNIQUE."""
+    gid = str(uuid.uuid4())
+    now = _now()
+    with _conn() as conn:
+        conn.execute("""
+            INSERT INTO guestprint_guest
+                (id, mailbox_id, sender_email, full_name,
+                 printix_user_id, printix_guest_email, printer_id, queue_id,
+                 expiration_days, expires_at, enabled, created_at, updated_at)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
+        """, (
+            gid, mailbox_id, sender_email.strip().lower(), full_name.strip(),
+            printix_user_id, printix_guest_email.strip().lower(),
+            printer_id, queue_id,
+            int(expiration_days), expires_at,
+            1 if enabled else 0, now, now,
+        ))
+    return get_guestprint_guest(gid)
+
+
+def get_guestprint_guest(guest_id: str) -> Optional[dict]:
+    with _conn() as conn:
+        row = conn.execute(
+            "SELECT * FROM guestprint_guest WHERE id = ?", (guest_id,)
+        ).fetchone()
+    return _guest_row(row) if row else None
+
+
+def find_guestprint_guest_by_sender(mailbox_id: str, sender_email: str) -> Optional[dict]:
+    """Exact-Match-Lookup fuer den Mail-Poller."""
+    if not sender_email:
+        return None
+    with _conn() as conn:
+        row = conn.execute(
+            "SELECT * FROM guestprint_guest "
+            "WHERE mailbox_id = ? AND sender_email = ? AND enabled = 1",
+            (mailbox_id, sender_email.strip().lower()),
+        ).fetchone()
+    return _guest_row(row) if row else None
+
+
+def list_guestprint_guests(mailbox_id: str) -> list[dict]:
+    with _conn() as conn:
+        rows = conn.execute(
+            "SELECT * FROM guestprint_guest WHERE mailbox_id = ? "
+            "ORDER BY sender_email ASC",
+            (mailbox_id,),
+        ).fetchall()
+    return [_guest_row(r) for r in rows]
+
+
+def update_guestprint_guest(guest_id: str, **fields) -> Optional[dict]:
+    allowed = {
+        "sender_email", "full_name", "printix_user_id", "printix_guest_email",
+        "printer_id", "queue_id", "expiration_days", "expires_at",
+        "enabled", "last_match_at",
+    }
+    parts, params = [], []
+    for k, v in fields.items():
+        if k not in allowed:
+            continue
+        if k == "enabled":
+            v = 1 if v else 0
+        elif k == "expiration_days":
+            v = int(v)
+        elif k in ("sender_email", "printix_guest_email") and isinstance(v, str):
+            v = v.strip().lower()
+        parts.append(f"{k}=?"); params.append(v)
+    if not parts:
+        return get_guestprint_guest(guest_id)
+    parts.append("updated_at=?"); params.append(_now())
+    params.append(guest_id)
+    with _conn() as conn:
+        conn.execute(
+            f"UPDATE guestprint_guest SET {', '.join(parts)} WHERE id = ?", params
+        )
+    return get_guestprint_guest(guest_id)
+
+
+def delete_guestprint_guest(guest_id: str) -> bool:
+    with _conn() as conn:
+        cur = conn.execute("DELETE FROM guestprint_guest WHERE id = ?", (guest_id,))
+    return cur.rowcount > 0
+
+
+def _guest_row(row) -> dict:
+    d = dict(row)
+    return {
+        "id":                  d["id"],
+        "mailbox_id":          d["mailbox_id"],
+        "sender_email":        d.get("sender_email", ""),
+        "full_name":           d.get("full_name", ""),
+        "printix_user_id":     d.get("printix_user_id", ""),
+        "printix_guest_email": d.get("printix_guest_email", ""),
+        "printer_id":          d.get("printer_id", ""),
+        "queue_id":            d.get("queue_id", ""),
+        "expiration_days":     int(d.get("expiration_days") or 7),
+        "expires_at":          d.get("expires_at", ""),
+        "enabled":             bool(d.get("enabled", 0)),
+        "last_match_at":       d.get("last_match_at", ""),
+        "created_at":          d["created_at"],
+        "updated_at":          d["updated_at"],
+    }
+
+
+# --- Job ---
+
+def create_guestprint_job(
+    mailbox_id: str,
+    message_id: str,
+    attachment_name: str,
+    guest_id: str = "",
+    sender_email: str = "",
+    subject: str = "",
+    attachment_bytes: int = 0,
+    status: str = "pending",
+) -> Optional[dict]:
+    """Legt einen Job-Eintrag an. Bei Duplikat (mailbox, message, attachment)
+    wird der bestehende Eintrag zurueckgegeben — Idempotenz fuer den Poller.
+    """
+    now = _now()
+    try:
+        with _conn() as conn:
+            cur = conn.execute("""
+                INSERT INTO guestprint_job
+                    (mailbox_id, guest_id, message_id, sender_email, subject,
+                     attachment_name, attachment_bytes, status, created_at, updated_at)
+                VALUES (?,?,?,?,?,?,?,?,?,?)
+            """, (
+                mailbox_id, guest_id, message_id,
+                (sender_email or "").strip().lower(), subject or "",
+                attachment_name or "", int(attachment_bytes or 0),
+                status, now, now,
+            ))
+            jid = cur.lastrowid
+        return get_guestprint_job(jid)
+    except sqlite3.IntegrityError:
+        with _conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM guestprint_job "
+                "WHERE mailbox_id = ? AND message_id = ? AND attachment_name = ?",
+                (mailbox_id, message_id, attachment_name or ""),
+            ).fetchone()
+        return _job_row(row) if row else None
+
+
+def get_guestprint_job(job_id: int) -> Optional[dict]:
+    with _conn() as conn:
+        row = conn.execute(
+            "SELECT * FROM guestprint_job WHERE id = ?", (job_id,)
+        ).fetchone()
+    return _job_row(row) if row else None
+
+
+def list_guestprint_jobs(
+    mailbox_id: str = "",
+    status: str = "",
+    limit: int = 200,
+) -> list[dict]:
+    conds, params = [], []
+    if mailbox_id:
+        conds.append("mailbox_id = ?"); params.append(mailbox_id)
+    if status:
+        conds.append("status = ?"); params.append(status)
+    where = f"WHERE {' AND '.join(conds)}" if conds else ""
+    params.append(int(limit))
+    with _conn() as conn:
+        rows = conn.execute(
+            f"SELECT * FROM guestprint_job {where} "
+            f"ORDER BY created_at DESC LIMIT ?",
+            params,
+        ).fetchall()
+    return [_job_row(r) for r in rows]
+
+
+def update_guestprint_job(job_id: int, **fields) -> Optional[dict]:
+    allowed = {"status", "error", "printix_job_id", "guest_id"}
+    parts, params = [], []
+    for k, v in fields.items():
+        if k not in allowed:
+            continue
+        parts.append(f"{k}=?"); params.append(v)
+    if not parts:
+        return get_guestprint_job(job_id)
+    parts.append("updated_at=?"); params.append(_now())
+    params.append(job_id)
+    with _conn() as conn:
+        conn.execute(
+            f"UPDATE guestprint_job SET {', '.join(parts)} WHERE id = ?", params
+        )
+    return get_guestprint_job(job_id)
+
+
+def _job_row(row) -> dict:
+    d = dict(row)
+    return {
+        "id":               d["id"],
+        "mailbox_id":       d["mailbox_id"],
+        "guest_id":         d.get("guest_id", ""),
+        "message_id":       d.get("message_id", ""),
+        "sender_email":     d.get("sender_email", ""),
+        "subject":          d.get("subject", ""),
+        "attachment_name":  d.get("attachment_name", ""),
+        "attachment_bytes": int(d.get("attachment_bytes") or 0),
+        "printix_job_id":   d.get("printix_job_id", ""),
+        "status":           d.get("status", "pending"),
+        "error":            d.get("error", ""),
+        "created_at":       d["created_at"],
+        "updated_at":       d["updated_at"],
+    }
 
 
 # ─── Hilfsfunktionen ──────────────────────────────────────────────────────────
