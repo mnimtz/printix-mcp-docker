@@ -1,0 +1,165 @@
+{% extends "base.html" %}
+{% block title %}{{ _('roadmap_title') }} — Printix MCP{% endblock %}
+{% block content %}
+<div class="container">
+  <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:16px;">
+    <div>
+      <h1 style="margin:0;">🗺️ {{ _('roadmap_title') }}</h1>
+      <div style="color:#6b7280;margin-top:4px;">{{ _('roadmap_subtitle') }}</div>
+    </div>
+    <div style="display:flex;gap:8px;">
+      {% if is_admin %}
+      <a href="/roadmap/new" class="btn btn-primary">+ {{ _('roadmap_new_item') }}</a>
+      {% if pending_count %}
+      <span class="btn" style="background:#fef3c7;color:#92400e;cursor:default;border:1px solid #fbbf24;">
+        ⏳ {{ pending_count }} {{ _('roadmap_pending_waiting') }}
+      </span>
+      {% endif %}
+      {% else %}
+      <a href="/roadmap/suggest" class="btn btn-primary">💡 {{ _('roadmap_suggest_button') }}</a>
+      {% endif %}
+    </div>
+  </div>
+
+  {% if flash == 'created' %}
+  <div class="alert alert-success">✅ {{ _('roadmap_flash_created') }}</div>
+  {% elif flash == 'updated' %}
+  <div class="alert alert-success">✅ {{ _('roadmap_flash_updated') }}</div>
+  {% elif flash == 'deleted' %}
+  <div class="alert alert-success">🗑 {{ _('roadmap_flash_deleted') }}</div>
+  {% elif flash == 'voted' %}
+  <div class="alert alert-info" style="font-size:.88em;">👍 {{ _('roadmap_flash_voted') }}</div>
+  {% elif flash == 'forbidden' %}
+  <div class="alert alert-warning">🔒 {{ _('roadmap_flash_forbidden') }}</div>
+  {% elif flash == 'title_required' %}
+  <div class="alert alert-warning">⚠ {{ _('roadmap_flash_title_required') }}</div>
+  {% elif flash == 'suggested' %}
+  <div class="alert alert-success">💡 {{ _('roadmap_flash_suggested') }}</div>
+  {% elif flash == 'approved' %}
+  <div class="alert alert-success">✅ {{ _('roadmap_flash_approved') }}</div>
+  {% elif flash == 'rejected' %}
+  <div class="alert alert-info">❌ {{ _('roadmap_flash_rejected') }}</div>
+  {% endif %}
+
+  <!-- Status-Filter als Tabs -->
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px;border-bottom:1px solid #e5e7eb;padding-bottom:8px;">
+    <a href="/roadmap" class="btn {% if not status_filter %}btn-primary{% else %}btn-secondary{% endif %}" style="font-size:.85em;">
+      {{ _('roadmap_filter_all') }}
+    </a>
+    {% for s in status_values %}
+    <a href="/roadmap?status={{ s }}" class="btn {% if status_filter == s %}btn-primary{% else %}btn-secondary{% endif %}" style="font-size:.85em;">
+      {{ _('roadmap_status_' ~ s) }}
+      {% if status_counts[s] %}<span style="opacity:.7;">({{ status_counts[s] }}){% endif %}</span>
+    </a>
+    {% endfor %}
+  </div>
+
+  {% if not items %}
+  <div class="alert alert-info">{{ _('roadmap_empty') }}</div>
+  {% endif %}
+
+  {# Items-Liste #}
+  {% for it in items %}
+  <div class="card" style="margin-bottom:14px;{% if it.pending_review %}border:2px solid #fbbf24;background:#fffbeb;{% endif %}">
+    <div style="display:flex;gap:14px;align-items:flex-start;">
+      <!-- Vote-Button (links, vertikal) — für pending Items disabled -->
+      <form method="post" action="/roadmap/{{ it.id }}/vote" style="margin:0;flex-shrink:0;">
+        {% set has_voted = it.id in user_votes %}
+        <button type="submit"
+                {% if it.pending_review %}disabled{% endif %}
+                title="{% if it.pending_review %}{{ _('roadmap_pending_vote_disabled') }}{% endif %}"
+                style="display:flex;flex-direction:column;align-items:center;justify-content:center;
+                       min-width:58px;padding:10px 6px;border-radius:10px;border:1px solid {% if has_voted %}#ef4444{% else %}#d1d5db{% endif %};
+                       background:{% if has_voted %}#fef2f2{% else %}#f9fafb{% endif %};cursor:{% if it.pending_review %}not-allowed;opacity:.5{% else %}pointer{% endif %};
+                       font-size:.88em;font-weight:600;color:{% if has_voted %}#dc2626{% else %}#374151{% endif %};">
+          {% if has_voted %}❤️{% else %}🤍{% endif %}<br>
+          <span style="font-size:1.1em;margin-top:2px;">{{ it.vote_count }}</span>
+        </button>
+      </form>
+
+      <!-- Body -->
+      <div style="flex:1;min-width:0;">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+          <h3 style="margin:0;font-size:1.05em;">{{ it.title }}</h3>
+
+          {# Pending-Badge (nur wenn pending_review = 1) #}
+          {% if it.pending_review %}
+          <span style="padding:2px 10px;border-radius:999px;font-size:.72em;font-weight:700;background:#fef3c7;color:#92400e;text-transform:uppercase;letter-spacing:.03em;">
+            ⏳ {{ _('roadmap_pending_badge') }}
+          </span>
+          {% endif %}
+
+          {# Status-Badge #}
+          {% set status_colors = {
+              'idea':        ('#f3f4f6', '#374151'),
+              'planned':     ('#dbeafe', '#1e40af'),
+              'in_progress': ('#fef3c7', '#92400e'),
+              'done':        ('#d1fae5', '#065f46'),
+              'rejected':    ('#fee2e2', '#991b1b')
+          } %}
+          {% set sc = status_colors.get(it.status, ('#f3f4f6', '#374151')) %}
+          <span style="padding:2px 10px;border-radius:999px;font-size:.72em;font-weight:700;background:{{ sc[0] }};color:{{ sc[1] }};text-transform:uppercase;letter-spacing:.03em;">
+            {{ _('roadmap_status_' ~ it.status) }}
+          </span>
+
+          {# Kategorie-Badge #}
+          <span style="padding:2px 8px;border-radius:4px;font-size:.7em;background:#eef2ff;color:#3730a3;">
+            {{ _('roadmap_category_' ~ it.category) }}
+          </span>
+
+          {# Priority-Indicator #}
+          {% if it.priority == 'high' %}
+          <span style="color:#dc2626;font-size:.75em;font-weight:700;">● {{ _('roadmap_priority_high') }}</span>
+          {% elif it.priority == 'medium' %}
+          <span style="color:#d97706;font-size:.75em;font-weight:600;">● {{ _('roadmap_priority_medium') }}</span>
+          {% endif %}
+
+          {% if it.target_version %}
+          <span style="padding:2px 8px;border-radius:4px;font-size:.7em;background:#0f172a;color:#fff;font-family:ui-monospace,monospace;">
+            {{ it.target_version }}
+          </span>
+          {% endif %}
+        </div>
+
+        {% if it.description %}
+        <div style="margin-top:8px;color:#4b5563;font-size:.92em;line-height:1.5;white-space:pre-wrap;">{{ it.description }}</div>
+        {% endif %}
+
+        <div style="margin-top:10px;display:flex;gap:12px;align-items:center;font-size:.75em;color:#9ca3af;flex-wrap:wrap;">
+          <span>{{ _('roadmap_created') }}: {{ it.created_at[:10] }}</span>
+          {% if it.updated_at != it.created_at %}
+          <span>• {{ _('roadmap_updated') }}: {{ it.updated_at[:10] }}</span>
+          {% endif %}
+
+          {% if is_admin %}
+          <span style="margin-left:auto;display:flex;gap:10px;align-items:center;">
+            {% if it.pending_review %}
+              <form method="post" action="/roadmap/{{ it.id }}/approve" style="margin:0;display:inline;">
+                <button type="submit" style="border:none;background:none;color:#16a34a;cursor:pointer;padding:0;font-size:inherit;font-weight:600;">
+                  ✅ {{ _('roadmap_approve') }}
+                </button>
+              </form>
+              <form method="post" action="/roadmap/{{ it.id }}/reject" style="margin:0;display:inline;">
+                <button type="submit" style="border:none;background:none;color:#dc2626;cursor:pointer;padding:0;font-size:inherit;font-weight:600;">
+                  ❌ {{ _('roadmap_reject') }}
+                </button>
+              </form>
+            {% endif %}
+            <a href="/roadmap/{{ it.id }}/edit" style="color:#2563eb;">{{ _('roadmap_edit') }}</a>
+            <form method="post" action="/roadmap/{{ it.id }}/delete"
+                  onsubmit="return confirm('{{ _('roadmap_confirm_delete') }}');"
+                  style="margin:0;display:inline;">
+              <button type="submit" style="border:none;background:none;color:#dc2626;cursor:pointer;padding:0;font-size:inherit;">
+                {{ _('roadmap_delete') }}
+              </button>
+            </form>
+          </span>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+
+</div>
+{% endblock %}

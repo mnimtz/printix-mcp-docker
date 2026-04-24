@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+{% block title %}{{ _('feedback_title') }} — {{ _('brand_console_name') }}{% endblock %}
+{% block content %}
+<div class="container">
+  <div class="card">
+    <h2 class="section-title">💬 {{ _('feedback_title') }}</h2>
+    <p style="color:#64748b;font-size:.95em;margin-bottom:20px;">
+      {{ _('feedback_intro') }}
+    </p>
+
+    {% if flash %}
+      <div class="alert alert-success" style="margin-bottom:20px;">{{ flash }}</div>
+    {% endif %}
+
+    {# ─── Neues Ticket anlegen ────────────────────────────────── #}
+    <details open style="margin-bottom:24px;">
+      <summary style="cursor:pointer;font-weight:700;color:#2563eb;font-size:1em;padding:8px 0;">
+        ➕ {{ _('feedback_new') }}
+      </summary>
+      <form method="post" action="/feedback/new" style="margin-top:12px;">
+        <div class="form-row">
+          <label for="title">{{ _('feedback_f_title') }} *</label>
+          <input type="text" id="title" name="title" required maxlength="200"
+                 placeholder="{{ _('feedback_f_title_ph') }}">
+        </div>
+        <div class="form-row">
+          <label for="category">{{ _('feedback_f_category') }}</label>
+          <select id="category" name="category">
+            <option value="feature">💡 {{ _('feedback_cat_feature') }}</option>
+            <option value="bug">🐞 {{ _('feedback_cat_bug') }}</option>
+            <option value="question">❓ {{ _('feedback_cat_question') }}</option>
+            <option value="other">📌 {{ _('feedback_cat_other') }}</option>
+          </select>
+        </div>
+        <div class="form-row">
+          <label for="description">{{ _('feedback_f_description') }}</label>
+          <textarea id="description" name="description" rows="5" maxlength="4000"
+                    placeholder="{{ _('feedback_f_description_ph') }}"></textarea>
+        </div>
+        <div class="form-row" style="font-size:.85em;color:#64748b;">
+          {{ _('feedback_f_email') }}: <strong>{{ user.email or user.username }}</strong>
+        </div>
+        <div style="margin-top:16px;">
+          <button type="submit" class="btn btn-primary">{{ _('feedback_submit') }}</button>
+        </div>
+      </form>
+    </details>
+
+    {# ─── Liste der Tickets ───────────────────────────────────── #}
+    <h3 style="font-size:1em;font-weight:700;color:#2563eb;margin:24px 0 12px;">
+      {% if user.is_admin %}
+        📋 {{ _('feedback_all_tickets') }} ({{ tickets | length }})
+      {% else %}
+        📋 {{ _('feedback_my_tickets') }} ({{ tickets | length }})
+      {% endif %}
+    </h3>
+
+    {% if tickets %}
+      <table class="data-table" style="width:100%;font-size:.9em;">
+        <thead>
+          <tr>
+            <th>{{ _('feedback_col_ticket') }}</th>
+            <th>{{ _('feedback_col_title') }}</th>
+            <th>{{ _('feedback_col_category') }}</th>
+            {% if user.is_admin %}<th>{{ _('feedback_col_user') }}</th>{% endif %}
+            <th>{{ _('feedback_col_status') }}</th>
+            <th>{{ _('feedback_col_created') }}</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for t in tickets %}
+          <tr>
+            <td><code>{{ t.ticket_no }}</code></td>
+            <td>{{ t.title }}</td>
+            <td>
+              {% if t.category == 'feature' %}💡
+              {% elif t.category == 'bug' %}🐞
+              {% elif t.category == 'question' %}❓
+              {% else %}📌{% endif %}
+              {{ _('feedback_cat_' + t.category) if ('feedback_cat_' + t.category) else t.category }}
+            </td>
+            {% if user.is_admin %}<td><small>{{ t.user_email }}</small></td>{% endif %}
+            <td>
+              <span class="status-badge status-{{ t.status }}">
+                {{ _('feedback_status_' + t.status) }}
+              </span>
+            </td>
+            <td><small>{{ t.created_at[:10] }}</small></td>
+            <td>
+              <a href="/feedback/{{ t.id }}" class="btn btn-sm">{{ _('feedback_view') }}</a>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <p style="color:#94a3b8;font-style:italic;">{{ _('feedback_no_tickets') }}</p>
+    {% endif %}
+  </div>
+</div>
+
+<style>
+.status-badge {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 12px;
+  font-size: .8em;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.status-new         { background: #dbeafe; color: #1e40af; }
+.status-planned     { background: #fef3c7; color: #92400e; }
+.status-in_progress { background: #ddd6fe; color: #5b21b6; }
+.status-done        { background: #d1fae5; color: #065f46; }
+.status-rejected    { background: #fee2e2; color: #991b1b; }
+.status-later       { background: #e5e7eb; color: #374151; }
+.nav-badge {
+  display: inline-block;
+  min-width: 18px;
+  padding: 1px 6px;
+  margin-left: 4px;
+  background: #ef4444;
+  color: #fff;
+  border-radius: 10px;
+  font-size: .75em;
+  font-weight: 700;
+  text-align: center;
+  line-height: 1.4;
+}
+.data-table th, .data-table td { padding: 8px 10px; border-bottom: 1px solid #e5e7eb; text-align: left; }
+.data-table th { background: #f9fafb; font-weight: 700; color: #374151; }
+.btn-sm { font-size: .85em; padding: 4px 10px; }
+</style>
+{% endblock %}

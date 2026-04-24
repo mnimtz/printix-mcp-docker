@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% block title %}{{ _('tenant_tab_networks') }} — {{ _('brand_console_name') }}{% endblock %}
+{% block extra_head %}
+<style>
+  .tenant-form-grid { display:grid; grid-template-columns:minmax(0, 1.1fr) minmax(320px, .9fr); gap:16px; }
+  .tenant-form-card { border:1px solid #dbe4ef; border-radius:18px; background:#fff; padding:18px; }
+  .tenant-field-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .tenant-detail-list { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:10px 14px; }
+  .tenant-detail-list dt { font-size:.78em; color:#64748b; margin-bottom:4px; }
+  .tenant-detail-list dd { margin:0; color:#0f172a; font-weight:600; word-break:break-word; }
+  @media (max-width: 980px) { .tenant-form-grid, .tenant-field-grid { grid-template-columns:1fr; } }
+</style>
+{% endblock %}
+{% block content %}
+<div class="container" style="max-width:1480px;">
+  <div class="tenant-shell">
+    {% include "_tenant_sidebar.html" %}
+    <section class="tenant-main">
+      <div class="card tenant-main-card">
+        <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start;flex-wrap:wrap;margin-bottom:18px;">
+          <div>
+            <span class="tenant-sidebar-kicker">🌐 {{ _('tenant_tab_networks') }}</span>
+            <h2 class="section-title" style="font-size:1.35em;margin:14px 0 8px;">{{ network.get('name') if network else _('tenant_btn_create_network') }}</h2>
+            <p class="section-sub" style="margin-bottom:0;">{{ _('tenant_network_detail_sub') }}</p>
+          </div>
+          <a href="/tenant/networks" class="btn btn-secondary">← {{ _('tenant_tab_networks') }}</a>
+        </div>
+        {% if flash == 'created' %}<div class="alert alert-success">✅ {{ _('tenant_flash_created') }}</div>{% endif %}
+        {% if flash == 'updated' %}<div class="alert alert-success">✅ {{ _('tenant_flash_updated') }}</div>{% endif %}
+        {% if error %}<div class="alert alert-error">❌ {{ _(error) if error.isidentifier() else error }}</div>{% endif %}
+        <div class="tenant-form-grid">
+          {% if network %}
+          <div class="tenant-form-card">
+            <h3 style="margin:0 0 14px;">{{ _('tenant_detail_summary') }}</h3>
+            <dl class="tenant-detail-list">
+              <div><dt>{{ _('common_name') }}</dt><dd>{{ network.get('name') or '–' }}</dd></div>
+              <div><dt>{{ _('tenant_object_id') }}</dt><dd>{{ network.get('network_id') or '–' }}</dd></div>
+              <div><dt>{{ _('tenant_col_site') }}</dt><dd>{{ network_site_name or '–' }}</dd></div>
+              <div><dt>{{ _('tenant_network_subnet') }}</dt><dd>{{ network.get('subnet') or '–' }}</dd></div>
+              <div><dt>{{ _('tenant_network_migration') }}</dt><dd>{{ network.get('clientMigratePrintQueues') or '–' }}</dd></div>
+              <div><dt>{{ _('tenant_network_home_office') }}</dt><dd>{{ _('common_yes') if network.get('homeOffice') else _('common_no') }}</dd></div>
+              <div><dt>{{ _('tenant_network_airprint') }}</dt><dd>{{ _('common_yes') if network.get('airPrint') else _('common_no') }}</dd></div>
+              <div><dt>{{ _('tenant_network_gateway_ip') }}</dt><dd>{{ network.get('gatewayIpAddress') or network.get('gatewayIp') or '–' }}</dd></div>
+              <div><dt>{{ _('tenant_network_gateway_mac') }}</dt><dd>{{ network.get('gatewayMacAddress') or network.get('gatewayMac') or '–' }}</dd></div>
+            </dl>
+          </div>
+          {% endif %}
+          <div class="tenant-form-card">
+            <form method="post" action="{{ '/tenant/networks/create' if not network else '/tenant/networks/' ~ (network.get('id') or network.get('network_id') or '') }}">
+              <div class="tenant-field-grid">
+                <div><label>{{ _('common_name') }}</label><input type="text" name="name" value="{{ (network or {}).get('name', '') }}" required></div>
+                <div>
+                  <label>{{ _('tenant_tab_sites') }}</label>
+                  <select name="site_id">
+                    <option value="">{{ _('tenant_field_none') }}</option>
+                    {% for site in sites %}
+                    <option value="{{ site.get('site_id') }}" {% if (network or {}).get('siteId') == site.get('site_id') %}selected{% endif %}>{{ site.get('name') or site.get('site_id') }}</option>
+                    {% endfor %}
+                  </select>
+                </div>
+                <div><label>{{ _('tenant_network_subnet') }}</label><input type="text" name="subnet" value="{{ (network or {}).get('subnet', '') }}"></div>
+                <div>
+                  <label>{{ _('tenant_network_migration') }}</label>
+                  {% set migrate = (network or {}).get('clientMigratePrintQueues', 'GLOBAL_SETTING') %}
+                  <select name="client_migrate_print_queues">
+                    <option value="GLOBAL_SETTING" {% if migrate == 'GLOBAL_SETTING' %}selected{% endif %}>GLOBAL_SETTING</option>
+                    <option value="YES" {% if migrate == 'YES' %}selected{% endif %}>YES</option>
+                    <option value="NO" {% if migrate == 'NO' %}selected{% endif %}>NO</option>
+                  </select>
+                </div>
+              </div>
+              <div class="check-row" style="margin-top:12px;">
+                <label><input type="checkbox" name="home_office" value="1" {% if (network or {}).get('homeOffice') %}checked{% endif %}> {{ _('tenant_network_home_office') }}</label>
+                <label><input type="checkbox" name="air_print" value="1" {% if (network or {}).get('airPrint') %}checked{% endif %}> {{ _('tenant_network_airprint') }}</label>
+              </div>
+              {% if not network %}
+              <div class="tenant-field-grid" style="margin-top:12px;">
+                <div><label>{{ _('tenant_network_gateway_mac') }}</label><input type="text" name="gateway_mac"></div>
+                <div><label>{{ _('tenant_network_gateway_ip') }}</label><input type="text" name="gateway_ip"></div>
+              </div>
+              {% endif %}
+              <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:16px;">
+                <button type="submit" class="btn btn-primary">{{ _('common_save') }}</button>
+                {% if network %}
+                <button type="submit" formaction="/tenant/networks/{{ network.get('id') or network.get('network_id') }}/delete" formmethod="post" class="btn btn-secondary" onclick="return confirm('{{ _('tenant_confirm_delete') }}');">{{ _('common_delete') }}</button>
+                {% endif %}
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,95 @@
+<aside class="tenant-sidebar">
+  <div class="tenant-sidebar-card">
+    <span class="tenant-sidebar-kicker">🖨️ {{ _('nav_tenant') }}</span>
+    <h2 class="tenant-sidebar-title">{{ _('nav_tenant') }}</h2>
+    <p class="tenant-sidebar-sub">{{ _('tenant_nav_intro') }}</p>
+
+    <nav class="tenant-sidebar-nav">
+      <a href="/tenant" class="tenant-sidebar-link {% if active_tab == 'overview' %}active{% endif %}">
+        <span class="tenant-sidebar-main">
+          <span class="tenant-sidebar-icon">✨</span>
+          <span class="tenant-sidebar-copy">
+            <strong>{{ _('tenant_nav_overview') }}</strong>
+          </span>
+        </span>
+        <span class="tenant-sidebar-pill">01</span>
+      </a>
+      <a href="/tenant/printers" class="tenant-sidebar-link {% if active_tab == 'printers' %}active{% endif %}">
+        <span class="tenant-sidebar-main">
+          <span class="tenant-sidebar-icon">🖨️</span>
+          <span class="tenant-sidebar-copy">
+            <strong>{{ _('tenant_tab_printers') }}</strong>
+          </span>
+        </span>
+        <span class="tenant-sidebar-pill">02</span>
+      </a>
+      <a href="/tenant/queues" class="tenant-sidebar-link {% if active_tab == 'queues' %}active{% endif %}">
+        <span class="tenant-sidebar-main">
+          <span class="tenant-sidebar-icon">📋</span>
+          <span class="tenant-sidebar-copy">
+            <strong>{{ _('tenant_tab_queues') }}</strong>
+          </span>
+        </span>
+        <span class="tenant-sidebar-pill">03</span>
+      </a>
+      <a href="/tenant/sites" class="tenant-sidebar-link {% if active_tab == 'sites' %}active{% endif %}">
+        <span class="tenant-sidebar-main">
+          <span class="tenant-sidebar-icon">📍</span>
+          <span class="tenant-sidebar-copy">
+            <strong>{{ _('tenant_tab_sites') }}</strong>
+          </span>
+        </span>
+        <span class="tenant-sidebar-pill">04</span>
+      </a>
+      <a href="/tenant/networks" class="tenant-sidebar-link {% if active_tab == 'networks' %}active{% endif %}">
+        <span class="tenant-sidebar-main">
+          <span class="tenant-sidebar-icon">🌐</span>
+          <span class="tenant-sidebar-copy">
+            <strong>{{ _('tenant_tab_networks') }}</strong>
+          </span>
+        </span>
+        <span class="tenant-sidebar-pill">05</span>
+      </a>
+      <a href="/tenant/snmp" class="tenant-sidebar-link {% if active_tab == 'snmp' %}active{% endif %}">
+        <span class="tenant-sidebar-main">
+          <span class="tenant-sidebar-icon">📡</span>
+          <span class="tenant-sidebar-copy">
+            <strong>{{ _('tenant_tab_snmp') }}</strong>
+          </span>
+        </span>
+        <span class="tenant-sidebar-pill">06</span>
+      </a>
+      <a href="/tenant/users" class="tenant-sidebar-link {% if active_tab == 'users' %}active{% endif %}">
+        <span class="tenant-sidebar-main">
+          <span class="tenant-sidebar-icon">👤</span>
+          <span class="tenant-sidebar-copy">
+            <strong>{{ _('tenant_tab_users') }}</strong>
+          </span>
+        </span>
+        <span class="tenant-sidebar-pill">07</span>
+      </a>
+      <a href="/tenant/workstations" class="tenant-sidebar-link {% if active_tab == 'workstations' %}active{% endif %}">
+        <span class="tenant-sidebar-main">
+          <span class="tenant-sidebar-icon">💻</span>
+          <span class="tenant-sidebar-copy">
+            <strong>{{ _('tenant_tab_workstations') }}</strong>
+          </span>
+        </span>
+        <span class="tenant-sidebar-pill">08</span>
+      </a>
+      <a href="/tenant/demo" class="tenant-sidebar-link {% if active_tab == 'demo' %}active{% endif %}">
+        <span class="tenant-sidebar-main">
+          <span class="tenant-sidebar-icon">🧪</span>
+          <span class="tenant-sidebar-copy">
+            <strong>{{ _('tenant_tab_demo') }}</strong>
+          </span>
+        </span>
+        <span class="tenant-sidebar-pill">09</span>
+      </a>
+    </nav>
+
+    <div style="margin-top:14px;">
+      <a href="/dashboard" class="btn btn-secondary">← {{ _('nav_dashboard') }}</a>
+    </div>
+  </div>
+</aside>

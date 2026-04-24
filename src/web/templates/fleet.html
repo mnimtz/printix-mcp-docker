@@ -1,0 +1,569 @@
+{% extends "base.html" %}
+{% block title %}{{ _('fleet_title') }} — {{ _('brand_console_name') }}{% endblock %}
+{% block extra_head %}
+<style>
+  /* ── KPI Tiles ──────────────────────────────────────────────────────── */
+  .fleet-kpi-bar {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px;
+    margin-bottom: 24px;
+  }
+  .fleet-kpi-tile {
+    background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px;
+    padding: 18px 16px; text-align: center;
+    transition: box-shadow .15s, transform .15s;
+  }
+  .fleet-kpi-tile:hover {
+    box-shadow: 0 4px 16px rgba(0,0,0,.08); transform: translateY(-1px);
+  }
+  .fleet-kpi-value {
+    font-size: 2em; font-weight: 700; line-height: 1.1;
+  }
+  .fleet-kpi-label {
+    font-size: .82em; color: #6b7280; margin-top: 4px; font-weight: 500;
+  }
+
+  /* ── Alert Cards ────────────────────────────────────────────────────── */
+  .fleet-alerts { margin-bottom: 24px; }
+  .fleet-alert-card {
+    display: flex; align-items: flex-start; gap: 10px;
+    padding: 12px 16px; border-radius: 8px; margin-bottom: 8px;
+    font-size: .9em;
+  }
+  .fleet-alert-card.alert-inactive {
+    background: #fef9c3; border: 1px solid #fde047; color: #854d0e;
+  }
+  .fleet-alert-card.alert-high-errors {
+    background: #fee2e2; border: 1px solid #fca5a5; color: #991b1b;
+  }
+  .fleet-alert-icon { font-size: 1.1em; flex-shrink: 0; margin-top: 1px; }
+  .fleet-alert-body { flex: 1; min-width: 0; }
+  .fleet-alert-printer { font-weight: 700; }
+  .fleet-alert-detail { font-size: .88em; margin-top: 2px; opacity: .85; }
+
+  /* ── Filter Bar ─────────────────────────────────────────────────────── */
+  .fleet-filter-bar {
+    display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+    margin-bottom: 18px;
+  }
+  .fleet-search {
+    flex: 1; min-width: 180px; padding: 8px 12px;
+    border: 1px solid #d1d5db; border-radius: 8px; font-size: .9em;
+  }
+  .fleet-search:focus {
+    outline: none; border-color: #2563eb;
+    box-shadow: 0 0 0 3px rgba(37,99,235,.15);
+  }
+  .fleet-status-filters {
+    display: flex; gap: 4px; flex-wrap: wrap;
+  }
+  .fleet-filter-btn {
+    padding: 5px 14px; border: 1px solid #d1d5db; border-radius: 6px;
+    background: #f8fafc; color: #374151; font-size: .82em; font-weight: 600;
+    cursor: pointer; transition: background .15s, border-color .15s, color .15s;
+  }
+  .fleet-filter-btn:hover { background: #e2e8f0; }
+  .fleet-filter-btn.active {
+    background: #2563eb; color: #fff; border-color: #2563eb;
+  }
+
+  /* ── Printer Grid ───────────────────────────────────────────────────── */
+  .fleet-grid {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px;
+    margin-bottom: 24px;
+  }
+  .fleet-card {
+    background: #fff; border: 1px solid #e5e7eb; border-radius: 10px;
+    padding: 18px 20px; transition: box-shadow .15s, transform .15s;
+    position: relative; overflow: hidden;
+  }
+  .fleet-card:hover {
+    box-shadow: 0 6px 20px rgba(0,0,0,.08); transform: translateY(-2px);
+  }
+  .fleet-card-header {
+    display: flex; align-items: center; gap: 8px; margin-bottom: 8px;
+  }
+  .fleet-status-dot {
+    width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
+  }
+  .dot-active   { background: #22c55e; box-shadow: 0 0 6px rgba(34,197,94,.4); }
+  .dot-warning  { background: #eab308; box-shadow: 0 0 6px rgba(234,179,8,.4); }
+  .dot-critical { background: #ef4444; box-shadow: 0 0 6px rgba(239,68,68,.4); }
+  .dot-unknown  { background: #9ca3af; }
+  .fleet-card-name {
+    font-weight: 700; font-size: .95em; color: #1e3a5f;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .fleet-card-subtitle {
+    font-size: .82em; color: #6b7280; margin-bottom: 10px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .fleet-card-stats {
+    display: flex; flex-wrap: wrap; gap: 6px 16px;
+    font-size: .82em; color: #4b5563;
+  }
+  .fleet-card-stat { display: flex; align-items: center; gap: 4px; }
+  .fleet-card-stat-label { color: #9ca3af; }
+  .fleet-card-stat-value { font-weight: 600; }
+  .fleet-error-rate { color: #ef4444; font-weight: 700; }
+  .fleet-last-seen {
+    font-size: .78em; color: #9ca3af; margin-top: 8px;
+    border-top: 1px solid #f1f5f9; padding-top: 8px;
+  }
+
+  /* ── No-data messages ───────────────────────────────────────────────── */
+  .fleet-empty {
+    text-align: center; padding: 40px 20px; color: #6b7280;
+  }
+  .fleet-empty-icon { font-size: 2.5em; margin-bottom: 8px; opacity: .5; }
+  .fleet-empty-text { font-size: .95em; }
+
+  /* ── Refresh indicator ──────────────────────────────────────────────── */
+  .fleet-refresh-active {
+    background: #2563eb !important; color: #fff !important;
+    border-color: #2563eb !important;
+  }
+
+  /* ── Responsive ─────────────────────────────────────────────────────── */
+  @media (max-width: 1024px) {
+    .fleet-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+  @media (max-width: 768px) {
+    .fleet-kpi-bar { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+    .fleet-grid { grid-template-columns: 1fr; }
+    .fleet-filter-bar { flex-direction: column; align-items: stretch; }
+    .fleet-search { min-width: 0; }
+    .fleet-status-filters { justify-content: flex-start; }
+  }
+  @media (max-width: 480px) {
+    .fleet-kpi-bar { grid-template-columns: 1fr 1fr; }
+    .fleet-kpi-value { font-size: 1.6em; }
+    .fleet-card { padding: 14px 16px; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container" style="max-width:1480px;">
+
+  {# ── No Printix Credentials ─────────────────────────────────────────── #}
+  {% if not has_printers %}
+  <div class="card">
+    <div class="section-title">{{ _('fleet_title') }}</div>
+    <div class="alert alert-warning" style="margin-top:16px;">
+      {{ _('fleet_no_credentials') }}
+      <a href="/settings" style="color:#92400e;font-weight:600;">{{ _('nav_settings') }}</a>
+    </div>
+    <div style="margin-top:16px;">
+      <a href="/dashboard" class="btn btn-secondary">&larr; {{ _('nav_dashboard') }}</a>
+    </div>
+  </div>
+
+  {% else %}
+  <div class="card" style="margin-bottom:20px;">
+
+    {# ── Header Row ─────────────────────────────────────────────────────── #}
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:20px;">
+      <h2 class="section-title" style="margin:0;">{{ _('fleet_title') }}</h2>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+        <button id="btn-auto-refresh" class="btn btn-secondary" style="padding:4px 12px;font-size:.82em;"
+                onclick="toggleAutoRefresh()">
+          &#x27F3; {{ _('fleet_auto_refresh') }}
+        </button>
+        <span id="refresh-indicator" style="display:none;font-size:.78em;color:#2563eb;font-weight:600;">
+          &#x27F3; {{ _('fleet_refreshing') }}
+        </span>
+      </div>
+    </div>
+
+    {# ── No-SQL Hint ────────────────────────────────────────────────────── #}
+    {% if not has_sql %}
+    <div class="alert alert-info" style="margin-bottom:18px;">
+      {{ _('fleet_no_sql_hint') }}
+    </div>
+    {% endif %}
+
+    {# ── KPI Bar ────────────────────────────────────────────────────────── #}
+    <div class="fleet-kpi-bar" id="fleet-kpi-bar">
+      <div class="fleet-kpi-tile">
+        <div class="fleet-kpi-value" style="color:#0369a1;" id="kpi-total">{{ fleet_kpis.total }}</div>
+        <div class="fleet-kpi-label">{{ _('fleet_kpi_total') }}</div>
+      </div>
+      <div class="fleet-kpi-tile">
+        <div class="fleet-kpi-value" style="color:#15803d;" id="kpi-active">{{ fleet_kpis.active_today }}</div>
+        <div class="fleet-kpi-label">{{ _('fleet_kpi_active_today') }}</div>
+      </div>
+      <div class="fleet-kpi-tile">
+        <div class="fleet-kpi-value" style="color:{% if fleet_kpis.inactive_7d > 0 %}#ef4444{% else %}#6b7280{% endif %};" id="kpi-inactive">{{ fleet_kpis.inactive_7d }}</div>
+        <div class="fleet-kpi-label">{{ _('fleet_kpi_inactive_7d') }}</div>
+      </div>
+      <div class="fleet-kpi-tile">
+        <div class="fleet-kpi-value" style="color:#7c3aed;" id="kpi-utilization">{{ fleet_kpis.avg_utilization }}%</div>
+        <div class="fleet-kpi-label">{{ _('fleet_kpi_avg_utilization') }}</div>
+      </div>
+    </div>
+
+    {# ── Quick Actions ─────────────────────────────────────────────────── #}
+    <div style="margin-bottom:20px;">
+      <a href="/fleet/package-builder" style="
+        display:flex;align-items:center;gap:14px;
+        background:linear-gradient(135deg,#eff6ff,#f0fdf4);
+        border:1px solid #bfdbfe;border-radius:10px;
+        padding:16px 20px;text-decoration:none;color:#1e3a5f;
+        transition:box-shadow .15s,transform .15s;
+      " onmouseover="this.style.boxShadow='0 4px 16px rgba(37,99,235,.12)';this.style.transform='translateY(-1px)'"
+         onmouseout="this.style.boxShadow='none';this.style.transform='none'">
+        <span style="font-size:2em;">📦</span>
+        <div>
+          <div style="font-weight:700;font-size:1em;">{{ _('fleet_builder_shortcut_title') }}</div>
+          <div style="font-size:.82em;color:#6b7280;margin-top:2px;">
+            {{ _('fleet_builder_shortcut_sub') }}
+          </div>
+        </div>
+        <span style="margin-left:auto;font-size:1.2em;color:#2563eb;">→</span>
+      </a>
+    </div>
+
+    {# ── Alerts Section ─────────────────────────────────────────────────── #}
+    {% if alerts %}
+    <div class="fleet-alerts" id="fleet-alerts">
+      <div style="font-size:.88em;font-weight:700;color:#6b7280;margin-bottom:8px;text-transform:uppercase;letter-spacing:.04em;">
+        {{ _('fleet_alerts_title') }}
+      </div>
+      {% for alert in alerts %}
+      <div class="fleet-alert-card {% if alert.type == 'inactive' %}alert-inactive{% else %}alert-high-errors{% endif %}">
+        <span class="fleet-alert-icon">{% if alert.type == 'inactive' %}&#x26A0;{% else %}&#x26D4;{% endif %}</span>
+        <div class="fleet-alert-body">
+          <span class="fleet-alert-printer">{{ alert.printer_name }}</span>
+          <div class="fleet-alert-detail">{{ alert.detail }}</div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    {# ── Filter Bar ─────────────────────────────────────────────────────── #}
+    <div class="fleet-filter-bar" id="fleet-filter-bar">
+      <input type="text" class="fleet-search" id="fleet-search"
+             placeholder="{{ _('fleet_search_placeholder') }}"
+             oninput="applyFilters()">
+      <div class="fleet-status-filters">
+        <button class="fleet-filter-btn active" data-status="all" onclick="setStatusFilter('all', this)">
+          {{ _('fleet_filter_all') }}
+        </button>
+        <button class="fleet-filter-btn" data-status="active" onclick="setStatusFilter('active', this)">
+          {{ _('fleet_filter_active') }}
+        </button>
+        <button class="fleet-filter-btn" data-status="warning" onclick="setStatusFilter('warning', this)">
+          {{ _('fleet_filter_warning') }}
+        </button>
+        <button class="fleet-filter-btn" data-status="critical" onclick="setStatusFilter('critical', this)">
+          {{ _('fleet_filter_critical') }}
+        </button>
+      </div>
+    </div>
+
+    {# ── Printer Status Grid ────────────────────────────────────────────── #}
+    <div class="fleet-grid" id="fleet-grid">
+      {% for printer in printers %}
+      <div class="fleet-card" data-name="{{ printer.name | lower }}" data-status="{{ printer.status }}">
+        <div class="fleet-card-header">
+          <span class="fleet-status-dot dot-{{ printer.status }}"></span>
+          <span class="fleet-card-name" title="{{ printer.name }}">{{ printer.name }}</span>
+        </div>
+        <div class="fleet-card-subtitle" title="{{ printer.model }} — {{ printer.location }}">
+          {{ printer.model }}{% if printer.location %} &middot; {{ printer.location }}{% endif %}
+        </div>
+        <div class="fleet-card-stats">
+          <div class="fleet-card-stat">
+            <span class="fleet-card-stat-label">{{ _('fleet_jobs') }}:</span>
+            <span class="fleet-card-stat-value">{{ printer.total_jobs | default(0) }}</span>
+          </div>
+          <div class="fleet-card-stat">
+            <span class="fleet-card-stat-label">{{ _('fleet_pages') }}:</span>
+            <span class="fleet-card-stat-value">{{ printer.total_pages | default(0) }}</span>
+          </div>
+          {% if (printer.error_rate | default(0)) > 0 %}
+          <div class="fleet-card-stat">
+            <span class="fleet-card-stat-label">{{ _('fleet_error_rate') }}:</span>
+            <span class="fleet-card-stat-value fleet-error-rate">{{ "%.1f" | format(printer.error_rate | default(0)) }}%</span>
+          </div>
+          {% endif %}
+        </div>
+        <div class="fleet-last-seen">
+          {% if printer.last_activity %}
+            {{ _('fleet_last_seen') }}: {{ printer.last_activity[:16] | replace('T', ' ') }}
+          {% else %}
+            {{ _('fleet_never_seen') }}
+          {% endif %}
+        </div>
+      </div>
+      {% else %}
+      <div class="fleet-empty" style="grid-column:1/-1;">
+        <div class="fleet-empty-icon">&#x1F5A8;</div>
+        <div class="fleet-empty-text">{{ _('fleet_no_printers') }}</div>
+      </div>
+      {% endfor %}
+    </div>
+
+    {# ── Footer ─────────────────────────────────────────────────────────── #}
+    <div style="margin-top:8px;">
+      <a href="/dashboard" class="btn btn-secondary">&larr; {{ _('nav_dashboard') }}</a>
+    </div>
+
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+(function() {
+  // ── State ────────────────────────────────────────────────────────────
+  let _refreshTimer = null;
+  let _currentStatus = 'all';
+  let _currentSearch = '';
+
+  // Restore filter state from sessionStorage
+  const savedStatus = sessionStorage.getItem('fleet_status_filter');
+  const savedSearch = sessionStorage.getItem('fleet_search_filter');
+
+  if (savedStatus) {
+    _currentStatus = savedStatus;
+    // Activate the correct button
+    document.querySelectorAll('.fleet-filter-btn').forEach(function(btn) {
+      btn.classList.toggle('active', btn.getAttribute('data-status') === savedStatus);
+    });
+  }
+  if (savedSearch) {
+    _currentSearch = savedSearch;
+    const searchInput = document.getElementById('fleet-search');
+    if (searchInput) searchInput.value = savedSearch;
+  }
+
+  // Apply filters on initial load (in case restored from session)
+  applyFilters();
+
+  // ── Status Filter ──────────────────────────────────────────────────
+  window.setStatusFilter = function(status, btnEl) {
+    _currentStatus = status;
+    sessionStorage.setItem('fleet_status_filter', status);
+
+    document.querySelectorAll('.fleet-filter-btn').forEach(function(btn) {
+      btn.classList.remove('active');
+    });
+    btnEl.classList.add('active');
+
+    applyFilters();
+  };
+
+  // ── Apply Filters ──────────────────────────────────────────────────
+  window.applyFilters = function() {
+    var searchInput = document.getElementById('fleet-search');
+    if (searchInput) {
+      _currentSearch = searchInput.value.toLowerCase().trim();
+      sessionStorage.setItem('fleet_search_filter', _currentSearch);
+    }
+
+    var cards = document.querySelectorAll('.fleet-card');
+    var visibleCount = 0;
+
+    cards.forEach(function(card) {
+      var name = card.getAttribute('data-name') || '';
+      var status = card.getAttribute('data-status') || '';
+
+      var matchesSearch = !_currentSearch || name.indexOf(_currentSearch) !== -1;
+      var matchesStatus = _currentStatus === 'all' || status === _currentStatus;
+
+      if (matchesSearch && matchesStatus) {
+        card.style.display = '';
+        visibleCount++;
+      } else {
+        card.style.display = 'none';
+      }
+    });
+
+    // Show/hide the empty state
+    var emptyEl = document.querySelector('.fleet-empty');
+    if (emptyEl) {
+      emptyEl.style.display = cards.length === 0 ? '' : 'none';
+    }
+
+    // Show a "no results" message when filters hide everything
+    var grid = document.getElementById('fleet-grid');
+    var noResults = document.getElementById('fleet-no-results');
+    if (cards.length > 0 && visibleCount === 0) {
+      if (!noResults) {
+        noResults = document.createElement('div');
+        noResults.id = 'fleet-no-results';
+        noResults.className = 'fleet-empty';
+        noResults.style.gridColumn = '1/-1';
+        noResults.innerHTML = '<div class="fleet-empty-text" style="color:#9ca3af;">{{ _("fleet_no_match") }}</div>';
+        grid.appendChild(noResults);
+      }
+      noResults.style.display = '';
+    } else if (noResults) {
+      noResults.style.display = 'none';
+    }
+  };
+
+  // ── Auto-Refresh ───────────────────────────────────────────────────
+  window.toggleAutoRefresh = function() {
+    var btn = document.getElementById('btn-auto-refresh');
+    var ind = document.getElementById('refresh-indicator');
+
+    if (_refreshTimer) {
+      clearInterval(_refreshTimer);
+      _refreshTimer = null;
+      btn.classList.remove('fleet-refresh-active');
+      if (ind) ind.style.display = 'none';
+    } else {
+      _refreshTimer = setInterval(fetchFleetData, 30000);
+      btn.classList.add('fleet-refresh-active');
+      if (ind) ind.style.display = 'inline';
+    }
+  };
+
+  // ── Fetch + Update DOM ─────────────────────────────────────────────
+  function fetchFleetData() {
+    fetch('/fleet/data')
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        // Update KPIs
+        updateText('kpi-total', data.fleet_kpis.total);
+        updateText('kpi-active', data.fleet_kpis.active_today);
+        updateText('kpi-inactive', data.fleet_kpis.inactive_7d);
+        updateText('kpi-utilization', data.fleet_kpis.avg_utilization + '%');
+
+        // Inactive KPI color
+        var inactiveEl = document.getElementById('kpi-inactive');
+        if (inactiveEl) {
+          inactiveEl.style.color = data.fleet_kpis.inactive_7d > 0 ? '#ef4444' : '#6b7280';
+        }
+
+        // Rebuild printer grid
+        if (data.printers) {
+          rebuildGrid(data.printers);
+        }
+
+        // Rebuild alerts
+        if (data.alerts !== undefined) {
+          rebuildAlerts(data.alerts);
+        }
+      })
+      .catch(function(err) {
+        console.error('Fleet refresh failed:', err);
+      });
+  }
+
+  function updateText(id, value) {
+    var el = document.getElementById(id);
+    if (el) el.textContent = value;
+  }
+
+  function rebuildGrid(printers) {
+    var grid = document.getElementById('fleet-grid');
+    if (!grid) return;
+
+    grid.innerHTML = '';
+
+    if (printers.length === 0) {
+      grid.innerHTML = '<div class="fleet-empty" style="grid-column:1/-1;">' +
+        '<div class="fleet-empty-icon">&#x1F5A8;</div>' +
+        '<div class="fleet-empty-text">{{ _("fleet_no_printers") }}</div></div>';
+      return;
+    }
+
+    printers.forEach(function(p) {
+      var card = document.createElement('div');
+      card.className = 'fleet-card';
+      card.setAttribute('data-name', (p.name || '').toLowerCase());
+      card.setAttribute('data-status', p.status || 'unknown');
+
+      var lastSeen = p.last_activity
+        ? '{{ _("fleet_last_seen") }}: ' + p.last_activity.substring(0, 16).replace('T', ' ')
+        : '{{ _("fleet_never_seen") }}';
+
+      var errorHtml = '';
+      if (p.error_rate > 0) {
+        errorHtml = '<div class="fleet-card-stat">' +
+          '<span class="fleet-card-stat-label">{{ _("fleet_error_rate") }}:</span>' +
+          '<span class="fleet-card-stat-value fleet-error-rate">' + p.error_rate.toFixed(1) + '%</span>' +
+          '</div>';
+      }
+
+      var subtitle = p.model || '';
+      if (p.location) subtitle += (subtitle ? ' &middot; ' : '') + p.location;
+
+      card.innerHTML =
+        '<div class="fleet-card-header">' +
+          '<span class="fleet-status-dot dot-' + escHtml(p.status) + '"></span>' +
+          '<span class="fleet-card-name" title="' + escHtml(p.name) + '">' + escHtml(p.name) + '</span>' +
+        '</div>' +
+        '<div class="fleet-card-subtitle" title="' + escHtml(subtitle) + '">' + subtitle + '</div>' +
+        '<div class="fleet-card-stats">' +
+          '<div class="fleet-card-stat">' +
+            '<span class="fleet-card-stat-label">{{ _("fleet_jobs") }}:</span>' +
+            '<span class="fleet-card-stat-value">' + (p.total_jobs || 0) + '</span>' +
+          '</div>' +
+          '<div class="fleet-card-stat">' +
+            '<span class="fleet-card-stat-label">{{ _("fleet_pages") }}:</span>' +
+            '<span class="fleet-card-stat-value">' + (p.total_pages || 0) + '</span>' +
+          '</div>' +
+          errorHtml +
+        '</div>' +
+        '<div class="fleet-last-seen">' + lastSeen + '</div>';
+
+      grid.appendChild(card);
+    });
+
+    // Re-apply current filters
+    applyFilters();
+  }
+
+  function rebuildAlerts(alerts) {
+    var existing = document.getElementById('fleet-alerts');
+
+    if (!alerts || alerts.length === 0) {
+      if (existing) existing.style.display = 'none';
+      return;
+    }
+
+    var html = '<div style="font-size:.88em;font-weight:700;color:#6b7280;margin-bottom:8px;text-transform:uppercase;letter-spacing:.04em;">' +
+      '{{ _("fleet_alerts_title") }}</div>';
+
+    alerts.forEach(function(a) {
+      var cls = a.type === 'inactive' ? 'alert-inactive' : 'alert-high-errors';
+      var icon = a.type === 'inactive' ? '&#x26A0;' : '&#x26D4;';
+      html += '<div class="fleet-alert-card ' + cls + '">' +
+        '<span class="fleet-alert-icon">' + icon + '</span>' +
+        '<div class="fleet-alert-body">' +
+          '<span class="fleet-alert-printer">' + escHtml(a.printer_name) + '</span>' +
+          '<div class="fleet-alert-detail">' + escHtml(a.detail) + '</div>' +
+        '</div></div>';
+    });
+
+    if (existing) {
+      existing.innerHTML = html;
+      existing.style.display = '';
+    } else {
+      // Insert before filter bar
+      var filterBar = document.getElementById('fleet-filter-bar');
+      if (filterBar) {
+        var div = document.createElement('div');
+        div.className = 'fleet-alerts';
+        div.id = 'fleet-alerts';
+        div.innerHTML = html;
+        filterBar.parentNode.insertBefore(div, filterBar);
+      }
+    }
+  }
+
+  function escHtml(str) {
+    if (!str) return '';
+    var div = document.createElement('div');
+    div.appendChild(document.createTextNode(str));
+    return div.innerHTML;
+  }
+})();
+</script>
+{% endblock %}

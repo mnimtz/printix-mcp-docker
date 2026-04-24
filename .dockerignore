@@ -1,0 +1,46 @@
+# Git
+.git
+.gitignore
+.github
+
+# Editor / OS
+.vscode
+.idea
+.DS_Store
+*.swp
+
+# Python
+__pycache__
+*.py[cod]
+*$py.class
+.pytest_cache
+.mypy_cache
+.ruff_cache
+*.egg-info
+.venv
+venv/
+env/
+
+# Test / Dev-Artefakte
+*.log
+*.sqlite*
+data/
+certs/
+backup_HA/
+
+# Doku/Entwicklungs-Texte die nicht ins Image müssen
+V*_TEST_NOTES.txt
+CHANGELOG.md
+DOCS.md
+docs/
+
+# Dev-Scripts
+restart_web.py
+restart_web.sh
+
+# Docker-Meta-Files selbst (zirkulär wenn COPY . verwendet würde)
+Dockerfile
+docker-compose.yml
+.env
+.env.example
+.dockerignore

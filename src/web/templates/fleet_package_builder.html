@@ -1,0 +1,579 @@
+{% extends "base.html" %}
+{% block title %}{{ _('fleet_builder_title') }} — {{ _('brand_console_name') }}{% endblock %}
+{% block extra_head %}
+<style>
+  /* ── Wizard Shell ─────────────────────────────────────────────────────── */
+  .wizard-card { max-width: 780px; margin: 0 auto; }
+
+  /* ── Step Indicator ──────────────────────────────────────────────────── */
+  .step-bar {
+    display: flex; align-items: center; margin-bottom: 32px;
+    gap: 0; overflow: hidden; border-radius: 10px;
+    border: 1px solid #e5e7eb; background: #f9fafb;
+    padding: 0;
+  }
+  .step-item {
+    flex: 1; display: flex; align-items: center; gap: 8px;
+    padding: 12px 16px; font-size: .83em; font-weight: 600;
+    color: #9ca3af; border-right: 1px solid #e5e7eb; cursor: default;
+    transition: background .15s, color .15s;
+  }
+  .step-item:last-child { border-right: none; }
+  .step-item.done { color: #16a34a; }
+  .step-item.active { background: #eff6ff; color: #2563eb; }
+  .step-bubble {
+    width: 24px; height: 24px; border-radius: 50%; font-size: .78em;
+    display: inline-flex; align-items: center; justify-content: center;
+    background: #e5e7eb; color: #6b7280; font-weight: 700; flex-shrink: 0;
+  }
+  .step-item.active .step-bubble { background: #2563eb; color: #fff; }
+  .step-item.done  .step-bubble { background: #16a34a; color: #fff; }
+
+  /* ── Step Panels ─────────────────────────────────────────────────────── */
+  .step-panel { display: none; }
+  .step-panel.active { display: block; }
+
+  /* ── Vendor Cards ────────────────────────────────────────────────────── */
+  .vendor-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 14px; }
+  .vendor-card {
+    border: 2px solid #e5e7eb; border-radius: 10px; padding: 20px 16px;
+    text-align: center; cursor: pointer; transition: border-color .15s, background .15s;
+    background: #fff;
+  }
+  .vendor-card:hover { border-color: #93c5fd; background: #eff6ff; }
+  .vendor-card.selected { border-color: #2563eb; background: #eff6ff; }
+  .vendor-icon { font-size: 2.2em; margin-bottom: 8px; }
+  .vendor-name { font-weight: 700; font-size: 1em; color: #1e3a5f; }
+  .vendor-desc { font-size: .78em; color: #6b7280; margin-top: 4px; }
+
+  /* ── Upload Area ─────────────────────────────────────────────────────── */
+  .upload-zone {
+    border: 2px dashed #d1d5db; border-radius: 12px; padding: 40px 20px;
+    text-align: center; cursor: pointer; transition: border-color .15s, background .15s;
+    background: #fafafa;
+  }
+  .upload-zone:hover, .upload-zone.dragover { border-color: #2563eb; background: #eff6ff; }
+  .upload-zone.has-file { border-color: #16a34a; background: #f0fdf4; }
+  .upload-icon { font-size: 2.5em; margin-bottom: 10px; }
+  .upload-filename { font-weight: 600; color: #16a34a; margin-top: 8px; font-size: .9em; }
+
+  /* ── Field Groups ────────────────────────────────────────────────────── */
+  .field-group { margin-bottom: 24px; }
+  .field-group-title {
+    font-size: .78em; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .06em; color: #6b7280; margin-bottom: 12px;
+    padding-bottom: 6px; border-bottom: 1px solid #e5e7eb;
+  }
+  .field-row { margin-bottom: 14px; }
+  .field-row label { display: block; font-size: .85em; font-weight: 600; color: #374151; margin-bottom: 4px; }
+  .field-row label .required-star { color: #ef4444; }
+  .field-row input[type=text],
+  .field-row input[type=url],
+  .field-row input[type=password] {
+    width: 100%; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 8px;
+    font-size: .9em; box-sizing: border-box; transition: border-color .15s;
+  }
+  .field-row input:focus { outline: none; border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,.12); }
+  .field-row input.prefilled { border-color: #86efac; background: #f0fdf4; }
+  .field-help { font-size: .76em; color: #9ca3af; margin-top: 3px; }
+
+  /* ── Analyseergebnis ─────────────────────────────────────────────────── */
+  .analysis-box {
+    background: #f0fdf4; border: 1px solid #86efac; border-radius: 8px;
+    padding: 14px 16px; margin-bottom: 20px; font-size: .85em;
+  }
+  .analysis-box .found-item { color: #166534; margin: 2px 0; }
+  .analysis-box .warn-item  { color: #92400e; margin: 2px 0; }
+
+  /* ── Zusammenfassung / Download ──────────────────────────────────────── */
+  .success-box {
+    background: #f0fdf4; border: 1px solid #86efac; border-radius: 12px;
+    padding: 24px; text-align: center; margin-bottom: 20px;
+  }
+  .success-icon { font-size: 3em; margin-bottom: 10px; }
+  .success-title { font-size: 1.3em; font-weight: 700; color: #166534; margin-bottom: 6px; }
+  .summary-chips { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; margin-top: 12px; }
+  .chip {
+    display: inline-block; padding: 3px 10px; border-radius: 12px;
+    font-size: .78em; font-weight: 600;
+    background: #dcfce7; color: #166534;
+  }
+  .chip.skip { background: #fef3c7; color: #92400e; }
+  .install-notes { margin-top: 20px; text-align: left; }
+  .install-note {
+    background: #eff6ff; border-left: 3px solid #2563eb;
+    padding: 10px 14px; border-radius: 0 6px 6px 0; margin-bottom: 8px;
+    font-size: .85em; color: #1e3a5f;
+  }
+
+  /* ── Status / Spinner ────────────────────────────────────────────────── */
+  .status-bar {
+    display: none; align-items: center; gap: 10px;
+    background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px;
+    padding: 12px 16px; margin-bottom: 16px; font-size: .88em; color: #1e3a5f;
+  }
+  .status-bar.visible { display: flex; }
+  .spinner {
+    width: 18px; height: 18px; border: 2px solid #bfdbfe; border-top-color: #2563eb;
+    border-radius: 50%; animation: spin .7s linear infinite; flex-shrink: 0;
+  }
+  .error-bar {
+    display: none; background: #fee2e2; border: 1px solid #fca5a5;
+    border-radius: 8px; padding: 12px 16px; margin-bottom: 16px;
+    font-size: .88em; color: #991b1b;
+  }
+  .error-bar.visible { display: block; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── Buttons ──────────────────────────────────────────────────────────── */
+  .wizard-actions { display: flex; gap: 10px; margin-top: 24px; }
+  .btn-wizard {
+    padding: 10px 22px; border: none; border-radius: 8px;
+    font-size: .9em; font-weight: 600; cursor: pointer; transition: opacity .15s;
+  }
+  .btn-wizard:disabled { opacity: .45; cursor: not-allowed; }
+  .btn-primary { background: #2563eb; color: #fff; }
+  .btn-primary:hover:not(:disabled) { background: #1d4ed8; }
+  .btn-secondary-w { background: #f1f5f9; color: #374151; border: 1px solid #d1d5db; }
+  .btn-secondary-w:hover { background: #e2e8f0; }
+  .btn-success { background: #16a34a; color: #fff; }
+  .btn-success:hover { background: #15803d; }
+  @media (max-width: 760px) {
+    .step-bar { flex-direction: column; }
+    .step-item { width: 100%; border-right: none; border-bottom: 1px solid #e5e7eb; }
+    .step-item:last-child { border-bottom: none; }
+    .wizard-actions { flex-direction: column; }
+    .btn-wizard { width: 100%; text-align: center; }
+    .upload-zone { padding: 26px 14px; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container wizard-card">
+  <div class="card">
+    <h2 class="section-title" style="margin-bottom: 6px;">📦 {{ _('fleet_builder_title') }}</h2>
+    <p style="font-size:.87em;color:#6b7280;margin-bottom:24px;">
+      {{ _('fleet_builder_subtitle') }}
+    </p>
+
+    <!-- Step Indicator -->
+    <div class="step-bar" id="step-bar">
+      <div class="step-item active" id="step-ind-1">
+        <span class="step-bubble">1</span> {{ _('fleet_builder_step_vendor_upload') }}
+      </div>
+      <div class="step-item" id="step-ind-2">
+        <span class="step-bubble">2</span> {{ _('fleet_builder_step_config') }}
+      </div>
+      <div class="step-item" id="step-ind-3">
+        <span class="step-bubble">3</span> {{ _('fleet_builder_step_download') }}
+      </div>
+    </div>
+
+    <!-- Status / Error -->
+    <div class="status-bar" id="status-bar">
+      <div class="spinner"></div>
+      <span id="status-text">{{ _('fleet_builder_status_processing') }}</span>
+    </div>
+    <div class="error-bar" id="error-bar"></div>
+
+    <!-- ── Step 1: Hersteller + Upload ──────────────────────────────────── -->
+    <div class="step-panel active" id="step1">
+      <h3 style="margin:0 0 14px;font-size:1em;font-weight:700;">1. {{ _('fleet_builder_select_vendor') }}</h3>
+      <div class="vendor-grid" id="vendor-grid">
+        {% for v in vendors %}
+        <div class="vendor-card {% if loop.first %}selected{% endif %}"
+             data-vendor="{{ v.id }}"
+             onclick="selectVendor(this)">
+          <div class="vendor-icon">
+            {% if v.id == 'ricoh' %}🖨️
+            {% elif v.id == 'canon' %}📠
+            {% elif v.id == 'xerox' %}🖨️
+            {% else %}📦{% endif %}
+          </div>
+          <div class="vendor-name">{{ v.display }}</div>
+          <div class="vendor-desc">{{ v.description }}</div>
+        </div>
+        {% endfor %}
+      </div>
+
+      <h3 style="margin:24px 0 14px;font-size:1em;font-weight:700;">2. {{ _('fleet_builder_upload_package') }}</h3>
+      <div class="upload-zone" id="upload-zone"
+           onclick="document.getElementById('file-input').click()"
+           ondragover="event.preventDefault();this.classList.add('dragover')"
+           ondragleave="this.classList.remove('dragover')"
+           ondrop="handleDrop(event)">
+        <div class="upload-icon">📂</div>
+        <div style="font-weight:600;color:#374151;">{{ _('fleet_builder_upload_drop') }}</div>
+        <div style="font-size:.82em;color:#9ca3af;margin-top:6px;">
+          {{ _('fleet_builder_upload_hint') }}
+        </div>
+        <div class="upload-filename" id="upload-filename" style="display:none;"></div>
+      </div>
+      <input type="file" id="file-input" accept=".zip" style="display:none"
+             onchange="handleFileSelect(this.files[0])">
+
+      <div class="wizard-actions">
+        <button class="btn-wizard btn-primary" id="btn-analyze" disabled onclick="doAnalyze()">
+          🔍 {{ _('fleet_builder_analyze_continue') }}
+        </button>
+        <a href="/fleet" class="btn-wizard btn-secondary-w">← {{ _('fleet_builder_back_to_fleet') }}</a>
+      </div>
+    </div>
+
+    <!-- ── Step 2: Konfiguration ─────────────────────────────────────────── -->
+    <div class="step-panel" id="step2">
+      <!-- Analyseergebnis -->
+      <div class="analysis-box" id="analysis-box" style="display:none;">
+        <strong>📋 {{ _('fleet_builder_analysis_detected') }}</strong>
+        <div id="analysis-details" style="margin-top:8px;"></div>
+      </div>
+
+      <h3 style="margin:0 0 16px;font-size:1em;font-weight:700;">{{ _('fleet_builder_config_fields') }}</h3>
+      <p style="font-size:.82em;color:#6b7280;margin-bottom:18px;">
+        {{ _('fleet_builder_prefilled_hint') | safe }}
+      </p>
+
+      <form id="config-form" onsubmit="return false;">
+        <div id="fields-container"></div>
+      </form>
+
+      <div class="wizard-actions">
+        <button class="btn-wizard btn-primary" id="btn-patch" onclick="doPatch()">
+          ⚙️ {{ _('fleet_builder_patch_package') }}
+        </button>
+        <button class="btn-wizard btn-secondary-w" onclick="goToStep(1)">← {{ _('reg_back') }}</button>
+      </div>
+    </div>
+
+    <!-- ── Step 3: Download ──────────────────────────────────────────────── -->
+    <div class="step-panel" id="step3">
+      <div class="success-box">
+        <div class="success-icon">✅</div>
+        <div class="success-title">{{ _('fleet_builder_success_title') }}</div>
+        <div style="font-size:.87em;color:#374151;" id="success-filename"></div>
+        <div class="summary-chips" id="summary-chips"></div>
+      </div>
+
+      <div style="text-align:center;margin-bottom:24px;">
+        <a id="download-link" href="#" class="btn-wizard btn-success" style="display:inline-block;">
+          ⬇️ {{ _('fleet_builder_download_ready') }}
+        </a>
+      </div>
+
+      <div class="install-notes" id="install-notes-box" style="display:none;">
+        <h4 style="margin:0 0 10px;font-size:.9em;font-weight:700;color:#374151;">
+          📋 {{ _('fleet_builder_install_notes') }}
+        </h4>
+        <div id="install-notes-list"></div>
+      </div>
+
+      <div class="wizard-actions">
+        <button class="btn-wizard btn-secondary-w" onclick="resetWizard()">
+          🔄 {{ _('fleet_builder_new_package') }}
+        </button>
+        <a href="/fleet" class="btn-wizard btn-secondary-w">← {{ _('fleet_builder_back_to_fleet') }}</a>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+// ── State ──────────────────────────────────────────────────────────────────
+let _selectedVendor = "{{ vendors[0].id if vendors else '' }}";
+let _selectedFile   = null;
+let _sessionId      = "";
+let _originalFilename = "";
+
+// ── Vendor Auswahl ─────────────────────────────────────────────────────────
+function selectVendor(card) {
+  document.querySelectorAll(".vendor-card").forEach(c => c.classList.remove("selected"));
+  card.classList.add("selected");
+  _selectedVendor = card.dataset.vendor;
+}
+
+// ── Upload ─────────────────────────────────────────────────────────────────
+function handleFileSelect(file) {
+  if (!file) return;
+  if (!file.name.toLowerCase().endsWith(".zip")) {
+    showError("{{ _('fleet_builder_error_select_zip') }}");
+    return;
+  }
+  _selectedFile = file;
+  const zone = document.getElementById("upload-zone");
+  const nameEl = document.getElementById("upload-filename");
+  zone.classList.add("has-file");
+  nameEl.textContent = "📦 " + file.name + " (" + (file.size / 1024 / 1024).toFixed(1) + " MB)";
+  nameEl.style.display = "block";
+  document.getElementById("btn-analyze").disabled = false;
+  hideError();
+}
+
+function handleDrop(e) {
+  e.preventDefault();
+  document.getElementById("upload-zone").classList.remove("dragover");
+  const file = e.dataTransfer.files[0];
+  if (file) handleFileSelect(file);
+}
+
+// ── Analysieren ────────────────────────────────────────────────────────────
+async function doAnalyze() {
+  if (!_selectedFile) return;
+  showStatus("{{ _('fleet_builder_status_upload_analyze') }}");
+  document.getElementById("btn-analyze").disabled = true;
+  hideError();
+
+  try {
+    const formData = new FormData();
+    formData.append("vendor_id", _selectedVendor);
+    formData.append("file", _selectedFile);
+
+    const resp = await fetch("/fleet/package-builder/upload", {
+      method: "POST",
+      body: formData,
+    });
+    const data = await resp.json();
+
+    if (!data.ok) {
+      showError(data.error || "{{ _('fleet_builder_error_analysis_failed') }}");
+      document.getElementById("btn-analyze").disabled = false;
+      hideStatus();
+      return;
+    }
+
+    _sessionId = data.session_id;
+    _originalFilename = data.original_filename || _selectedFile.name;
+
+    // Analyseergebnis anzeigen
+    renderAnalysis(data.structure);
+    // Felder rendern
+    renderFields(data.fields, data.prefill || {});
+
+    hideStatus();
+    goToStep(2);
+  } catch (err) {
+    showError("{{ _('fleet_builder_error_network') }}: " + err.message);
+    document.getElementById("btn-analyze").disabled = false;
+    hideStatus();
+  }
+}
+
+function renderAnalysis(structure) {
+  if (!structure) return;
+  const box = document.getElementById("analysis-box");
+  const details = document.getElementById("analysis-details");
+  box.style.display = "block";
+
+  let html = "";
+  if (structure.package_version) {
+    html += `<div class="found-item">📦 {{ _('fleet_builder_js_package_version') | e }}: <strong>${esc(structure.package_version)}</strong></div>`;
+  }
+  (structure.found_files || []).forEach(f => {
+    html += `<div class="found-item">✅ ${esc(f)}</div>`;
+  });
+  (structure.warnings || []).forEach(w => {
+    html += `<div class="warn-item">⚠️ ${esc(w)}</div>`;
+  });
+  details.innerHTML = html;
+}
+
+function renderFields(fields, prefill) {
+  const container = document.getElementById("fields-container");
+  if (!fields || fields.length === 0) {
+    container.innerHTML = "<p style='color:#6b7280;font-size:.88em;'>{{ _('fleet_builder_no_fields') }}</p>";
+    return;
+  }
+
+  // Felder nach Gruppe sortieren
+  const groups = {};
+  fields.forEach(f => {
+    if (!groups[f.group]) groups[f.group] = [];
+    groups[f.group].push(f);
+  });
+
+  let html = "";
+  Object.entries(groups).forEach(([groupName, groupFields]) => {
+    html += `<div class="field-group">`;
+    html += `<div class="field-group-title">${esc(groupName)}</div>`;
+    groupFields.sort((a, b) => a.order - b.order).forEach(f => {
+      const pval = prefill[f.key] || f.default || "";
+      const isPrefilled = !!prefill[f.key];
+      const req = f.required ? '<span class="required-star">*</span>' : '';
+      html += `<div class="field-row">`;
+      html += `<label for="field-${esc(f.key)}">${esc(f.label)} ${req}</label>`;
+      if (f.field_type === "checkbox") {
+        html += `<input type="checkbox" id="field-${esc(f.key)}" name="${esc(f.key)}"
+                   ${pval === "true" ? "checked" : ""}>`;
+      } else {
+        html += `<input type="${esc(f.field_type)}" id="field-${esc(f.key)}" name="${esc(f.key)}"
+                   value="${escAttr(pval)}"
+                   placeholder="${escAttr(f.placeholder)}"
+                   autocomplete="${f.field_type === 'password' ? 'current-password' : 'off'}"
+                   class="${isPrefilled ? 'prefilled' : ''}">`;
+      }
+      if (f.help_text) {
+        html += `<div class="field-help">${esc(f.help_text)}</div>`;
+      }
+      html += `</div>`;
+    });
+    html += `</div>`;
+  });
+  container.innerHTML = html;
+}
+
+// ── Patchen ────────────────────────────────────────────────────────────────
+async function doPatch() {
+  showStatus("{{ _('fleet_builder_status_patch_repack') }}");
+  document.getElementById("btn-patch").disabled = true;
+  hideError();
+
+  // Felder auslesen
+  const form = document.getElementById("config-form");
+  const fields = {};
+  form.querySelectorAll("input").forEach(inp => {
+    if (inp.type === "checkbox") {
+      fields[inp.name] = inp.checked ? "true" : "false";
+    } else if (inp.name) {
+      fields[inp.name] = inp.value.trim();
+    }
+  });
+
+  // Pflichtfelder prüfen
+  const missingFields = [];
+  document.querySelectorAll(".field-row label .required-star").forEach(star => {
+    const label = star.closest("label");
+    const fieldName = label.getAttribute("for").replace("field-", "");
+    if (!fields[fieldName]) {
+      missingFields.push(fieldName);
+    }
+  });
+  if (missingFields.length > 0) {
+    showError("{{ _('fleet_builder_error_fill_required') }}: " + missingFields.join(", "));
+    document.getElementById("btn-patch").disabled = false;
+    hideStatus();
+    return;
+  }
+
+  try {
+    const resp = await fetch("/fleet/package-builder/patch", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({
+        session_id: _sessionId,
+        fields: fields,
+        original_filename: _originalFilename,
+      }),
+    });
+    const data = await resp.json();
+
+    if (!data.ok) {
+      showError(data.error || "{{ _('fleet_builder_error_patch_failed') }}");
+      document.getElementById("btn-patch").disabled = false;
+      hideStatus();
+      return;
+    }
+
+    // Erfolg
+    hideStatus();
+    renderSuccess(data);
+    goToStep(3);
+  } catch (err) {
+    showError("{{ _('fleet_builder_error_network') }}: " + err.message);
+    document.getElementById("btn-patch").disabled = false;
+    hideStatus();
+  }
+}
+
+function renderSuccess(data) {
+  // Dateiname
+  document.getElementById("success-filename").textContent =
+    "📦 " + (data.output_filename || "{{ _('common_name') }}");
+
+  // Download-Link
+  document.getElementById("download-link").href =
+    "/fleet/package-builder/download/" + data.session_id;
+
+  // Zusammenfassung
+  const chips = document.getElementById("summary-chips");
+  chips.innerHTML = "";
+  const summary = data.summary || {};
+  (summary.patched_fields || []).forEach(f => {
+    const chip = document.createElement("span");
+    chip.className = "chip";
+    chip.textContent = "✓ " + f;
+    chips.appendChild(chip);
+  });
+  (summary.skipped_fields || []).forEach(f => {
+    const chip = document.createElement("span");
+    chip.className = "chip skip";
+    chip.textContent = "— " + f;
+    chips.appendChild(chip);
+  });
+
+  // Installationshinweise
+  const notes = data.install_notes || [];
+  if (notes.length > 0) {
+    const notesBox = document.getElementById("install-notes-box");
+    const notesList = document.getElementById("install-notes-list");
+    notesBox.style.display = "block";
+    notesList.innerHTML = notes.map(n => `<div class="install-note">💡 ${esc(n)}</div>`).join("");
+  }
+}
+
+// ── Navigation ─────────────────────────────────────────────────────────────
+function goToStep(n) {
+  [1,2,3].forEach(i => {
+    document.getElementById("step" + i).classList.toggle("active", i === n);
+    const ind = document.getElementById("step-ind-" + i);
+    ind.classList.remove("active", "done");
+    if (i === n) ind.classList.add("active");
+    else if (i < n) ind.classList.add("done");
+  });
+}
+
+function resetWizard() {
+  _selectedFile = null;
+  _sessionId = "";
+  _originalFilename = "";
+  const zone = document.getElementById("upload-zone");
+  zone.classList.remove("has-file");
+  document.getElementById("upload-filename").style.display = "none";
+  document.getElementById("btn-analyze").disabled = true;
+  document.getElementById("btn-patch").disabled = false;
+  document.getElementById("fields-container").innerHTML = "";
+  document.getElementById("analysis-box").style.display = "none";
+  document.getElementById("install-notes-box").style.display = "none";
+  document.getElementById("file-input").value = "";
+  hideError(); hideStatus();
+  goToStep(1);
+}
+
+// ── Hilfsfunktionen ─────────────────────────────────────────────────────────
+function showStatus(msg) {
+  const bar = document.getElementById("status-bar");
+  document.getElementById("status-text").textContent = msg;
+  bar.classList.add("visible");
+}
+function hideStatus() {
+  document.getElementById("status-bar").classList.remove("visible");
+}
+function showError(msg) {
+  const bar = document.getElementById("error-bar");
+  bar.textContent = "❌ " + msg;
+  bar.classList.add("visible");
+  bar.scrollIntoView({behavior:"smooth", block:"nearest"});
+}
+function hideError() {
+  document.getElementById("error-bar").classList.remove("visible");
+}
+function esc(str) {
+  return String(str)
+    .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
+    .replace(/"/g,"&quot;");
+}
+function escAttr(str) {
+  return String(str).replace(/"/g,"&quot;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+}
+</script>
+{% endblock %}

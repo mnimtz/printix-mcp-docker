@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% block title %}{{ _('help_title') }} — {{ _('brand_console_name') }}{% endblock %}
+{% block content %}
+<div class="container">
+  <div class="card">
+    <h2 class="section-title">{{ _('help_title') }}</h2>
+
+    <!-- Deine Verbindungsdaten -->
+    {% if tenant %}
+    <div class="alert alert-info" style="margin-bottom:28px;">
+      <strong>{{ _('help_your_url') }}:</strong>
+      <code style="word-break:break-all;">{{ mcp_url }}</code><br>
+      <strong>{{ _('help_your_oauth_id') }}:</strong>
+      <code>{{ tenant.oauth_client_id }}</code><br>
+      <strong>{{ _('help_your_oauth_sec') }}:</strong>
+      <small><a href="/settings">{{ _('settings_title') }}</a> → {{ _('dash_oauth_secret') }}</small>
+    </div>
+    {% endif %}
+
+    <!-- claude.ai -->
+    <h3 style="font-size:1.02em;font-weight:700;color:#2563eb;margin-bottom:16px;">
+      🤖 {{ _('help_claude') }}
+    </h3>
+    <ol style="padding-left:20px;line-height:2;font-size:.95em;">
+      <li>{{ _('help_claude_step1') }}</li>
+      <li>{{ _('help_claude_step2') }}</li>
+      <li>{{ _('help_claude_step3') }}</li>
+      <li>{{ _('help_claude_step4') }}
+        <div class="code-block" id="claude-url" style="margin:8px 0 12px;">
+          <button class="copy-btn" onclick="copyToClipboard('claude-url-val', this)">⧉</button>
+          <span id="claude-url-val">{{ mcp_url }}</span>
+        </div>
+      </li>
+      <li>{{ _('help_claude_step5') }}
+        {% if tenant %}
+        <div style="margin:8px 0 4px;">
+          <div class="code-block" id="claude-oauth-id" style="margin-bottom:6px;">
+            <button class="copy-btn" onclick="copyToClipboard('claude-oauth-id-val', this)">⧉</button>
+            <span id="claude-oauth-id-val">{{ tenant.oauth_client_id }}</span>
+          </div>
+        </div>
+        {% endif %}
+      </li>
+      <li>{{ _('help_claude_step6') }}</li>
+    </ol>
+
+    <div class="divider"></div>
+
+    <!-- ChatGPT -->
+    <h3 style="font-size:1.02em;font-weight:700;color:#16a34a;margin-bottom:16px;">
+      💬 {{ _('help_chatgpt') }}
+    </h3>
+
+    <ol style="padding-left:20px;line-height:2;font-size:.95em;">
+      <li>{{ _('help_chatgpt_step1') }}</li>
+      <li>{{ _('help_chatgpt_step2') }}</li>
+      <li>{{ _('help_chatgpt_step3') }}
+        <div class="code-block" id="gpt-url" style="margin:8px 0 12px;">
+          <button class="copy-btn" onclick="copyToClipboard('gpt-url-val', this)">⧉</button>
+          <span id="gpt-url-val">{{ sse_url }}</span>
+        </div>
+      </li>
+      <li>{{ _('help_chatgpt_step4') }}
+        {% if tenant %}
+        <div style="margin:8px 0 4px;">
+          <div class="code-block" id="gpt-oauth-id" style="margin-bottom:6px;">
+            <button class="copy-btn" onclick="copyToClipboard('gpt-oauth-id-val', this)">⧉</button>
+            <span id="gpt-oauth-id-val">{{ tenant.oauth_client_id }}</span>
+          </div>
+        </div>
+        <div style="margin:0 0 6px;">
+          OAuth Token URL:
+          <div class="code-block" id="gpt-token-url" style="margin-top:4px;">
+            <button class="copy-btn" onclick="copyToClipboard('gpt-token-url-val', this)">⧉</button>
+            <span id="gpt-token-url-val">{{ oauth_token_url }}</span>
+          </div>
+        </div>
+        <div>
+          OAuth Auth URL:
+          <div class="code-block" id="gpt-auth-url" style="margin-top:4px;">
+            <button class="copy-btn" onclick="copyToClipboard('gpt-auth-url-val', this)">⧉</button>
+            <span id="gpt-auth-url-val">{{ oauth_authorize_url }}</span>
+          </div>
+        </div>
+        {% endif %}
+      </li>
+      <li>{{ _('help_chatgpt_step5') }}</li>
+    </ol>
+
+    <div class="divider"></div>
+    <div style="display:flex;gap:12px;">
+      <a href="/dashboard" class="btn btn-secondary">← {{ _('nav_dashboard') }}</a>
+      <a href="/settings" class="btn btn-secondary">{{ _('nav_settings') }}</a>
+    </div>
+  </div>
+</div>
+{% endblock %}

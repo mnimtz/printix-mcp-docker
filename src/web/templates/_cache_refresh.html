@@ -1,0 +1,34 @@
+{#
+  Cache-Refresh-Widget (v6.1.0)
+  =============================
+  Kleines Include für Tenant-Seiten die gecachte Daten anzeigen.
+  Zeigt "Stand: vor X" + einen "Aktualisieren"-Button der gezielt das
+  angegebene Topic invalidiert.
+
+  Usage:
+    {% include "_cache_refresh.html" with context %}
+
+  Voraussetzung im Context:
+    cache_topic  — das invalidierte Topic (z.B. "users", "printers")
+    cache_meta   — dict mit age_str (String). Kommt von _cache_meta()
+    cache_back   — URL zum Rückspringen nach dem Refresh (default: request.url.path)
+#}
+{% set _topic = cache_topic | default("all") %}
+{% set _meta  = cache_meta  | default({}) %}
+{% set _back  = cache_back  | default(request.url.path) %}
+
+<form method="post" action="/tenant/refresh"
+      style="display:inline-flex;gap:8px;align-items:center;margin:0;">
+  <input type="hidden" name="topic" value="{{ _topic }}">
+  <input type="hidden" name="back"  value="{{ _back }}">
+  <button type="submit" class="btn btn-secondary"
+          style="font-size:.82em;padding:5px 11px;"
+          title="{{ _('cache_refresh_title') }}">
+    🔄 {{ _('common_refresh') }}
+  </button>
+  {% if _meta.age_str %}
+    <small style="color:#6b7280;font-size:.78em;white-space:nowrap;">
+      {{ _('cache_last_loaded') }}: {{ _meta.age_str }}
+    </small>
+  {% endif %}
+</form>

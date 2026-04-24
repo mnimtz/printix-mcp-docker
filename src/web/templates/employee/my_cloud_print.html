@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+{% block title %}{{ _('emp_cloud_print') }} — Printix MCP{% endblock %}
+{% block content %}
+<div class="container">
+  <!-- Sub-Navigation -->
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px;">
+    <a href="/my" class="btn btn-secondary" style="font-size:.85em;">{{ _('emp_my_dashboard') }}</a>
+    <a href="/my/jobs" class="btn btn-secondary" style="font-size:.85em;">{{ _('emp_my_jobs') }}</a>
+    <a href="/my/upload" class="btn btn-secondary" style="font-size:.85em;">📤 {{ _('emp_upload_tab') }}</a>
+    <a href="/my/delegation" class="btn btn-secondary" style="font-size:.85em;">{{ _('emp_delegation') }}</a>
+    <a href="/my/cloud-print" class="btn btn-primary" style="font-size:.85em;">{{ _('emp_cloud_print') }}</a>
+    <a href="/my/send-to" class="btn btn-secondary" style="font-size:.85em;">💻 {{ _('emp_send_to') }}</a>
+    {% if user.role_type != 'employee' %}
+    {% endif %}
+    <a href="/my/mobile-app" class="btn btn-secondary" style="font-size:.85em;">📱 {{ _('emp_mobile_app') }}</a>
+    {% if user.role_type != 'employee' %}
+    <a href="/my/employees" class="btn btn-secondary" style="font-size:.85em;">{{ _('nav_employees') }}</a>
+    <a href="/my/setup-guide" class="btn btn-secondary" style="font-size:.85em;">{{ _('emp_setup_guide') }}</a>
+    {% endif %}
+  </div>
+
+  {% if flash == 'config_saved' %}
+    <div class="alert alert-success">{{ _('emp_flash_config_saved') }}</div>
+  {% endif %}
+
+  <!-- IPPS Endpoint (primär, empfohlen) -->
+  <div class="card">
+    <div class="section-title">{{ _('emp_cloud_print') }}</div>
+    <div class="section-sub">{{ _('emp_cloud_print_desc') }}</div>
+
+    {% if config and config.printix_tenant_id %}
+
+    {# v6.5.0: IPPS als empfohlenes Protokoll — TLS, User-Identität im Request, Cloudflare-freundlich #}
+    <div style="margin-top:16px;padding:14px;border-radius:10px;background:#ecfdf5;border:1px solid #a7f3d0;">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+        <strong style="color:#065f46;font-size:.95em;">🔐 {{ _('emp_ipps_endpoint') }}</strong>
+        <span style="font-size:.72em;padding:2px 8px;border-radius:999px;background:#10b981;color:#fff;font-weight:700;">{{ _('emp_ipps_recommended') }}</span>
+      </div>
+      <div style="font-size:.82em;color:#065f46;margin-bottom:10px;">{{ _('emp_ipps_advantages') }}</div>
+      <table>
+        <tr>
+          <th style="width:160px;">{{ _('emp_lpr_protocol') }}</th>
+          <td><code>IPPS</code> ({{ _('emp_ipps_via_tls') }})</td>
+        </tr>
+        <tr>
+          <th>{{ _('emp_ipps_url') }}</th>
+          <td>
+            <div class="code-block">
+              <code>{{ ipps_public_url or '<ipps://ipps.printix.cloud>' }}/ipp/{{ config.printix_tenant_id }}</code>
+            </div>
+            <small style="color:#64748b;">{{ _('emp_ipps_url_hint') }}</small>
+          </td>
+        </tr>
+        {% if config.lpr_target_queue %}
+        <tr>
+          <th>{{ _('emp_target_queue') }}</th>
+          <td>
+            {% if target_queue_name %}
+              <strong>{{ target_queue_name }}</strong><br>
+              <small style="color:#6b7280;font-family:ui-monospace,monospace;">{{ config.lpr_target_queue }}</small>
+            {% else %}
+              <code>{{ config.lpr_target_queue }}</code>
+            {% endif %}
+          </td>
+        </tr>
+        {% endif %}
+      </table>
+    </div>
+
+    <!-- v6.7.23: Admin-Info schlanker — der alte „Pfad"-Hinweis war veraltet
+         (Printix sendet immer auf /ipp/printer, Pfad wird ignoriert;
+         Tenant-Routing läuft über Username-Cache). Detaillierte Anleitung
+         steht jetzt im Setup-Guide. -->
+    {% if user.role_type != 'employee' %}
+    <div class="alert alert-info" style="margin-top:16px;">
+      <strong>🖨️ {{ _('emp_printix_setup_title') }}</strong><br>
+      {{ _('emp_cloudprint_setup_hint') }}
+      <div style="margin-top:10px;">
+        <a href="/my/setup-guide" class="btn btn-primary" style="font-size:.85em;">
+          → {{ _('emp_setup_guide') }}
+        </a>
+      </div>
+    </div>
+    {% endif %}
+
+    {# v6.6.0: LPR-Legacy-Block entfernt — IPPS ist der einzige Cloud-Print-Eingang. #}
+
+    {% else %}
+    <div class="alert alert-warning" style="margin-top:12px;">
+      {{ _('emp_no_tenant_config') }}
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Konfiguration (nur Admin/User) -->
+  {% if user.role_type != 'employee' %}
+  <div class="card" style="margin-top:16px;">
+    <div class="section-title">{{ _('emp_forwarding_config') }}</div>
+    <div class="section-sub">{{ _('emp_forwarding_config_desc') }}</div>
+
+    <form method="post" action="/my/cloud-print/save" style="margin-top:16px;">
+      <div style="margin-bottom:14px;">
+        <label for="target_queue" style="font-size:.85em;font-weight:600;display:block;margin-bottom:4px;">
+          {{ _('emp_target_queue') }}
+        </label>
+        {% if queues %}
+          <select name="target_queue" id="target_queue"
+                  style="width:100%;padding:8px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:.9em;">
+            <option value="">— {{ _('emp_select_queue') }} —</option>
+            {% for q in queues %}
+              <option value="{{ q.queue_id }}"
+                      {% if config and config.lpr_target_queue == q.queue_id %}selected{% endif %}>
+                {{ q.queue_name }} ({{ q.printer_name }})
+              </option>
+            {% endfor %}
+          </select>
+        {% else %}
+          <div class="alert alert-warning" style="margin:0;">
+            {{ _('emp_no_queues') }}
+          </div>
+        {% endif %}
+        <small style="color:#64748b;font-size:.78em;">{{ _('emp_target_queue_hint') }}</small>
+      </div>
+
+      <button type="submit" class="btn btn-primary">{{ _('emp_save') }}</button>
+    </form>
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}

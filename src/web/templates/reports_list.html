@@ -1,0 +1,174 @@
+{% extends "base.html" %}
+{% block title %}{{ _('reports_title') }} — {{ _('brand_console_name') }}{% endblock %}
+
+{% block extra_head %}
+<style>
+  .reports-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:24px; flex-wrap:wrap; gap:12px; }
+  .reports-header h2 { font-size:1.3em; font-weight:700; color:#1e3a5f; margin:0; }
+  .preset-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(240px,1fr)); gap:12px; margin-top:12px; }
+  .preset-card {
+    border:1px solid #e5e7eb; border-radius:10px; padding:16px;
+    background:#fff; transition:box-shadow .15s, border-color .15s; position:relative;
+  }
+  .preset-card:hover { box-shadow:0 4px 16px rgba(0,0,0,.1); border-color:#2563eb; }
+  .preset-card .p-icon { font-size:1.8em; margin-bottom:6px; }
+  .preset-card .p-name { font-weight:700; font-size:.95em; color:#1e3a5f; margin-bottom:4px; }
+  .preset-card .p-desc { font-size:.8em; color:#6b7280; line-height:1.4; margin-bottom:10px; }
+  .preset-card .p-pbi  { font-size:.72em; color:#9ca3af; margin-bottom:10px; }
+  .preset-card .badge-coming { position:absolute; top:10px; right:10px; }
+  .tag-section { margin-top:28px; }
+  .tag-label { font-size:.78em; font-weight:700; text-transform:uppercase; letter-spacing:.07em; color:#6b7280; margin-bottom:8px; }
+  .action-bar { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:20px; }
+  .empty-state { text-align:center; padding:40px 20px; color:#9ca3af; }
+  .empty-state .es-icon { font-size:3em; margin-bottom:10px; }
+  .run-form { display:inline; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+  <div class="card">
+
+    {% if flash_msg %}
+    <div class="alert alert-{{ flash_kind if flash_kind else 'success' }}" style="margin-bottom:20px;">
+      {{ flash_msg }}
+    </div>
+    {% endif %}
+
+    {% if not reporting_ok %}
+    <div class="alert alert-warning" style="margin-bottom:20px;">
+      ⚠️ <strong>{{ _('rpt_list_no_sql') }}</strong>
+      <a href="/settings" style="color:#854d0e;font-weight:600;">{{ _('rpt_list_settings') }}</a>
+    </div>
+    {% endif %}
+
+    {% if not mail_ok %}
+    <div class="alert alert-info" style="margin-bottom:20px;">
+      📬 {{ _('rpt_list_no_mail') }}
+      <a href="/settings" style="color:#1e40af;font-weight:600;">{{ _('rpt_list_mail_setup') }}</a>
+    </div>
+    {% endif %}
+
+    <div class="reports-header">
+      <h2>📊 {{ _('reports_title') }}</h2>
+      <a href="/reports/new" class="btn btn-primary">+ {{ _('reports_new') }}</a>
+    </div>
+
+    <!-- ── Eigene Templates ─────────────────────────────────────────────── -->
+    {% if templates_list %}
+    <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
+    <table>
+      <thead>
+        <tr>
+          <th>{{ _('reports_list_name') }}</th>
+          <th>{{ _('rpt_list_type') }}</th>
+          <th>{{ _('rpt_list_recipients') }}</th>
+          <th>{{ _('rpt_list_schedule') }}</th>
+          <th>{{ _('rpt_list_created') }}</th>
+          <th style="text-align:right;">{{ _('rpt_list_actions') }}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for t in templates_list %}
+        <tr>
+          <td>
+            <strong>{{ t.name }}</strong>
+            {% if t.is_scheduled %}<span class="badge badge-green" style="margin-left:6px;">⏰ {{ _('rpt_list_active') }}</span>{% endif %}
+          </td>
+          <td>
+            <span class="badge badge-blue">{{ _('rpt_type_' + t.query_type) if ('rpt_type_' + t.query_type) else t.query_type }}</span>
+          </td>
+          <td style="font-size:.82em;color:#6b7280;">
+            {{ t.recipients | join(', ') if t.recipients else '—' }}
+          </td>
+          <td style="font-size:.82em;color:#6b7280;">
+            {% if t.schedule %}
+              {% set sc = t.schedule %}
+              {% if sc.frequency == 'daily' %}
+                {{ _('rpt_sched_daily') }} {{ sc.time | default('08:00') }}
+              {% elif sc.frequency == 'weekly' %}
+                {{ _('rpt_sched_weekly') }} {{ _('rpt_dow_' + (sc.day | default(0)) | string) }} {{ sc.time | default('08:00') }}
+              {% else %}
+                {{ _('rpt_sched_monthly') }}, {{ sc.day | default(1) }}. {{ sc.time | default('08:00') }}
+              {% endif %}
+            {% else %}—{% endif %}
+            {% if t.is_scheduled and t.next_run %}<br><small>{{ _('rpt_list_next') }} {{ t.next_run[:16] }}</small>{% endif %}
+          </td>
+          <td style="font-size:.8em;color:#9ca3af;">{{ t.created_at[:10] if t.created_at else '—' }}</td>
+          <td style="text-align:right; white-space:nowrap;">
+            <!-- Run now -->
+            <form class="run-form" method="post" action="/reports/{{ t.report_id }}/run"
+                  onsubmit="this.querySelector('button').disabled=true;this.querySelector('button').innerHTML='⏳';this.querySelector('button').title='{{ _('rpt_run_running') | e }}';">
+              <button type="submit" class="btn btn-success btn-sm"
+                      title="{{ _('rpt_run_now') }}"
+                      {% if not reporting_ok %}disabled{% endif %}>▶</button>
+            </form>
+            <!-- Preview -->
+            <a href="/reports/{{ t.report_id }}/preview" class="btn btn-secondary btn-sm"
+               title="{{ _('rpt_preview_title') }}" target="_blank"
+               {% if not reporting_ok %}style="pointer-events:none;opacity:.5"{% endif %}>👁</a>
+            <!-- Edit -->
+            <a href="/reports/{{ t.report_id }}/edit" class="btn btn-secondary btn-sm" title="{{ _('rpt_edit_title') }}">✏</a>
+            <!-- Delete -->
+            <form class="run-form" method="post" action="/reports/{{ t.report_id }}/delete"
+                  data-report-name="{{ t.name }}"
+                  data-confirm-msg="{{ _('rpt_delete_confirm') }}"
+                  onsubmit="return confirm(this.dataset.confirmMsg.replace('?', ' \'' + this.dataset.reportName + '\'?'));">
+              <button type="submit" class="btn btn-danger btn-sm" title="{{ _('rpt_delete_title') }}">🗑</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    {% else %}
+    <div class="empty-state">
+      <div class="es-icon">📊</div>
+      <div>{{ _('reports_no_templates') }}</div>
+    </div>
+    {% endif %}
+
+    <div class="divider"></div>
+
+    <!-- ── Preset-Bibliothek ──────────────────────────────────────────────── -->
+    <div class="section-title" style="margin-bottom:4px;">📚 {{ _('rpt_list_preset_lib') }}</div>
+    <div class="section-sub">{{ _('rpt_list_preset_desc') }}</div>
+
+    {% for tag in tags %}
+    {% set tag_presets = presets_by_tag.get(tag, []) %}
+    {% if tag_presets %}
+    <div class="tag-section">
+      <div class="tag-label">{{ _('preset_tag_' + tag) }}</div>
+      <div class="preset-grid">
+        {% for p in tag_presets %}
+        <div class="preset-card">
+          {% if not p.available %}
+          <span class="badge badge-yellow badge-coming">v2.15</span>
+          {% endif %}
+          <div class="p-icon">{{ p.icon }}</div>
+          <div class="p-name">{{ _('preset_name_' + p.key) }}</div>
+          <div class="p-desc">{{ _('preset_desc_' + p.key) }}</div>
+          {% if p.pbi_page %}
+          <div class="p-pbi">📊 PowerBI: {{ p.pbi_page }}</div>
+          {% endif %}
+          {% if p.available %}
+          <a href="/reports/new?preset={{ p.key }}" class="btn btn-primary btn-sm">{{ _('rpt_list_use') }}</a>
+          {% else %}
+          <button class="btn btn-secondary btn-sm" disabled
+                  title="{{ p.coming_soon }}">{{ _('rpt_list_coming') }}</button>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+    {% endfor %}
+
+    <div style="margin-top:16px; font-size:.8em; color:#9ca3af; text-align:center;">
+      💡 {{ _('rpt_list_tip') | safe }}
+    </div>
+
+  </div>
+</div>
+{% endblock %}

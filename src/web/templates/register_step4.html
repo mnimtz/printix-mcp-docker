@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}{{ _('reg_title') }} — {{ _('reg_step4') }}{% endblock %}
+{% block content %}
+<div class="container">
+  <div class="card">
+    <div class="steps">
+      <div class="step-item"><div class="step-circle done">✓</div><span class="step-label">{{ _('reg_step1') }}</span></div>
+      <div class="step-connector"></div>
+      <div class="step-item"><div class="step-circle done">✓</div><span class="step-label">{{ _('reg_step2') }}</span></div>
+      <div class="step-connector"></div>
+      <div class="step-item"><div class="step-circle done">✓</div><span class="step-label">{{ _('reg_step3') }}</span></div>
+      <div class="step-connector"></div>
+      <div class="step-item"><div class="step-circle active">4</div><span class="step-label active">{{ _('reg_step4') }}</span></div>
+    </div>
+
+    <div class="section-title">{{ _('reg_summary_title') }}</div>
+    <div class="section-sub">{{ _('reg_summary_subtitle') }}</div>
+
+    {% if error %}
+    <div class="alert alert-error">{{ error }}</div>
+    {% endif %}
+
+    <table style="margin-bottom:24px;">
+      <tr><th style="width:180px;">{{ _('reg_username') }}</th><td>{{ username }}</td></tr>
+      <tr><th>{{ _('reg_summary_tenant') }}</th><td>{{ tenant_name or tenant_id }}</td></tr>
+      <tr><th>Printix Tenant-ID</th><td><code>{{ tenant_id }}</code></td></tr>
+      <tr>
+        <th>{{ _('reg_summary_sql') }}</th>
+        <td>
+          {% if sql_configured %}
+          <span class="badge badge-green">✓ {{ _('common_configured') }}</span>
+          {% else %}
+          <span class="badge badge-yellow">{{ _('common_not_configured') }}</span>
+          {% endif %}
+        </td>
+      </tr>
+      <tr>
+        <th>{{ _('reg_summary_mail') }}</th>
+        <td>
+          {% if mail_configured %}
+          <span class="badge badge-green">✓ {{ _('common_configured') }}</span>
+          {% else %}
+          <span class="badge badge-yellow">{{ _('common_not_configured') }}</span>
+          {% endif %}
+        </td>
+      </tr>
+      <tr><th>{{ _('reg_summary_mcp') }}</th><td><code>{{ base_url }}/mcp</code></td></tr>
+    </table>
+
+    <div class="alert alert-info">
+      {{ _('reg_summary_complete_hint') | safe }}
+    </div>
+
+    <form method="post" action="/register/summary">
+      <div style="display:flex; gap:12px;">
+        <a href="/register/optional" class="btn btn-secondary">← {{ _('reg_back') }}</a>
+        <button type="submit" class="btn btn-primary">🚀 {{ _('reg_summary_finish') }}</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

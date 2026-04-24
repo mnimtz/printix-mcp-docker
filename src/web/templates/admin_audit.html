@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}Audit-Log — {{ _('brand_console_name') }}{% endblock %}
+{% block content %}
+<div class="container">
+  <div class="card">
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:20px;">
+      <div>
+        <div class="section-title">Audit-Log</div>
+        <div class="section-sub">Letzte 200 Aktionen im System.</div>
+      </div>
+      <a href="/admin" class="btn btn-secondary btn-sm">← Übersicht</a>
+    </div>
+
+    {% if entries %}
+    <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
+    <table>
+      <thead>
+        <tr>
+          <th style="width:160px;">Zeitpunkt</th>
+          <th style="width:140px;">Benutzer</th>
+          <th style="width:140px;">Aktion</th>
+          <th>Details</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for e in entries %}
+        <tr>
+          <td style="font-size:.82em; color:#6b7280; font-family:monospace;">
+            {{ e.created_at[:19] if e.created_at else '—' }}
+          </td>
+          <td style="font-size:.87em;">{{ e.username or e.user_id[:8] ~ '...' }}</td>
+          <td>
+            <span class="badge {% if e.action in ('register','login') %}badge-blue{% elif e.action in ('approve_user') %}badge-green{% elif e.action in ('disable_user') %}badge-red{% else %}badge-yellow{% endif %}">
+              {{ e.action }}
+            </span>
+          </td>
+          <td style="font-size:.87em; color:#374151;">{{ e.details or '—' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    {% else %}
+    <div class="alert alert-info">Noch keine Einträge im Audit-Log.</div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

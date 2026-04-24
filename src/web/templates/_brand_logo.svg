@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Modern printer icon — replaces the former Printix word-mark.
+     Uses currentColor so the outer template can tint it via CSS
+     (parent sets color:#002854). The sheet has a subtle gradient
+     to add a hint of life without anchoring to a brand palette. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Printer">
+  <defs>
+    <linearGradient id="pg-sheet" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#00a0fb"/>
+      <stop offset="1" stop-color="#00eb86"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Oberes Papierfach (vor dem Druck) -->
+  <rect x="34" y="14" width="60" height="26" rx="3"
+        fill="none" stroke="currentColor" stroke-width="4"/>
+  <line x1="42" y1="24" x2="86" y2="24" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+  <line x1="42" y1="32" x2="74" y2="32" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+
+  <!-- Druckerkorpus -->
+  <path d="M22 44 h84 a8 8 0 0 1 8 8 v34 a8 8 0 0 1 -8 8 h-12 v-14 h-60 v14 h-12 a8 8 0 0 1 -8 -8 v-34 a8 8 0 0 1 8 -8 z"
+        fill="currentColor" opacity="0.08"/>
+  <path d="M22 44 h84 a8 8 0 0 1 8 8 v34 a8 8 0 0 1 -8 8 h-12 v-14 h-60 v14 h-12 a8 8 0 0 1 -8 -8 v-34 a8 8 0 0 1 8 -8 z"
+        fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/>
+
+  <!-- Status-LED (Akzent-Gradient) -->
+  <circle cx="98" cy="60" r="4" fill="url(#pg-sheet)"/>
+
+  <!-- Ausgabefach (frisch gedrucktes Blatt) -->
+  <rect x="36" y="80" width="56" height="34" rx="3"
+        fill="url(#pg-sheet)" opacity="0.18"/>
+  <rect x="36" y="80" width="56" height="34" rx="3"
+        fill="none" stroke="currentColor" stroke-width="4"/>
+  <line x1="46" y1="92" x2="82" y2="92" stroke="currentColor" stroke-width="3" stroke-linecap="round" opacity="0.7"/>
+  <line x1="46" y1="100" x2="74" y2="100" stroke="currentColor" stroke-width="3" stroke-linecap="round" opacity="0.7"/>
+  <line x1="46" y1="108" x2="78" y2="108" stroke="currentColor" stroke-width="3" stroke-linecap="round" opacity="0.7"/>
+</svg>

@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %}{{ ticket.ticket_no }} — {{ _('brand_console_name') }}{% endblock %}
+{% block content %}
+<div class="container">
+  <div class="card">
+    <p><a href="/feedback" style="color:#2563eb;">← {{ _('feedback_back') }}</a></p>
+
+    <h2 class="section-title">
+      <code>{{ ticket.ticket_no }}</code> · {{ ticket.title }}
+    </h2>
+
+    <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:20px;color:#64748b;font-size:.9em;">
+      <div><strong>{{ _('feedback_col_category') }}:</strong>
+        {% if ticket.category == 'feature' %}💡{% elif ticket.category == 'bug' %}🐞
+        {% elif ticket.category == 'question' %}❓{% else %}📌{% endif %}
+        {{ _('feedback_cat_' + ticket.category) }}
+      </div>
+      <div><strong>{{ _('feedback_col_status') }}:</strong>
+        <span class="status-badge status-{{ ticket.status }}">{{ _('feedback_status_' + ticket.status) }}</span>
+      </div>
+      <div><strong>{{ _('feedback_col_user') }}:</strong> {{ ticket.user_email }}</div>
+      <div><strong>{{ _('feedback_col_created') }}:</strong> {{ ticket.created_at[:19] | replace('T', ' ') }}</div>
+    </div>
+
+    <div class="card" style="background:#f8fafc;border:1px solid #e5e7eb;margin-bottom:20px;">
+      <h4 style="margin-top:0;color:#374151;">{{ _('feedback_f_description') }}</h4>
+      <div style="white-space:pre-wrap;color:#374151;">{{ ticket.description or '—' }}</div>
+    </div>
+
+    {% if ticket.admin_note %}
+    <div class="alert alert-info" style="margin-bottom:20px;">
+      <strong>{{ _('feedback_admin_note') }}:</strong><br>
+      <span style="white-space:pre-wrap;">{{ ticket.admin_note }}</span>
+    </div>
+    {% endif %}
+
+    {% if user.is_admin %}
+    <h3 style="font-size:1em;color:#2563eb;">⚙️ {{ _('feedback_admin_actions') }}</h3>
+    <form method="post" action="/feedback/{{ ticket.id }}/update" style="margin-top:12px;">
+      <div class="form-row">
+        <label for="status">{{ _('feedback_col_status') }}</label>
+        <select id="status" name="status">
+          {% for s in ['new','planned','in_progress','done','rejected','later'] %}
+            <option value="{{ s }}" {% if ticket.status == s %}selected{% endif %}>
+              {{ _('feedback_status_' + s) }}
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-row">
+        <label for="priority">{{ _('feedback_priority') }}</label>
+        <select id="priority" name="priority">
+          {% for p in ['low','normal','high','critical'] %}
+            <option value="{{ p }}" {% if ticket.priority == p %}selected{% endif %}>
+              {{ _('feedback_prio_' + p) }}
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-row">
+        <label for="admin_note">{{ _('feedback_admin_note') }}</label>
+        <textarea id="admin_note" name="admin_note" rows="4">{{ ticket.admin_note or '' }}</textarea>
+      </div>
+      <button type="submit" class="btn btn-primary">{{ _('feedback_save') }}</button>
+    </form>
+    {% endif %}
+  </div>
+</div>
+<style>
+.status-badge { display:inline-block; padding:2px 10px; border-radius:12px; font-size:.8em; font-weight:600; }
+.status-new{background:#dbeafe;color:#1e40af;} .status-planned{background:#fef3c7;color:#92400e;}
+.status-in_progress{background:#ddd6fe;color:#5b21b6;} .status-done{background:#d1fae5;color:#065f46;}
+.status-rejected{background:#fee2e2;color:#991b1b;} .status-later{background:#e5e7eb;color:#374151;}
+</style>
+{% endblock %}

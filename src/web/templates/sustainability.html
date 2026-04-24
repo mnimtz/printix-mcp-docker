@@ -1,0 +1,318 @@
+{% extends "base.html" %}
+{% block title %}{{ _('sust_title') }} — {{ _('brand_console_name') }}{% endblock %}
+
+{% block extra_head %}
+<style>
+  /* ── Hero Banner ──────────────────────────────────────────────────────── */
+  .sust-hero {
+    background: linear-gradient(135deg, #16a34a 0%, #22c55e 60%, #4ade80 100%);
+    color: #fff; border-radius: 14px; padding: 40px 36px 32px;
+    text-align: center; margin-bottom: 28px;
+    box-shadow: 0 6px 24px rgba(22,163,74,.25);
+  }
+  .sust-hero-icon { font-size: 3.2em; line-height: 1; margin-bottom: 8px; }
+  .sust-hero-title { font-size: 1.6em; font-weight: 800; margin-bottom: 4px; }
+  .sust-hero-sub { font-size: .95em; opacity: .88; }
+
+  /* ── Period Filter ────────────────────────────────────────────────────── */
+  .sust-filter {
+    background: #fff; border-radius: 12px; padding: 18px 24px;
+    box-shadow: 0 2px 10px rgba(0,0,0,.06); margin-bottom: 24px;
+    display: flex; align-items: flex-end; gap: 14px; flex-wrap: wrap;
+  }
+  .sust-filter .form-group { margin: 0; flex: 1; min-width: 140px; }
+  .sust-filter input[type=date] {
+    width: 100%; padding: 9px 12px; border: 1px solid #d1d5db;
+    border-radius: 8px; font-size: .92em; background: #fff;
+  }
+  .sust-filter input[type=date]:focus {
+    outline: none; border-color: #22c55e; box-shadow: 0 0 0 3px rgba(34,197,94,.18);
+  }
+  .sust-filter .btn-green {
+    background: #16a34a; color: #fff; padding: 9px 22px;
+    border: none; border-radius: 8px; font-weight: 600;
+    font-size: .92em; cursor: pointer; transition: background .15s;
+    white-space: nowrap;
+  }
+  .sust-filter .btn-green:hover { background: #15803d; }
+
+  /* ── Big Number Cards ─────────────────────────────────────────────────── */
+  .sust-grid {
+    display: grid; grid-template-columns: repeat(4, 1fr);
+    gap: 16px; margin-bottom: 28px;
+  }
+  .sust-card {
+    background: linear-gradient(145deg, #f0fdf4 0%, #dcfce7 100%);
+    border: 1px solid #bbf7d0; border-radius: 14px;
+    padding: 24px 18px; text-align: center;
+    transition: transform .15s, box-shadow .15s;
+  }
+  .sust-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(22,163,74,.15);
+  }
+  .sust-card-icon { font-size: 2em; margin-bottom: 6px; }
+  .sust-card-num {
+    font-size: 2.2em; font-weight: 800; color: #15803d;
+    line-height: 1.1; margin-bottom: 2px;
+  }
+  .sust-card-unit { font-size: .88em; font-weight: 600; color: #16a34a; margin-bottom: 4px; }
+  .sust-card-label { font-size: .78em; color: #6b7280; }
+
+  /* ── Equivalency Section ──────────────────────────────────────────────── */
+  .sust-equiv-title {
+    font-size: 1.1em; font-weight: 700; color: #1e3a5f;
+    margin-bottom: 14px; text-align: center;
+  }
+  .sust-equiv-grid {
+    display: grid; grid-template-columns: repeat(3, 1fr);
+    gap: 16px; margin-bottom: 28px;
+  }
+  .sust-equiv-card {
+    background: #fff; border: 1px solid #e5e7eb; border-radius: 12px;
+    padding: 22px 16px; text-align: center;
+    box-shadow: 0 2px 8px rgba(0,0,0,.04);
+  }
+  .sust-equiv-icon { font-size: 2em; margin-bottom: 6px; }
+  .sust-equiv-num { font-size: 1.8em; font-weight: 800; color: #16a34a; line-height: 1.2; }
+  .sust-equiv-desc { font-size: .82em; color: #6b7280; margin-top: 4px; }
+
+  /* ── Duplex Breakdown ─────────────────────────────────────────────────── */
+  .sust-duplex {
+    background: #fff; border-radius: 12px; padding: 28px 28px 24px;
+    box-shadow: 0 2px 10px rgba(0,0,0,.06); margin-bottom: 28px;
+  }
+  .sust-duplex-header {
+    display: flex; align-items: baseline; justify-content: space-between;
+    margin-bottom: 18px; flex-wrap: wrap; gap: 8px;
+  }
+  .sust-duplex-title { font-size: 1.05em; font-weight: 700; color: #1e3a5f; }
+  .sust-duplex-saved {
+    font-size: .88em; color: #16a34a; font-weight: 600;
+    background: #f0fdf4; padding: 4px 12px; border-radius: 8px;
+  }
+  .sust-duplex-pct {
+    font-size: 3em; font-weight: 800; color: #16a34a;
+    text-align: center; line-height: 1; margin-bottom: 4px;
+  }
+  .sust-duplex-pct-label {
+    text-align: center; font-size: .88em; color: #6b7280; margin-bottom: 18px;
+  }
+  .sust-bar-wrap {
+    background: #f1f5f9; border-radius: 10px; height: 32px;
+    overflow: hidden; display: flex; margin-bottom: 10px;
+  }
+  .sust-bar-duplex {
+    background: linear-gradient(90deg, #16a34a, #22c55e);
+    height: 100%; border-radius: 10px 0 0 10px;
+    display: flex; align-items: center; justify-content: center;
+    color: #fff; font-weight: 700; font-size: .82em;
+    min-width: 40px; transition: width .4s ease;
+  }
+  .sust-bar-simplex {
+    background: #e2e8f0; height: 100%;
+    display: flex; align-items: center; justify-content: center;
+    color: #64748b; font-weight: 600; font-size: .82em;
+    min-width: 40px; flex: 1;
+  }
+  .sust-bar-legend {
+    display: flex; justify-content: center; gap: 24px; font-size: .82em; color: #6b7280;
+  }
+  .sust-bar-legend span { display: flex; align-items: center; gap: 6px; }
+  .sust-dot {
+    display: inline-block; width: 10px; height: 10px; border-radius: 50%;
+  }
+  .sust-dot-green { background: #22c55e; }
+  .sust-dot-gray  { background: #cbd5e1; }
+
+  /* ── Monthly Trend ────────────────────────────────────────────────────── */
+  .sust-trend {
+    background: #fff; border-radius: 12px; padding: 28px 28px 20px;
+    box-shadow: 0 2px 10px rgba(0,0,0,.06); margin-bottom: 28px;
+  }
+  .sust-trend-title { font-size: 1.05em; font-weight: 700; color: #1e3a5f; margin-bottom: 18px; }
+  .sust-trend-row {
+    display: flex; align-items: center; gap: 12px;
+    margin-bottom: 10px;
+  }
+  .sust-trend-label {
+    width: 90px; text-align: right; font-size: .82em;
+    color: #6b7280; flex-shrink: 0; white-space: nowrap;
+  }
+  .sust-trend-bar-wrap {
+    flex: 1; background: #f1f5f9; border-radius: 6px;
+    height: 24px; overflow: hidden;
+  }
+  .sust-trend-bar {
+    background: linear-gradient(90deg, #22c55e, #4ade80);
+    height: 100%; border-radius: 6px;
+    min-width: 2px; transition: width .4s ease;
+  }
+  .sust-trend-val {
+    width: 70px; font-size: .82em; font-weight: 600;
+    color: #15803d; flex-shrink: 0;
+  }
+
+  /* ── No-SQL Fallback ──────────────────────────────────────────────────── */
+  .sust-nosql {
+    text-align: center; padding: 60px 20px;
+  }
+  .sust-nosql-icon { font-size: 3em; margin-bottom: 12px; }
+  .sust-nosql-msg { font-size: 1em; color: #6b7280; }
+
+  /* ── Responsive ───────────────────────────────────────────────────────── */
+  @media (max-width: 900px) {
+    .sust-grid { grid-template-columns: repeat(2, 1fr); }
+    .sust-equiv-grid { grid-template-columns: repeat(3, 1fr); }
+  }
+  @media (max-width: 640px) {
+    .sust-hero { padding: 28px 20px 24px; }
+    .sust-hero-icon { font-size: 2.4em; }
+    .sust-hero-title { font-size: 1.25em; }
+    .sust-grid { grid-template-columns: 1fr 1fr; gap: 10px; }
+    .sust-card { padding: 18px 12px; }
+    .sust-card-num { font-size: 1.7em; }
+    .sust-equiv-grid { grid-template-columns: 1fr; }
+    .sust-duplex { padding: 20px 16px; }
+    .sust-duplex-pct { font-size: 2.4em; }
+    .sust-trend { padding: 20px 16px; }
+    .sust-trend-label { width: 70px; font-size: .76em; }
+    .sust-filter { padding: 14px 16px; }
+  }
+  @media (max-width: 400px) {
+    .sust-grid { grid-template-columns: 1fr; }
+    .sust-card-num { font-size: 1.5em; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container" style="max-width:960px;">
+
+  {% if not has_sql %}
+  <!-- ── No-SQL Fallback ──────────────────────────────────────────────── -->
+  <div class="card">
+    <div class="sust-nosql">
+      <div class="sust-nosql-icon">🌱</div>
+      <div class="sust-nosql-msg">{{ _('sust_no_sql') }}</div>
+    </div>
+  </div>
+
+  {% else %}
+
+  <!-- ── Hero Banner ──────────────────────────────────────────────────── -->
+  <div class="sust-hero">
+    <div class="sust-hero-icon">🌳</div>
+    <div class="sust-hero-title">{{ _('sust_title') }}</div>
+    <div class="sust-hero-sub">{{ _('sust_subtitle') }}</div>
+  </div>
+
+  <!-- ── Period Filter ────────────────────────────────────────────────── -->
+  <form method="get" action="/sustainability" class="sust-filter">
+    <div class="form-group">
+      <label>{{ _('sust_start_date') }}</label>
+      <input type="date" name="start_date" value="{{ start_date }}">
+    </div>
+    <div class="form-group">
+      <label>{{ _('sust_end_date') }}</label>
+      <input type="date" name="end_date" value="{{ end_date }}">
+    </div>
+    <button type="submit" class="btn-green">{{ _('sust_apply') }}</button>
+  </form>
+
+  <!-- ── Big Number Cards ─────────────────────────────────────────────── -->
+  <div class="sust-grid">
+    <div class="sust-card">
+      <div class="sust-card-icon">🌱</div>
+      <div class="sust-card-num">{{ "%.1f"|format(env.co2_kg) }}</div>
+      <div class="sust-card-unit">kg CO₂</div>
+      <div class="sust-card-label">{{ _('sust_co2_saved') }}</div>
+    </div>
+    <div class="sust-card">
+      <div class="sust-card-icon">🌳</div>
+      <div class="sust-card-num">{{ "%.2f"|format(env.trees) }}</div>
+      <div class="sust-card-unit">{{ _('sust_trees_unit') }}</div>
+      <div class="sust-card-label">{{ _('sust_trees_saved') }}</div>
+    </div>
+    <div class="sust-card">
+      <div class="sust-card-icon">💧</div>
+      <div class="sust-card-num">{{ "%.0f"|format(env.water_l) }}</div>
+      <div class="sust-card-unit">{{ _('sust_liters') }}</div>
+      <div class="sust-card-label">{{ _('sust_water_saved') }}</div>
+    </div>
+    <div class="sust-card">
+      <div class="sust-card-icon">⚡</div>
+      <div class="sust-card-num">{{ "%.1f"|format(env.energy_kwh) }}</div>
+      <div class="sust-card-unit">kWh</div>
+      <div class="sust-card-label">{{ _('sust_energy_saved') }}</div>
+    </div>
+  </div>
+
+  <!-- ── Equivalency Section ──────────────────────────────────────────── -->
+  <div class="sust-equiv-title">{{ _('sust_equiv_title') }}</div>
+  <div class="sust-equiv-grid">
+    <div class="sust-equiv-card">
+      <div class="sust-equiv-icon">🚗</div>
+      <div class="sust-equiv-num">{{ "%.0f"|format(equivalents.car_km) }}</div>
+      <div class="sust-equiv-desc">{{ _('sust_equiv_car_km') }}</div>
+    </div>
+    <div class="sust-equiv-card">
+      <div class="sust-equiv-icon">🛁</div>
+      <div class="sust-equiv-num">{{ "%.1f"|format(equivalents.bathtubs) }}</div>
+      <div class="sust-equiv-desc">{{ _('sust_equiv_bathtubs') }}</div>
+    </div>
+    <div class="sust-equiv-card">
+      <div class="sust-equiv-icon">📱</div>
+      <div class="sust-equiv-num">{{ "%.0f"|format(equivalents.phone_charges) }}</div>
+      <div class="sust-equiv-desc">{{ _('sust_equiv_phone_charges') }}</div>
+    </div>
+  </div>
+
+  <!-- ── Duplex Breakdown ─────────────────────────────────────────────── -->
+  <div class="sust-duplex">
+    <div class="sust-duplex-header">
+      <div class="sust-duplex-title">{{ _('sust_duplex_title') }}</div>
+      <div class="sust-duplex-saved">
+        🌱 {{ _('sust_sheets_saved') }}: {{ "{:,}".format(tree_data.saved_sheets_duplex | int) }}
+      </div>
+    </div>
+
+    <div class="sust-duplex-pct">{{ "%.1f"|format(tree_data.duplex_pct) }}%</div>
+    <div class="sust-duplex-pct-label">{{ _('sust_duplex_rate') }}</div>
+
+    <div class="sust-bar-wrap">
+      <div class="sust-bar-duplex" style="width:{{ tree_data.duplex_pct }}%;">
+        {{ "%.0f"|format(tree_data.duplex_pct) }}%
+      </div>
+      <div class="sust-bar-simplex">
+        {{ "%.0f"|format(100 - tree_data.duplex_pct) }}%
+      </div>
+    </div>
+
+    <div class="sust-bar-legend">
+      <span><span class="sust-dot sust-dot-green"></span> {{ _('sust_duplex') }} ({{ "{:,}".format(tree_data.duplex_pages | int) }} {{ _('sust_pages') }})</span>
+      <span><span class="sust-dot sust-dot-gray"></span> {{ _('sust_simplex') }} ({{ "{:,}".format(tree_data.simplex_pages | int) }} {{ _('sust_pages') }})</span>
+    </div>
+  </div>
+
+  <!-- ── Monthly Trend ────────────────────────────────────────────────── -->
+  {% if monthly_trend %}
+  <div class="sust-trend">
+    <div class="sust-trend-title">{{ _('sust_trend_title') }}</div>
+
+    {% set max_sheets = monthly_trend | map(attribute='saved_sheets') | max %}
+    {% for row in monthly_trend %}
+    <div class="sust-trend-row">
+      <div class="sust-trend-label">{{ row.period }}</div>
+      <div class="sust-trend-bar-wrap">
+        <div class="sust-trend-bar" style="width:{{ (row.saved_sheets / max_sheets * 100) if max_sheets else 0 }}%;"></div>
+      </div>
+      <div class="sust-trend-val">{{ "{:,}".format(row.saved_sheets | int) }}</div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {% endif %}
+</div>
+{% endblock %}

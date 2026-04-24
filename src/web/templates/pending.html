@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}{{ _('admin_status_pending') }} — {{ _('brand_console_name') }}{% endblock %}
+{% block content %}
+<div class="container" style="max-width:500px;">
+  <div class="card" style="text-align:center; padding:48px 36px;">
+    <div style="font-size:3em; margin-bottom:16px;">⏳</div>
+    <h1 style="font-size:1.4em; color:#1e3a5f; margin-bottom:12px;">
+      {{ _('admin_status_pending') }}
+    </h1>
+    <p style="color:#6b7280; line-height:1.7; margin-bottom:24px;">
+      {{ _('login_pending') }}<br><br>
+      <strong>{{ user.username if user else '' }}</strong>
+    </p>
+    <a href="/logout" class="btn btn-secondary">{{ _('nav_logout') }}</a>
+  </div>
+</div>
+{% endblock %}

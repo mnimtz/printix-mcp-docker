@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block title %}{{ _('admin_create_user') }} — {{ _('brand_console_name') }}{% endblock %}
+{% block content %}
+<div class="container">
+  <div class="card" style="max-width:520px;margin:40px auto;">
+    <h2 class="section-title">{{ _('admin_create_user') }}</h2>
+    <p class="section-sub" style="margin-bottom:24px;">
+      Konto wird sofort angelegt, kein Registrierungs-Wizard.
+    </p>
+
+    {% if saved %}
+    <div class="alert alert-success">
+      ✓
+      {% if created_username %}
+        Benutzer <strong>{{ created_username }}</strong> wurde angelegt.
+      {% else %}
+        {{ _('reg_success') }}
+      {% endif %}
+    </div>
+    {% endif %}
+    {% if error %}
+    <div class="alert alert-error">{{ error }}</div>
+    {% endif %}
+
+    <form method="post" action="/admin/users/create">
+      <div class="form-group">
+        <label>{{ _('reg_username') }} *</label>
+        <input type="text" name="username" value="{{ f_username | default('') }}"
+               required minlength="3" autofocus>
+      </div>
+      <div class="form-group">
+        <label>{{ _('admin_email') }}</label>
+        <input type="email" name="email" value="{{ f_email | default('') }}">
+      </div>
+      <div class="form-group">
+        <label>{{ _('reg_full_name') }}</label>
+        <input type="text" name="full_name" value="{{ f_full_name | default('') }}" placeholder="Max Mustermann">
+      </div>
+      <div class="form-group">
+        <label>{{ _('reg_company') }}</label>
+        <input type="text" name="company" value="{{ f_company | default('') }}" placeholder="Acme GmbH">
+      </div>
+      <div class="form-group">
+        <label>{{ _('reg_password') }} *</label>
+        <input type="password" name="password" required minlength="8">
+        <small class="hint">≥ 8 Zeichen</small>
+      </div>
+      <div class="form-group">
+        <label>{{ _('reg_password2') }} *</label>
+        <input type="password" name="password2" required minlength="8">
+      </div>
+      <div class="form-group">
+        <label>{{ _('admin_status') }}</label>
+        <select name="status">
+          <option value="approved" {% if f_status | default('approved') == 'approved' %}selected{% endif %}>
+            {{ _('admin_status_active') }}
+          </option>
+          <option value="pending" {% if f_status | default('') == 'pending' %}selected{% endif %}>
+            {{ _('admin_status_pending') }}
+          </option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>{{ _('admin_role') }}</label>
+        <select name="role_type">
+          <option value="user" {% if f_role_type | default('user') == 'user' %}selected{% endif %}>{{ _('role_user') }}</option>
+          <option value="employee" {% if f_role_type | default('') == 'employee' %}selected{% endif %}>{{ _('role_employee') }}</option>
+          <option value="admin" {% if f_role_type | default('') == 'admin' %}selected{% endif %}>{{ _('role_admin') }}</option>
+        </select>
+        <small class="hint">{{ _('admin_role_hint') }}</small>
+      </div>
+      <div style="display:flex;gap:12px;flex-wrap:wrap;">
+        <button type="submit" class="btn btn-primary">{{ _('admin_create_user') }}</button>
+        <a href="/admin/users" class="btn btn-secondary">{{ _('cancel') }}</a>
+      </div>
+    </form>
+
+    {% if saved %}
+    <div class="divider"></div>
+    <p style="font-size:.88em;color:#6b7280;">
+      💡 Printix-Credentials kann der neue Benutzer nach dem Login unter
+      <a href="/settings">Einstellungen</a> selbst eintragen.
+    </p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

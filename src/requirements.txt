@@ -1,0 +1,33 @@
+mcp[cli]>=1.6.0
+requests>=2.31.0
+uvicorn>=0.29.0
+
+# Web-Verwaltungsoberfläche (FastAPI + Jinja2)
+fastapi>=0.111.0,<0.116.0
+starlette>=0.40.0,<1.0.0
+python-multipart>=0.0.9
+jinja2>=3.1.0
+itsdangerous>=2.1.0
+
+# Multi-Tenant Verschlüsselung + Passwort-Hashing
+cryptography>=42.0.0
+bcrypt>=4.1.0
+
+# Capture Store — HTTP Client für Plugin-Requests
+aiohttp>=3.9.0
+
+# Reporting — SQL, Scheduling, Mail
+pyodbc>=5.1.0
+pymssql>=2.3.0
+APScheduler>=3.10.0
+python-dateutil>=2.9.0
+
+# Reporting — Ausgabeformate (v3.1)
+fpdf2>=2.7.0
+openpyxl>=3.1.0
+
+# QR-Code-Generator (Mobile-App-Onboarding, /my/mobile-app/qr.png).
+# segno ist pure-python und zieht kein Pillow mit rein — sonst würden
+# wir für einen popeligen QR-Code ~10 MB Image-Lib in den Container
+# schleppen.
+segno>=1.6.0

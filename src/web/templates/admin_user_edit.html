@@ -1,0 +1,149 @@
+{% extends "base.html" %}
+{% block title %}{{ _('admin_edit') }} — {{ _('brand_console_name') }}{% endblock %}
+{% block content %}
+<div class="container">
+  <div class="card" style="max-width:560px;margin:40px auto;">
+    <h2 class="section-title">{{ _('admin_edit') }}: {{ target.username if target else '' }}</h2>
+    <p class="section-sub" style="margin-bottom:24px;">
+      ID: {{ target.id if target else '' }}
+    </p>
+
+    {% if saved %}
+    <div class="alert alert-success">✓ {{ _('admin_saved') }}</div>
+    {% endif %}
+    {% if error %}
+    <div class="alert alert-error">{{ error }}</div>
+    {% endif %}
+
+    {% set pw_saved = request.query_params.get('pw_saved') %}
+    {% if pw_saved %}
+    <div class="alert alert-success">✓ {{ _('admin_pw_saved') }}</div>
+    {% endif %}
+
+    <!-- User-Daten bearbeiten -->
+    <form method="post" action="/admin/users/{{ target.id }}/edit">
+      <div class="form-group">
+        <label>{{ _('reg_username') }}</label>
+        <input type="text" name="username" value="{{ target.username if target else '' }}" required minlength="3">
+      </div>
+      <div class="form-group">
+        <label>{{ _('admin_email') }}</label>
+        <input type="email" name="email" value="{{ target.email if target else '' }}">
+      </div>
+      <div class="form-group">
+        <label>{{ _('reg_full_name') }}</label>
+        <input type="text" name="full_name" value="{{ target.full_name if target else '' }}" placeholder="Max Mustermann">
+      </div>
+      <div class="form-group">
+        <label>{{ _('reg_company') }}</label>
+        <input type="text" name="company" value="{{ target.company if target else '' }}" placeholder="Acme GmbH">
+      </div>
+      <div class="form-group">
+        <label>{{ _('admin_status') }}</label>
+        <select name="status">
+          <option value="approved" {% if target and target.status == 'approved' %}selected{% endif %}>
+            {{ _('admin_status_active') }}
+          </option>
+          <option value="pending" {% if target and target.status == 'pending' %}selected{% endif %}>
+            {{ _('admin_status_pending') }}
+          </option>
+          <option value="disabled" {% if target and (target.status == 'disabled' or target.status == 'suspended') %}selected{% endif %}>
+            {{ _('admin_status_suspended') }}
+          </option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>{{ _('admin_role') }}</label>
+        <select name="role_type">
+          <option value="user" {% if target and target.role_type == 'user' %}selected{% endif %}>{{ _('role_user') }}</option>
+          <option value="employee" {% if target and target.role_type == 'employee' %}selected{% endif %}>{{ _('role_employee') }}</option>
+          <option value="admin" {% if target and target.role_type == 'admin' %}selected{% endif %}>{{ _('role_admin') }}</option>
+        </select>
+        <small class="hint">{{ _('admin_role_hint') }}</small>
+      </div>
+      <div class="form-group">
+        <label>{{ _('admin_printix_user_id') }}</label>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <input type="text" name="printix_user_id" id="printix_user_id_input"
+                 value="{{ target.printix_user_id if target else '' }}"
+                 placeholder="3e7e090d-677a-4607-bcb5-c2925c4be3f3"
+                 pattern="[0-9a-fA-F-]{0,36}"
+                 style="flex:1;font-family:ui-monospace,monospace;font-size:.88em;">
+          <button type="button" id="resolve_pxid_btn"
+                  class="btn btn-secondary"
+                  style="font-size:.85em;white-space:nowrap;"
+                  onclick="resolvePrintixId('{{ target.id if target else '' }}')">
+            🔍 {{ _('admin_printix_user_id_resolve') }}
+          </button>
+        </div>
+        <small class="hint">{{ _('admin_printix_user_id_hint') }}</small>
+        <div id="resolve_pxid_msg" style="margin-top:6px;font-size:.82em;"></div>
+      </div>
+      <script>
+      async function resolvePrintixId(userId) {
+        const btn = document.getElementById('resolve_pxid_btn');
+        const input = document.getElementById('printix_user_id_input');
+        const msg = document.getElementById('resolve_pxid_msg');
+        btn.disabled = true;
+        btn.textContent = '⏳ ' + '{{ _("admin_printix_user_id_searching") }}';
+        msg.textContent = '';
+        msg.style.color = '';
+        try {
+          const r = await fetch('/admin/users/' + userId + '/resolve-printix-id', {
+            method: 'POST', credentials: 'same-origin',
+          });
+          const data = await r.json();
+          if (data.ok && data.printix_user_id) {
+            input.value = data.printix_user_id;
+            msg.style.color = '#059669';
+            msg.textContent = '✓ {{ _("admin_printix_user_id_found") }} ('
+              + (data.source === 'list_users'
+                 ? '{{ _("admin_printix_user_id_via_list") }}'
+                 : '{{ _("admin_printix_user_id_via_jobs") }}') + ')';
+          } else {
+            msg.style.color = '#b91c1c';
+            msg.textContent = '⚠ ' + (data.message || '{{ _("admin_printix_user_id_notfound") }}');
+          }
+        } catch (e) {
+          msg.style.color = '#b91c1c';
+          msg.textContent = '⚠ ' + e.message;
+        } finally {
+          btn.disabled = false;
+          btn.textContent = '🔍 {{ _("admin_printix_user_id_resolve") }}';
+        }
+      }
+      </script>
+      <div style="display:flex;gap:12px;flex-wrap:wrap;">
+        <button type="submit" class="btn btn-primary">{{ _('admin_save') }}</button>
+        <a href="/admin/users" class="btn btn-secondary">{{ _('cancel') }}</a>
+      </div>
+    </form>
+
+    <div class="divider"></div>
+
+    <!-- Passwort zurücksetzen -->
+    <h3 class="section-title" style="margin-bottom:12px;">{{ _('admin_reset_pw') }}</h3>
+    <form method="post" action="/admin/users/{{ target.id }}/reset-password"
+          style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;">
+      <div class="form-group" style="margin-bottom:0;flex:1;">
+        <label>{{ _('admin_new_pw') }}</label>
+        <input type="password" name="new_password" required minlength="8">
+      </div>
+      <button type="submit" class="btn btn-danger btn-sm">
+        🔑 {{ _('admin_reset_pw') }}
+      </button>
+    </form>
+
+    <div class="divider"></div>
+
+    <!-- User löschen -->
+    <h3 class="section-title" style="color:#991b1b;margin-bottom:8px;">{{ _('admin_delete') }}</h3>
+    <form method="post" action="/admin/users/{{ target.id }}/delete"
+          onsubmit="return confirm('{{ _('admin_del_confirm') }}')">
+      <button type="submit" class="btn btn-danger btn-sm">
+        🗑 {{ _('admin_delete') }}
+      </button>
+    </form>
+  </div>
+</div>
+{% endblock %}

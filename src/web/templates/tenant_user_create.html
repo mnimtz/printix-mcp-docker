@@ -1,0 +1,192 @@
+{% extends "base.html" %}
+{% block title %}{{ _('user_create_title') }} — {{ _('brand_console_name') }}{% endblock %}
+{% block extra_head %}
+<style>
+  .form-group { margin-bottom:16px; }
+  .form-group label { display:block; font-size:.88em; font-weight:600; color:#374151; margin-bottom:4px; }
+  .form-group input,
+  .form-group select { width:100%; padding:9px 12px; border:1px solid #d1d5db; border-radius:8px; font-size:.92em; box-sizing:border-box; background:#fff; }
+  .form-group .hint { font-size:.78em; color:#6b7280; margin-top:4px; }
+  .role-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .role-card { border:1px solid #d1d5db; border-radius:10px; padding:12px 14px; cursor:pointer; transition:.12s; }
+  .role-card:hover { border-color:#6366f1; }
+  .role-card input { display:none; }
+  .role-card.selected { border-color:#4f46e5; background:#eef2ff; box-shadow:0 0 0 2px #c7d2fe; }
+  .role-card .role-title { font-weight:700; font-size:.95em; color:#1e3a5f; margin-bottom:2px; }
+  .role-card .role-sub   { font-size:.78em; color:#6b7280; }
+  /* .form-group label ist display:block (→ Label über dem Feld).
+     Für Checkbox-Zeilen brauchen wir ein Flex-Layout mit der Checkbox
+     links und dem Text rechts. Die äußere <label class="checkbox-row">
+     bekommt daher explizit display:flex und überschreibt den Block-Stil. */
+  label.checkbox-row {
+    display:flex !important;
+    gap:10px; align-items:flex-start; font-size:.9em;
+    padding:10px 12px; border:1px solid #e5e7eb; border-radius:8px;
+    background:#fafafa; margin:0 0 6px 0 !important;
+    font-weight:500 !important; color:#1e3a5f !important;
+    cursor:pointer; transition:.12s;
+  }
+  label.checkbox-row:hover { border-color:#93c5fd; background:#f0f7ff; }
+  label.checkbox-row input[type=checkbox] {
+    margin:2px 0 0 0; flex-shrink:0;
+    width:16px; height:16px; accent-color:#2563eb;
+    cursor:pointer;
+  }
+  .checkbox-row .cb-body { flex:1; min-width:0; line-height:1.3; }
+  .checkbox-row .cb-body strong {
+    display:block; font-size:.92em; font-weight:600; color:#1e3a5f;
+  }
+  .checkbox-row .cb-body .hint {
+    display:block; font-size:.78em; color:#6b7280; font-weight:400;
+    margin-top:3px;
+  }
+  .advanced { border:1px solid #e5e7eb; border-radius:8px; padding:10px 14px; margin-top:8px; }
+  .advanced > summary { cursor:pointer; font-weight:600; font-size:.9em; color:#1e3a5f; }
+  .advanced[open]  > summary { margin-bottom:12px; }
+</style>
+<script>
+function selectRole(val) {
+  document.querySelectorAll('.role-card').forEach(el => el.classList.remove('selected'));
+  var card = document.querySelector('.role-card[data-role="' + val + '"]');
+  if (card) card.classList.add('selected');
+  var input = document.querySelector('input[name=role][value="' + val + '"]');
+  if (input) input.checked = true;
+  var help = document.getElementById('role_help_' + val.toLowerCase());
+  document.querySelectorAll('.role-help').forEach(el => el.style.display = 'none');
+  if (help) help.style.display = '';
+}
+</script>
+{% endblock %}
+{% block content %}
+<div class="container" style="max-width:1480px;">
+  <div class="tenant-shell">
+    {% include "_tenant_sidebar.html" %}
+    <section class="tenant-main">
+      <div class="card tenant-main-card" style="max-width:620px;">
+        <h2 style="font-size:1.05em;font-weight:700;margin-bottom:16px;">➕ {{ _('user_create_title') }}</h2>
+
+        {% if error == "no_card_creds" %}
+        <div class="alert alert-warning">⚠️ {{ _('tenant_no_card_creds') }}</div>
+        {% elif error == "no_um_creds_for_regular_user" %}
+        <div class="alert alert-warning">⚠️ {{ _('user_create_needs_um_creds') }}</div>
+        {% elif error %}
+        <div class="alert alert-error">❌ {{ error }}</div>
+        {% endif %}
+
+        <form method="post" action="/tenant/users/create">
+
+          <!-- ── Role Auswahl ─────────────────────────────────────────── -->
+          <div class="form-group">
+            <label>{{ _('user_create_role_label') }} *</label>
+            <div class="role-grid">
+              <label class="role-card selected" data-role="GUEST_USER" onclick="selectRole('GUEST_USER')">
+                <input type="radio" name="role" value="GUEST_USER" checked>
+                <div class="role-title">👤 {{ _('user_create_role_guest') }}</div>
+                <div class="role-sub">{{ _('user_create_role_guest_sub') }}</div>
+              </label>
+              <label class="role-card" data-role="USER" onclick="selectRole('USER')">
+                <input type="radio" name="role" value="USER">
+                <div class="role-title">✉️ {{ _('user_create_role_user') }}</div>
+                <div class="role-sub">{{ _('user_create_role_user_sub') }}</div>
+              </label>
+            </div>
+            <div id="role_help_guest_user" class="role-help hint" style="margin-top:8px;">
+              {{ _('user_create_role_guest_help') }}
+            </div>
+            <div id="role_help_user" class="role-help hint" style="margin-top:8px;display:none;">
+              {{ _('user_create_role_user_help') }}
+            </div>
+          </div>
+
+          <!-- ── Pflichtfelder ────────────────────────────────────────── -->
+          <div class="form-group">
+            <label for="email">{{ _('user_create_email') }} *</label>
+            <input type="email" id="email" name="email" required placeholder="user@example.com">
+          </div>
+
+          <div class="form-group">
+            <label for="display_name">{{ _('user_create_name') }} *</label>
+            <input type="text" id="display_name" name="display_name" required placeholder="Max Mustermann">
+          </div>
+
+          <!-- ── E-Mail-Optionen ─────────────────────────────────────── -->
+          <div class="form-group">
+            <label>{{ _('user_create_email_options') }}</label>
+            <label class="checkbox-row">
+              <input type="checkbox" name="send_welcome_email" value="1">
+              <span class="cb-body">
+                <strong>{{ _('user_create_send_welcome') }}</strong>
+                <span class="hint">{{ _('user_create_send_welcome_hint') }}</span>
+              </span>
+            </label>
+            <label class="checkbox-row">
+              <input type="checkbox" name="send_expiration_email" value="1">
+              <span class="cb-body">
+                <strong>{{ _('user_create_send_expiration') }}</strong>
+                <span class="hint">{{ _('user_create_send_expiration_hint') }}</span>
+              </span>
+            </label>
+          </div>
+
+          <!-- ── Karte direkt hinzufügen (aufklappbar, minimalistisch) ── -->
+          <details class="advanced">
+            <summary>🃏 {{ _('user_create_add_card') }}</summary>
+            <div class="hint" style="margin-bottom:10px;">{{ _('user_create_add_card_hint') }}</div>
+
+            <div class="form-group">
+              <label for="card_number">{{ _('user_create_card_number') }}</label>
+              <input type="text" id="card_number" name="card_number"
+                     placeholder="{{ _('user_create_card_number_placeholder') }}"
+                     autocomplete="off">
+              <div class="hint">{{ _('user_create_card_number_hint') }}</div>
+            </div>
+
+            {% if profiles %}
+            <div class="form-group">
+              <label for="card_profile_id">{{ _('user_create_card_profile') }}</label>
+              <select id="card_profile_id" name="card_profile_id">
+                <option value="">— {{ _('user_create_card_profile_none') }} —</option>
+                {% for p in profiles %}
+                <option value="{{ p.get('id', '') }}">
+                  {{ p.get('vendor', '') }}{% if p.get('vendor') %} · {% endif %}{{ p.get('name', '') }}{% if p.get('reader_model') %} ({{ p.get('reader_model') }}){% endif %}
+                </option>
+                {% endfor %}
+              </select>
+              <div class="hint">{{ _('user_create_card_profile_hint') }}</div>
+            </div>
+            {% endif %}
+          </details>
+
+          <!-- ── Erweiterte Optionen (aufklappbar) ──────────────────── -->
+          <details class="advanced">
+            <summary>⚙️ {{ _('user_create_advanced') }}</summary>
+
+            <div class="form-group">
+              <label for="pin">{{ _('user_create_pin') }}</label>
+              <input type="text" id="pin" name="pin" placeholder="1234" pattern="[0-9]*" maxlength="8">
+              <div class="hint">{{ _('user_create_pin_hint') }}</div>
+            </div>
+
+            <div class="form-group">
+              <label for="password">{{ _('user_create_password') }}</label>
+              <input type="text" id="password" name="password" placeholder="{{ _('user_create_password_placeholder') }}">
+              <div class="hint">{{ _('user_create_password_hint') }}</div>
+            </div>
+
+            <div class="form-group">
+              <label for="expiration_timestamp">{{ _('user_create_expiration') }}</label>
+              <input type="datetime-local" id="expiration_timestamp" name="expiration_timestamp">
+              <div class="hint">{{ _('user_create_expiration_hint') }}</div>
+            </div>
+          </details>
+
+          <div style="display:flex;gap:10px;margin-top:16px;">
+            <button type="submit" class="btn btn-primary">✅ {{ _('user_create_btn') }}</button>
+            <a href="/tenant/users" class="btn btn-secondary">← {{ _('user_detail_back') }}</a>
+          </div>
+        </form>
+      </div>
+    </section>
+  </div>
+</div>
+{% endblock %}

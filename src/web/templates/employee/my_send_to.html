@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% block title %}{{ _('emp_send_to') }} — Printix MCP{% endblock %}
+{% block content %}
+<div class="container">
+  <!-- Sub-Navigation -->
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px;">
+    <a href="/my" class="btn btn-secondary" style="font-size:.85em;">{{ _('emp_my_dashboard') }}</a>
+    <a href="/my/jobs" class="btn btn-secondary" style="font-size:.85em;">{{ _('emp_my_jobs') }}</a>
+    <a href="/my/upload" class="btn btn-secondary" style="font-size:.85em;">📤 {{ _('emp_upload_tab') }}</a>
+    <a href="/my/delegation" class="btn btn-secondary" style="font-size:.85em;">{{ _('emp_delegation') }}</a>
+    <a href="/my/cloud-print" class="btn btn-secondary" style="font-size:.85em;">{{ _('emp_cloud_print') }}</a>
+    <a href="/my/send-to" class="btn btn-primary" style="font-size:.85em;">💻 {{ _('emp_send_to') }}</a>
+    {% if user.role_type != 'employee' %}
+    {% endif %}
+    <a href="/my/mobile-app" class="btn btn-secondary" style="font-size:.85em;">📱 {{ _('emp_mobile_app') }}</a>
+    {% if user.role_type != 'employee' %}
+    <a href="/my/employees" class="btn btn-secondary" style="font-size:.85em;">{{ _('nav_employees') }}</a>
+    <a href="/my/setup-guide" class="btn btn-secondary" style="font-size:.85em;">{{ _('emp_setup_guide') }}</a>
+    {% endif %}
+  </div>
+
+  <!-- Intro / Funktion -->
+  <div class="card">
+    <div class="section-title">💻 {{ _('emp_send_to_title') }}</div>
+    <div class="section-sub">{{ _('emp_send_to_intro') }}</div>
+
+    <div style="margin-top:18px;">
+      <strong style="font-size:.95em;">{{ _('emp_send_to_how_title') }}</strong>
+      <div style="font-size:.88em;color:#334155;margin-top:6px;line-height:1.55;">
+        {{ _('emp_send_to_how_desc') }}
+      </div>
+    </div>
+
+    <div style="margin-top:18px;">
+      <strong style="font-size:.95em;">{{ _('emp_send_to_features_title') }}</strong>
+      <ul style="margin:8px 0 0 20px;padding:0;font-size:.88em;color:#334155;line-height:1.7;">
+        <li>{{ _('emp_send_to_feat_headless') }}</li>
+        <li>{{ _('emp_send_to_feat_tray') }}</li>
+        <li>{{ _('emp_send_to_feat_delegates') }}</li>
+        <li>{{ _('emp_send_to_feat_capture') }}</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- Download -->
+  <div class="card" style="margin-top:16px;">
+    <div class="section-title">⬇️ {{ _('emp_send_to_download_title') }}</div>
+    <div class="section-sub">{{ _('emp_send_to_download_desc') }}</div>
+
+    <div style="margin-top:14px;display:flex;flex-wrap:wrap;gap:10px;align-items:center;">
+      <a href="https://github.com/mnimtz/Printix-MCP/releases/latest"
+         target="_blank" rel="noopener"
+         class="btn btn-primary" style="font-size:.9em;">
+        🔗 {{ _('emp_send_to_download_btn') }}
+      </a>
+      <span style="font-size:.82em;color:#64748b;">
+        {{ _('emp_send_to_version_label') }}:
+        <code style="background:#f1f5f9;padding:2px 8px;border-radius:6px;">{{ client_version }}</code>
+      </span>
+    </div>
+
+    <div style="margin-top:14px;font-size:.85em;color:#475569;">
+      <div style="display:flex;gap:16px;flex-wrap:wrap;">
+        <div><strong>🪟 Windows x64</strong><br>
+          <code style="font-size:.8em;">PrintixSend-{{ client_version }}-x64.msi</code>
+        </div>
+        <div><strong>🪟 Windows ARM64</strong><br>
+          <code style="font-size:.8em;">PrintixSend-{{ client_version }}-arm64.msi</code>
+        </div>
+        <div><strong>🍎 macOS (Universal)</strong><br>
+          <code style="font-size:.8em;">PrintixSend-&lt;version&gt;.dmg</code><br>
+          <span style="font-size:.78em;color:#64748b;">Apple Silicon + Intel, macOS 13+</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- macOS-Hinweis -->
+  <div class="card" style="margin-top:16px;">
+    <div class="section-title">🍎 macOS — Finder Quick Actions</div>
+    <div class="section-sub">Der macOS-Client liefert statt „Senden an" die Finder-<em>Quick Actions</em>: Rechtsklick auf eine Datei → <strong>Quick Actions</strong> → <strong>Printix Send — &lt;Ziel&gt;</strong>. Pro Ziel wird automatisch ein Eintrag nach dem Login angelegt.</div>
+    <div style="margin-top:10px;font-size:.85em;color:#475569;line-height:1.6;">
+      Installation: DMG öffnen → <code>PrintixSend.app</code> nach <em>Applications</em> ziehen → beim ersten Start Rechtsklick → <em>Öffnen</em> (Gatekeeper). Menu-Bar-Icon 🖨 → <em>Konfiguration…</em> → Server-URL eintragen, dann <em>Anmelden</em>.
+    </div>
+  </div>
+
+  <!-- Unsigned MSI Hinweise -->
+  <div class="card" style="margin-top:16px;border:1px solid #fde68a;background:#fffbeb;">
+    <div class="section-title" style="color:#92400e;">⚠️ {{ _('emp_send_to_unsigned_title') }}</div>
+    <div class="section-sub" style="color:#78350f;">{{ _('emp_send_to_unsigned_desc') }}</div>
+
+    <ol style="margin:14px 0 0 20px;padding:0;font-size:.88em;color:#78350f;line-height:1.7;">
+      <li>{{ _('emp_send_to_unsigned_step1') }}</li>
+      <li>{{ _('emp_send_to_unsigned_step2') }}</li>
+      <li>{{ _('emp_send_to_unsigned_step3') }}</li>
+    </ol>
+  </div>
+
+</div>
+{% endblock %}

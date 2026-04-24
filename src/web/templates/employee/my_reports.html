@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block title %}{{ _('emp_my_reports') }} — Printix MCP{% endblock %}
+{% block content %}
+<div class="container">
+  <!-- Sub-Navigation -->
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px;">
+    <a href="/my" class="btn btn-secondary" style="font-size:.85em;">{{ _('emp_my_dashboard') }}</a>
+    <a href="/my/jobs" class="btn btn-secondary" style="font-size:.85em;">{{ _('emp_my_jobs') }}</a>
+    <a href="/my/upload" class="btn btn-secondary" style="font-size:.85em;">📤 {{ _('emp_upload_tab') }}</a>
+    <a href="/my/delegation" class="btn btn-secondary" style="font-size:.85em;">{{ _('emp_delegation') }}</a>
+    {% if user.role_type != "employee" %}
+    <a href="/my/cloud-print" class="btn btn-secondary" style="font-size:.85em;">{{ _('emp_cloud_print') }}</a>
+    <a href="/my/send-to" class="btn btn-secondary" style="font-size:.85em;">💻 {{ _('emp_send_to') }}</a>
+    {% endif %}
+    <a href="/my/mobile-app" class="btn btn-secondary" style="font-size:.85em;">📱 {{ _('emp_mobile_app') }}</a>
+    {% if user.role_type != 'employee' %}
+    <a href="/my/employees" class="btn btn-secondary" style="font-size:.85em;">{{ _('nav_employees') }}</a>
+    <a href="/my/setup-guide" class="btn btn-secondary" style="font-size:.85em;">{{ _('emp_setup_guide') }}</a>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <div class="section-title">{{ _('emp_my_reports') }}</div>
+    <div class="section-sub">{{ _('emp_my_reports_desc') }}</div>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:16px;margin-top:20px;">
+
+      <!-- Report 1: Druckübersicht -->
+      <div style="background:#f8fafc;border-radius:10px;padding:20px;border:1px solid #e2e8f0;">
+        <div style="font-size:1.1em;font-weight:700;color:#1e3a5f;margin-bottom:6px;">
+          {{ _('emp_report_overview') }}
+        </div>
+        <div style="font-size:.85em;color:#64748b;margin-bottom:16px;">
+          {{ _('emp_report_overview_desc') }}
+        </div>
+        <div class="alert alert-info" style="font-size:.82em;margin:0;">
+          {{ _('emp_reports_coming_soon') }}
+        </div>
+      </div>
+
+      <!-- Report 2: Kostenanalyse -->
+      <div style="background:#f8fafc;border-radius:10px;padding:20px;border:1px solid #e2e8f0;">
+        <div style="font-size:1.1em;font-weight:700;color:#1e3a5f;margin-bottom:6px;">
+          {{ _('emp_report_costs') }}
+        </div>
+        <div style="font-size:.85em;color:#64748b;margin-bottom:16px;">
+          {{ _('emp_report_costs_desc') }}
+        </div>
+        <div class="alert alert-info" style="font-size:.82em;margin:0;">
+          {{ _('emp_reports_coming_soon') }}
+        </div>
+      </div>
+
+      <!-- Report 3: Druckverlauf -->
+      <div style="background:#f8fafc;border-radius:10px;padding:20px;border:1px solid #e2e8f0;">
+        <div style="font-size:1.1em;font-weight:700;color:#1e3a5f;margin-bottom:6px;">
+          {{ _('emp_report_history') }}
+        </div>
+        <div style="font-size:.85em;color:#64748b;margin-bottom:16px;">
+          {{ _('emp_report_history_desc') }}
+        </div>
+        <div class="alert alert-info" style="font-size:.82em;margin:0;">
+          {{ _('emp_reports_coming_soon') }}
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+{% endblock %}

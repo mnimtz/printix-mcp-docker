@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% block title %}{{ _('reg_title') }} — {{ _('brand_console_name') }}{% endblock %}
+{% block content %}
+<div class="container">
+  <div class="card">
+    <div style="text-align:center; margin-bottom:28px;">
+      <div style="font-size:3em; margin-bottom:8px;">🎉</div>
+      <h1 style="font-size:1.5em; color:#166534; margin-bottom:8px;">
+        {% if is_admin %}{{ _('reg_success_admin') }}
+        {% else %}{{ _('reg_success') }}{% endif %}
+      </h1>
+    </div>
+
+    <div class="alert alert-warning" style="margin-bottom:24px;">
+      <strong>⚠️ {{ _('reg_success_secure_title') }}</strong><br>
+      {{ _('reg_success_secure_body') | safe }}
+    </div>
+
+    <!-- Bearer Token -->
+    <div style="margin-bottom:24px;">
+      <div class="section-title" style="margin-bottom:8px;">🔑 {{ _('dash_bearer') }}</div>
+      <div class="code-block" id="bearer-block">
+        <button class="copy-btn" onclick="copyToClipboard('bearer-val', this)">⧉ {{ _('dash_copy') }}</button>
+        <span id="bearer-val">{{ bearer_token }}</span>
+      </div>
+    </div>
+
+    <!-- OAuth -->
+    <div style="margin-bottom:24px;">
+      <div class="section-title" style="margin-bottom:8px;">🔐 {{ _('reg_success_oauth') }}</div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+        <div>
+          <label style="font-size:.82em; font-weight:600; color:#6b7280; display:block; margin-bottom:4px;">
+            {{ _('dash_oauth_id') }}
+          </label>
+          <div class="code-block">
+            <button class="copy-btn" onclick="copyToClipboard('oauth-id-val', this)">⧉</button>
+            <span id="oauth-id-val">{{ oauth_client_id }}</span>
+          </div>
+        </div>
+        <div>
+          <label style="font-size:.82em; font-weight:600; color:#6b7280; display:block; margin-bottom:4px;">
+            {{ _('dash_oauth_secret') }}
+          </label>
+          <div class="code-block">
+            <button class="copy-btn" onclick="copyToClipboard('oauth-sec-val', this)">⧉</button>
+            <span id="oauth-sec-val">{{ oauth_client_secret }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Verbindungs-URLs -->
+    <div style="margin-bottom:24px;">
+      <div class="section-title" style="margin-bottom:12px;">🔗 {{ _('reg_success_urls') }}</div>
+      <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
+      <table>
+        <tr>
+          <th style="width:180px;">{{ _('reg_success_mcp_url') }}</th>
+          <td>
+            <div class="code-block">
+              <button class="copy-btn" onclick="copyToClipboard('mcp-url-val', this)">⧉</button>
+              <span id="mcp-url-val">{{ mcp_url }}</span>
+            </div>
+          </td>
+        </tr>
+        <tr>
+          <th>{{ _('reg_success_sse_url') }}</th>
+          <td>
+            <div class="code-block">
+              <button class="copy-btn" onclick="copyToClipboard('sse-url-val', this)">⧉</button>
+              <span id="sse-url-val">{{ sse_url }}</span>
+            </div>
+          </td>
+        </tr>
+        <tr>
+          <th>{{ _('reg_success_auth_url') }}</th>
+          <td><code>{{ oauth_authorize_url }}</code></td>
+        </tr>
+        <tr>
+          <th>{{ _('reg_success_token_url') }}</th>
+          <td><code>{{ oauth_token_url }}</code></td>
+        </tr>
+      </table>
+      </div>
+    </div>
+
+    <!-- Anleitung Link -->
+    <div style="margin-bottom:24px;">
+      <a href="/help" class="btn btn-secondary">📖 {{ _('help_title') }}</a>
+    </div>
+
+    {% if is_admin %}
+    <a href="/admin" class="btn btn-primary">{{ _('admin_title') }} →</a>
+    {% else %}
+    <a href="/pending" class="btn btn-secondary">{{ _('admin_status_pending') }}</a>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

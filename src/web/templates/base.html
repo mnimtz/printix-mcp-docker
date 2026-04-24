@@ -1,0 +1,747 @@
+<!DOCTYPE html>
+<html lang="{{ lang | default('en') }}">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}{{ _('brand_console_name') }}{% endblock %}</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --workspace-max-width: 1460px;
+      --workspace-gutter: 16px;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      background:
+        radial-gradient(circle at top left, rgba(56, 189, 248, .10), transparent 24%),
+        radial-gradient(circle at right 20%, rgba(16, 185, 129, .08), transparent 22%),
+        linear-gradient(180deg, #f8fbff 0%, #eef4f8 100%);
+      color: #1a1a2e;
+      min-height: 100vh;
+    }
+    img, svg, video, canvas {
+      max-width: 100%;
+      height: auto;
+    }
+
+    /* ── Navigation ──────────────────────────────────────────────────────── */
+    nav {
+      background: linear-gradient(90deg, #173a63 0%, #1d4f7a 100%); color: #fff;
+      min-height: 56px; box-shadow: 0 8px 24px rgba(15, 23, 42, .16);
+      position: sticky; top: 0; z-index: 100;
+      backdrop-filter: blur(10px);
+    }
+    .nav-shell {
+      width: min(100%, var(--workspace-max-width));
+      margin: 0 auto;
+      padding: 0 var(--workspace-gutter);
+      min-height: 56px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+    }
+    .nav-brand {
+      font-weight: 700; font-size: 1.05em;
+      display: flex; align-items: center; gap: 8px;
+      white-space: nowrap; text-decoration: none; color: #fff;
+    }
+    .nav-brand-mark {
+      width: 28px;
+      height: 28px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      color: #fff;
+    }
+    .nav-brand-mark svg {
+      width: 100%;
+      height: auto;
+      display: block;
+    }
+    .nav-right { display: flex; align-items: center; gap: 8px; }
+
+    /* Desktop links */
+    .nav-links {
+      display: flex; align-items: center; gap: 2px; flex-wrap: nowrap;
+    }
+    .nav-links a {
+      color: rgba(255,255,255,.8); text-decoration: none;
+      font-size: .875em; padding: 6px 10px; border-radius: 6px;
+      transition: background .15s, color .15s; white-space: nowrap;
+    }
+    .nav-links a:hover { color: #fff; background: rgba(255,255,255,.12); }
+
+    /* Hamburger button — mobile only */
+    .hamburger {
+      display: none; background: none; border: none; cursor: pointer;
+      padding: 8px; color: #fff; flex-direction: column; gap: 5px;
+      border-radius: 6px; transition: background .15s;
+    }
+    .hamburger:hover { background: rgba(255,255,255,.12); }
+    .hamburger span {
+      display: block; width: 22px; height: 2px;
+      background: #fff; border-radius: 2px;
+      transition: transform .25s, opacity .2s;
+    }
+    .hamburger.open span:nth-child(1) { transform: translateY(7px) rotate(45deg); }
+    .hamburger.open span:nth-child(2) { opacity: 0; }
+    .hamburger.open span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
+
+    /* Mobile drawer — rendered below sticky nav */
+    .mobile-menu {
+      display: none; position: fixed; top: 56px; left: 0; right: 0;
+      background: #1a3454; box-shadow: 0 6px 24px rgba(0,0,0,.35);
+      z-index: 99; padding-bottom: 12px;
+      max-height: calc(100vh - 56px); overflow-y: auto;
+    }
+    .mobile-menu.open { display: block; }
+    .mobile-menu a {
+      display: flex; align-items: center; padding: 13px 20px;
+      color: rgba(255,255,255,.85); text-decoration: none;
+      font-size: .95em; border-bottom: 1px solid rgba(255,255,255,.06);
+      transition: background .15s;
+    }
+    .mobile-menu a:hover { background: rgba(255,255,255,.1); color: #fff; }
+    .mobile-menu .drawer-divider {
+      height: 1px; background: rgba(255,255,255,.12); margin: 8px 0;
+    }
+    .mobile-lang-section { padding: 10px 20px 6px; }
+    .mobile-lang-section > small {
+      display: block; font-size: .72em; color: rgba(255,255,255,.45);
+      text-transform: uppercase; letter-spacing: .07em; margin-bottom: 10px;
+    }
+    .mobile-lang-grid { display: flex; flex-wrap: wrap; gap: 6px; }
+    .mobile-lang-grid a {
+      display: inline-block !important; padding: 5px 11px !important;
+      background: rgba(255,255,255,.1); border-radius: 6px;
+      font-size: .82em !important; color: rgba(255,255,255,.8) !important;
+      border-bottom: none !important; transition: background .15s;
+    }
+    .mobile-lang-grid a.active {
+      background: #2563eb; color: #fff !important; font-weight: 700;
+    }
+    .mobile-lang-grid a:hover { background: rgba(255,255,255,.2); }
+
+    /* Language Switcher — desktop */
+    .lang-switcher { position: relative; }
+    .lang-btn {
+      background: rgba(255,255,255,.12); border: none; color: rgba(255,255,255,.9);
+      padding: 5px 10px; border-radius: 6px; cursor: pointer; font-size: .82em;
+      display: flex; align-items: center; gap: 4px; white-space: nowrap;
+    }
+    .lang-btn:hover { background: rgba(255,255,255,.2); }
+    .lang-dropdown {
+      display: none; position: absolute; right: 0; top: 100%;
+      padding-top: 6px; z-index: 999;
+    }
+    .lang-dropdown-inner {
+      background: #fff; border-radius: 8px;
+      box-shadow: 0 4px 16px rgba(0,0,0,.15);
+      overflow: hidden; min-width: 140px;
+      max-height: 320px; overflow-y: auto;
+    }
+    .lang-dropdown.open { display: block; }
+    .lang-dropdown a {
+      display: block; padding: 8px 14px; color: #374151 !important;
+      font-size: .88em; text-decoration: none; transition: background .1s;
+    }
+    .lang-dropdown a:hover { background: #f1f5f9; color: #1e3a5f !important; }
+    .lang-dropdown a.active { font-weight: 700; color: #2563eb !important; }
+
+    /* ── Layout ──────────────────────────────────────────────────────────── */
+    .container {
+      width: min(100%, var(--workspace-max-width));
+      margin: 28px auto;
+      padding: 0 var(--workspace-gutter);
+    }
+
+    /* ── Card ────────────────────────────────────────────────────────────── */
+    .card {
+      background: rgba(255,255,255,.92);
+      border-radius: 18px;
+      padding: 28px 30px;
+      box-shadow: 0 20px 40px rgba(15, 23, 42, .08);
+      border: 1px solid rgba(226, 232, 240, .92);
+      overflow-x: clip;
+    }
+
+    /* ── Forms ───────────────────────────────────────────────────────────── */
+    .form-group { margin-bottom: 20px; }
+    label { display: block; font-size: .87em; font-weight: 600; color: #444; margin-bottom: 6px; }
+    input[type=text], input[type=password], input[type=email],
+    input[type=url], input[type=number], input[type=time], select, textarea {
+      width: 100%; padding: 10px 14px; border: 1px solid #d1d5db;
+      border-radius: 8px; font-size: .95em; transition: border-color .15s;
+      background: #fff;
+    }
+    input:focus, select:focus, textarea:focus {
+      outline: none; border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,.15);
+    }
+    small.hint { display: block; margin-top: 4px; color: #6b7280; font-size: .82em; }
+
+    /* ── Buttons ─────────────────────────────────────────────────────────── */
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center;
+      padding: 10px 22px; border: none; border-radius: 8px;
+      font-size: .95em; font-weight: 600; cursor: pointer;
+      transition: background .15s, box-shadow .15s;
+      text-decoration: none; white-space: nowrap; gap: 6px;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .btn-primary { background: #2563eb; color: #fff; }
+    .btn-primary:hover { background: #1d4ed8; box-shadow: 0 2px 8px rgba(37,99,235,.3); }
+    .btn-secondary { background: #f1f5f9; color: #374151; }
+    .btn-secondary:hover { background: #e2e8f0; }
+    .btn-danger { background: #ef4444; color: #fff; }
+    .btn-danger:hover { background: #dc2626; }
+    .btn-success { background: #16a34a; color: #fff; }
+    .btn-success:hover { background: #15803d; }
+    .btn-sm { padding: 6px 14px; font-size: .85em; }
+
+    /* ── Alerts ──────────────────────────────────────────────────────────── */
+    .alert { padding: 12px 16px; border-radius: 8px; margin-bottom: 20px; font-size: .9em; }
+    .alert-error   { background: #fee2e2; border: 1px solid #fca5a5; color: #991b1b; }
+    .alert-success { background: #dcfce7; border: 1px solid #86efac; color: #166534; }
+    .alert-info    { background: #dbeafe; border: 1px solid #93c5fd; color: #1e40af; }
+    .alert-warning { background: #fef9c3; border: 1px solid #fde047; color: #854d0e; }
+
+    /* ── Tables ──────────────────────────────────────────────────────────── */
+    table { width: 100%; border-collapse: collapse; font-size: .9em; }
+    th {
+      text-align: left; padding: 10px 14px; background: #f8fafc; color: #6b7280;
+      font-size: .82em; font-weight: 600; text-transform: uppercase;
+      letter-spacing: .05em; border-bottom: 1px solid #e5e7eb;
+    }
+    td { padding: 10px 14px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: #f8fafc; }
+    /* Table scroll wrapper (use on wide tables) */
+    .table-scroll {
+      width: 100%;
+      overflow-x: auto;
+      overflow-y: hidden;
+      -webkit-overflow-scrolling: touch;
+      border-radius: 12px;
+      border: 1px solid #e5e7eb;
+      background:#fff;
+    }
+    .table-scroll table { min-width: 720px; }
+
+    /* ── Badges ──────────────────────────────────────────────────────────── */
+    .badge {
+      display: inline-block; padding: 2px 8px; border-radius: 99px;
+      font-size: .78em; font-weight: 600;
+    }
+    .badge-green  { background: #dcfce7; color: #166534; }
+    .badge-yellow { background: #fef9c3; color: #854d0e; }
+    .badge-red    { background: #fee2e2; color: #991b1b; }
+    .badge-blue   { background: #dbeafe; color: #1e40af; }
+
+    /* ── Code Block ──────────────────────────────────────────────────────── */
+    .code-block {
+      background: #1e293b; color: #e2e8f0; padding: 14px 16px;
+      border-radius: 8px; font-family: 'Courier New', monospace; font-size: .88em;
+      word-break: break-all; position: relative;
+    }
+    .copy-btn {
+      position: absolute; top: 8px; right: 8px;
+      background: rgba(255,255,255,.1); color: #e2e8f0;
+      border: none; border-radius: 6px; padding: 4px 10px;
+      font-size: .78em; cursor: pointer; transition: background .15s;
+    }
+    .copy-btn:hover { background: rgba(255,255,255,.2); }
+
+    /* ── Divider ─────────────────────────────────────────────────────────── */
+    .divider { height: 1px; background: #e5e7eb; margin: 24px 0; }
+
+    /* ── Step Indicator ──────────────────────────────────────────────────── */
+    .steps { display: flex; align-items: center; margin-bottom: 32px; gap: 0; }
+    .step-item { display: flex; align-items: center; flex: 1; min-width: 0; }
+    .step-circle {
+      width: 32px; height: 32px; border-radius: 50%; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 700; font-size: .85em;
+    }
+    .step-circle.active  { background: #2563eb; color: #fff; }
+    .step-circle.done    { background: #16a34a; color: #fff; }
+    .step-circle.pending { background: #e5e7eb; color: #9ca3af; }
+    .step-label { margin-left: 8px; font-size: .82em; font-weight: 500; color: #6b7280; white-space: nowrap; }
+    .step-label.active { color: #1a1a2e; font-weight: 700; }
+    .step-connector { flex: 1; height: 2px; background: #e5e7eb; margin: 0 8px; min-width: 8px; }
+
+    /* ── Section header ──────────────────────────────────────────────────── */
+    .section-title { font-size: 1.05em; font-weight: 700; color: #1e3a5f; margin-bottom: 6px; }
+    .section-sub   { color: #6b7280; font-size: .88em; margin-bottom: 20px; }
+
+    /* ── Checkbox row ────────────────────────────────────────────────────── */
+    .check-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .check-row input[type=checkbox] { width: auto; min-width: 18px; min-height: 18px; }
+
+    /* ── Printix section shell ───────────────────────────────────────────── */
+    .tenant-shell {
+      display: grid;
+      grid-template-columns: minmax(252px, 308px) minmax(0, 1fr);
+      gap: 18px;
+      align-items: start;
+    }
+    .tenant-sidebar {
+      position: sticky;
+      top: 84px;
+    }
+    .tenant-sidebar-card {
+      background:
+        radial-gradient(circle at top left, rgba(59, 130, 246, .12), transparent 42%),
+        linear-gradient(180deg, #f8fbff 0%, #ffffff 100%);
+      border: 1px solid #dbe4ef;
+      border-radius: 24px;
+      box-shadow: 0 14px 32px rgba(15, 23, 42, .05);
+      padding: 18px 16px 16px;
+    }
+    .tenant-sidebar-kicker {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-size: .76em;
+      font-weight: 800;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      color: #1d4ed8;
+      background: #dbeafe;
+      border-radius: 999px;
+      padding: 6px 10px;
+    }
+    .tenant-sidebar-title {
+      margin: 14px 0 4px;
+      font-size: 1em;
+      font-weight: 800;
+      color: #0f172a;
+    }
+    .tenant-sidebar-sub {
+      margin: 0;
+      color: #64748b;
+      font-size: .8em;
+      line-height: 1.45;
+    }
+    .tenant-sidebar-nav {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-top: 14px;
+      padding: 8px;
+      border-radius: 18px;
+      background: rgba(255, 255, 255, .82);
+      border: 1px solid rgba(219, 228, 239, .95);
+      backdrop-filter: blur(10px);
+    }
+    .tenant-sidebar-link {
+      display: flex;
+      justify-content: space-between;
+      text-decoration: none;
+      align-items: center;
+      border: 1px solid transparent;
+      border-radius: 12px;
+      padding: 9px 12px;
+      color: #1e293b;
+      background: #fff;
+      font-weight: 700;
+      transition: all .18s ease;
+      width: 100%;
+      gap: 12px;
+      box-sizing: border-box;
+    }
+    .tenant-sidebar-main {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      justify-content: flex-start;
+      min-width: 0;
+      flex: 1 1 auto;
+      max-width: 100%;
+    }
+    .tenant-sidebar-copy {
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+      min-width: 0;
+      flex: 1;
+    }
+    .tenant-sidebar-copy strong {
+      font-size: .87em;
+      color: inherit;
+      white-space: normal;
+      overflow: visible;
+      text-overflow: unset;
+      text-align: left;
+      line-height: 1.2;
+    }
+    .tenant-sidebar-pill {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 24px;
+      height: 18px;
+      padding: 0 6px;
+      border-radius: 999px;
+      background: #eff6ff;
+      color: #2563eb;
+      font-size: .68em;
+      font-weight: 800;
+      flex-shrink: 0;
+      margin-left: auto;
+      text-align: right;
+    }
+    .tenant-sidebar-link:hover {
+      background: #f8fbff;
+      border-color: #93c5fd;
+      color: #0f172a;
+      transform: translateX(2px);
+    }
+    .tenant-sidebar-link.active {
+      background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+      border-color: #2563eb;
+      color: #fff;
+      box-shadow: 0 12px 24px rgba(37, 99, 235, .18);
+    }
+    .tenant-sidebar-icon {
+      width: 30px;
+      height: 30px;
+      border-radius: 9px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      background: #eff6ff;
+      flex-shrink: 0;
+      font-size: .92em;
+    }
+    .tenant-sidebar-link.active .tenant-sidebar-icon {
+      background: rgba(255, 255, 255, .18);
+    }
+    .tenant-sidebar-link.active .tenant-sidebar-pill {
+      background: rgba(255, 255, 255, .16);
+      color: #dbeafe;
+    }
+    .tenant-main {
+      min-width: 0;
+    }
+    .tenant-main-card {
+      border-radius: 20px;
+      box-shadow: 0 16px 36px rgba(15, 23, 42, .06);
+    }
+
+    /* ── Responsive ──────────────────────────────────────────────────────── */
+    @media (max-width: 768px) {
+      /* Show hamburger, hide desktop links & lang switcher */
+      .hamburger         { display: flex; }
+      .nav-links         { display: none; }
+      .lang-switcher     { display: none; }
+
+      /* Layout */
+      .container { width: 100%; padding: 0 12px; margin: 14px auto; }
+      .card      { padding: 18px 14px; border-radius: 14px; }
+
+      /* All inline grid layouts → single column on mobile.
+         Targets every inline style="display:grid;grid-template-columns:..."
+         across settings, admin_dashboard, notifications, etc. */
+      [style*="grid-template-columns"] {
+        grid-template-columns: 1fr !important;
+      }
+
+      /* Tables: wrap in scrollable container, auto column widths */
+      .card > table,
+      .card > div > table {
+        display: block; overflow-x: auto; overflow-y: hidden; -webkit-overflow-scrolling: touch;
+      }
+      table { min-width: 520px; font-size: .85em; }
+      td, th { padding: 8px 10px; }
+      th[style*="width"] { width: auto !important; }
+      .table-scroll { margin-inline: -2px; }
+      .table-scroll table { min-width: 520px; }
+
+      /* Tenant sub-tabs: horizontal scroll instead of wrap */
+      .tenant-tabs {
+        overflow-x: auto; -webkit-overflow-scrolling: touch;
+        flex-wrap: nowrap !important; gap: 0 !important;
+        scrollbar-width: none; /* Firefox */
+      }
+      .tenant-tabs::-webkit-scrollbar { display: none; }
+      .tenant-tab { flex-shrink: 0; padding: 8px 14px; font-size: .82em; }
+
+      /* Preset cards (demo page + report presets) — stack vertically */
+      .preset-cards {
+        flex-direction: column !important;
+      }
+      .preset-cards .preset-card { min-width: 0 !important; }
+      .preset-grid { grid-template-columns: 1fr !important; }
+
+      /* Code blocks — smaller font, break long URLs */
+      .code-block { font-size: .78em; padding: 10px 12px; word-break: break-all; }
+
+      /* Demo grid → single column (already has its own @media but enforce) */
+      .demo-grid { grid-template-columns: 1fr !important; }
+
+      .tenant-shell { grid-template-columns: 1fr; gap: 12px; }
+      .tenant-sidebar { position: static; top: auto; }
+      .tenant-sidebar-card { padding: 14px; }
+      .tenant-sidebar-nav {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+        padding: 0;
+        background: transparent;
+        border: none;
+        backdrop-filter: none;
+      }
+      .tenant-sidebar-link { min-height: 52px; }
+
+      /* Stat boxes — 2 per row on tablet */
+      .stats-summary { gap: 8px; }
+      .stat-box { min-width: 80px; padding: 6px 10px; }
+
+      /* Prevent iOS font-size zoom on inputs */
+      input[type=text], input[type=password], input[type=email],
+      input[type=url], input[type=number], input[type=time], select, textarea {
+        font-size: 16px;
+      }
+
+      /* Step labels hidden on small screens */
+      .step-label { display: none; }
+
+      /* Action buttons — full width on small screens */
+      td[style*="white-space:nowrap"] { white-space: normal !important; }
+
+      /* Search bars — stack vertically */
+      .search-bar { flex-wrap: wrap; }
+      .search-bar input { min-width: 0 !important; }
+
+      /* Reports form — class-based grids → single column */
+      .date-preset-row,
+      .custom-date-row,
+      .cost-grid,
+      .sched-grid {
+        grid-template-columns: 1fr !important;
+      }
+
+      /* Form actions — wrap on mobile */
+      .form-actions { flex-wrap: wrap; }
+      .form-actions > * { max-width: 100%; }
+      textarea, input, select { max-width: 100%; }
+
+      /* Help page — reduce list indent */
+      ol { padding-left: 16px !important; }
+    }
+
+    @media (max-width: 480px) {
+      :root { --workspace-gutter: 12px; }
+      .nav-brand { font-size: .92em; }
+      .card { padding: 14px 12px; }
+      .container { margin: 10px auto; }
+      .btn { padding: 9px 16px; font-size: .9em; }
+
+      /* Very small screens — tables can be narrower */
+      table { min-width: 400px; }
+      .table-scroll table { min-width: 400px; }
+
+      /* Single stat box per row */
+      .stats-summary { flex-direction: column; }
+
+      /* Buttons stack vertically in major flex containers */
+      [style*="display:flex"][style*="gap"] {
+        flex-direction: column !important;
+      }
+      /* But not nav-related or inline flex containers */
+      nav, .nav-right, .nav-links, .mobile-menu,
+      .mobile-lang-grid, .tenant-tabs, .search-bar,
+      .check-row, .slider-wrap, .lang-checkboxes,
+      .fmt-row, .color-row,
+      .preset-cards { flex-direction: row !important; }
+      .preset-cards { flex-direction: column !important; }
+
+      .tenant-sidebar-nav { grid-template-columns: 1fr; }
+
+      /* Full-width buttons — but not small action buttons in tables */
+      .btn:not(.btn-sm) { width: 100%; text-align: center; }
+    }
+  </style>
+  {% block extra_head %}{% endblock %}
+</head>
+<body>
+  {% if show_nav | default(true) %}
+  <nav>
+    <div class="nav-shell">
+      <a class="nav-brand" href="/">
+        <span class="nav-brand-mark">{% include "_brand_logo.svg" %}</span>
+        <span>{{ _('brand_console_name') }}</span>
+      </a>
+
+      <div class="nav-right">
+        <!-- Desktop links -->
+        <div class="nav-links">
+          {% if user %}
+            {% if user.role_type == 'employee' %}
+              {# v6.4.2: Employees sehen nur ihren eigenen Self-Service-Bereich #}
+              <a href="/my">{{ _('nav_my_portal') }}</a>
+              <a href="/help">{{ _('nav_help') }}</a>
+              <a href="/logout">{{ _('nav_logout') }}</a>
+            {% else %}
+              {# v6.7.109: Reihenfolge — Administration, Einstellungen, dann Dashboard und Rest. #}
+              {% if user.is_admin %}<a href="/admin">{{ _('nav_admin') }}</a>{% endif %}
+              <a href="/settings">{{ _('nav_settings') }}</a>
+              <a href="/dashboard">{{ _('nav_dashboard') }}</a>
+              <a href="/tenant">{{ _('nav_tenant') }}</a>
+              <a href="/my">{{ _('nav_my_portal') }}</a>
+              <a href="/cards">{{ _('nav_cards') }}</a>
+              <a href="/reports">{{ _('nav_reports') }}</a>
+              <a href="/capture">{{ _('nav_capture') }}</a>
+              <a href="/logs">{{ _('nav_logs') }}</a>
+              <a href="/help">{{ _('nav_help') }}</a>
+              {# v6.7.29: Feedback in Roadmap-Suggestions integriert. Nav-Link entfernt;
+                 Routen /feedback bleiben für Bestandsdaten erreichbar via direkt-URL. #}
+              <a href="/roadmap">{{ _('nav_roadmap') }}</a>
+              <a href="/logout">{{ _('nav_logout') }}</a>
+            {% endif %}
+          {% else %}
+            <a href="/login">{{ _('nav_login') }}</a>
+            <a href="/register">{{ _('nav_register') }}</a>
+          {% endif %}
+        </div>
+
+        <!-- Language Switcher (desktop) -->
+        <div class="lang-switcher" id="langSwitcher">
+          <button class="lang-btn" onclick="toggleLangDropdown(event)">🌐 {{ lang | upper }}</button>
+          <div class="lang-dropdown" id="langDropdown">
+            <div class="lang-dropdown-inner">
+              {% if lang_names and supported_langs %}
+                {% for code in supported_langs %}
+                  <a href="/lang/{{ code }}" {% if code == lang %}class="active"{% endif %}>
+                    {{ lang_names[code] }}
+                  </a>
+                {% endfor %}
+              {% endif %}
+            </div>
+          </div>
+        </div>
+
+        <!-- Hamburger button (mobile) -->
+        <button class="hamburger" id="hamburger" aria-label="{{ _('common_open_menu') }}"
+                aria-expanded="false" onclick="toggleMobileMenu()">
+          <span></span><span></span><span></span>
+        </button>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Mobile drawer -->
+  <div class="mobile-menu" id="mobileMenu" aria-hidden="true">
+    {% if user %}
+      {% if user.role_type == 'employee' %}
+        {# v6.4.2: Employees sehen nur ihren eigenen Self-Service-Bereich #}
+        <a href="/my"        onclick="closeMobileMenu()">🧑‍💼 {{ _('nav_my_portal') }}</a>
+        <a href="/help"      onclick="closeMobileMenu()">❓ {{ _('nav_help') }}</a>
+        <a href="/logout"    onclick="closeMobileMenu()">🚪 {{ _('nav_logout') }}</a>
+      {% else %}
+        {# v6.7.109: Reihenfolge — Administration, Einstellungen, dann Dashboard und Rest. #}
+        {% if user.is_admin %}
+          <a href="/admin" onclick="closeMobileMenu()">⚙️ {{ _('nav_admin') }}</a>
+        {% endif %}
+        <a href="/settings"  onclick="closeMobileMenu()">⚙️ {{ _('nav_settings') }}</a>
+        <a href="/dashboard" onclick="closeMobileMenu()">🏠 {{ _('nav_dashboard') }}</a>
+        <a href="/tenant" onclick="closeMobileMenu()">🖨️ {{ _('nav_tenant') }}</a>
+        <a href="/my"        onclick="closeMobileMenu()">📄 {{ _('nav_my_portal') }}</a>
+        <a href="/cards"     onclick="closeMobileMenu()">{{ _('nav_cards') }}</a>
+        <a href="/reports"   onclick="closeMobileMenu()">📊 {{ _('nav_reports') }}</a>
+        <a href="/capture"   onclick="closeMobileMenu()">📥 {{ _('nav_capture') }}</a>
+        <a href="/logs"      onclick="closeMobileMenu()">📋 {{ _('nav_logs') }}</a>
+        <a href="/help"      onclick="closeMobileMenu()">❓ {{ _('nav_help') }}</a>
+        {# v6.7.29: Feedback in Roadmap integriert — Mobile-Nav-Link weg. #}
+        <a href="/roadmap"   onclick="closeMobileMenu()">🗺️ {{ _('nav_roadmap') }}</a>
+        <a href="/logout"    onclick="closeMobileMenu()">🚪 {{ _('nav_logout') }}</a>
+      {% endif %}
+    {% else %}
+      <a href="/login"    onclick="closeMobileMenu()">🔑 {{ _('nav_login') }}</a>
+      <a href="/register" onclick="closeMobileMenu()">📝 {{ _('nav_register') }}</a>
+    {% endif %}
+
+    <div class="drawer-divider"></div>
+
+    <div class="mobile-lang-section">
+      <small>🌐 {{ _('common_language') }}</small>
+      <div class="mobile-lang-grid">
+        {% if lang_names and supported_langs %}
+          {% for code in supported_langs %}
+            <a href="/lang/{{ code }}" {% if code == lang %}class="active"{% endif %}>
+              {{ lang_names[code] }}
+            </a>
+          {% endfor %}
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  {% block content %}{% endblock %}
+
+  <script>
+    // ── Mobile Menu ───────────────────────────────────────────────────────
+    function toggleMobileMenu() {
+      const menu = document.getElementById('mobileMenu');
+      const btn  = document.getElementById('hamburger');
+      const open = menu.classList.toggle('open');
+      btn.classList.toggle('open', open);
+      btn.setAttribute('aria-expanded', String(open));
+      menu.setAttribute('aria-hidden', String(!open));
+    }
+    function closeMobileMenu() {
+      const menu = document.getElementById('mobileMenu');
+      const btn  = document.getElementById('hamburger');
+      if (!menu) return;
+      menu.classList.remove('open');
+      btn.classList.remove('open');
+      btn.setAttribute('aria-expanded', 'false');
+      menu.setAttribute('aria-hidden', 'true');
+    }
+    // Close on outside click
+    document.addEventListener('click', function(e) {
+      const menu = document.getElementById('mobileMenu');
+      const btn  = document.getElementById('hamburger');
+      if (menu && menu.classList.contains('open') &&
+          !menu.contains(e.target) && btn && !btn.contains(e.target)) {
+        closeMobileMenu();
+      }
+    });
+    // Close on Escape
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') closeMobileMenu();
+    });
+
+    // ── Language Dropdown (desktop) ───────────────────────────────────────
+    function toggleLangDropdown(e) {
+      e.stopPropagation();
+      document.getElementById('langDropdown').classList.toggle('open');
+    }
+    document.addEventListener('click', function(e) {
+      const s = document.getElementById('langSwitcher');
+      if (s && !s.contains(e.target)) {
+        const dd = document.getElementById('langDropdown');
+        if (dd) dd.classList.remove('open');
+      }
+    });
+
+    // ── Copy to Clipboard ─────────────────────────────────────────────────
+    function copyToClipboard(id, btnEl) {
+      const el   = document.getElementById(id);
+      const text = el ? el.textContent.trim() : '';
+      navigator.clipboard.writeText(text).then(() => {
+        const btn = btnEl || (el && el.parentElement.querySelector('.copy-btn'));
+        if (btn) {
+          const orig = btn.textContent;
+          btn.textContent = '✓';
+          setTimeout(() => btn.textContent = orig, 1500);
+        }
+      });
+    }
+  </script>
+  {% block extra_scripts %}{% endblock %}
+</body>
+</html>

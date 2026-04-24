@@ -1,0 +1,608 @@
+{% extends "base.html" %}
+{% block title %}{{ _('dash_title') }} — {{ _('brand_console_name') }}{% endblock %}
+
+{% block extra_head %}
+<style>
+  .landing-shell {
+    display:flex;
+    flex-direction:column;
+    gap:clamp(14px, 2vh, 22px);
+  }
+  .landing-hero {
+    position:relative;
+    overflow:hidden;
+    border-radius:28px;
+    padding:clamp(18px, 2.6vh, 30px);
+    background:
+      radial-gradient(circle at top right, rgba(251, 191, 36, .28), transparent 34%),
+      radial-gradient(circle at left center, rgba(34, 197, 94, .22), transparent 30%),
+      linear-gradient(135deg, #0f172a 0%, #123a63 54%, #0b4f6c 100%);
+    color:#fff;
+    box-shadow:0 22px 54px rgba(15, 23, 42, .18);
+  }
+  .landing-hero::after {
+    content:"";
+    position:absolute;
+    inset:auto -90px -90px auto;
+    width:260px;
+    height:260px;
+    border-radius:50%;
+    background:rgba(255,255,255,.08);
+    filter:blur(2px);
+  }
+  .landing-hero h1 {
+    margin:0;
+    font-size:clamp(1.5rem, 3.1vw, 2.6rem);
+    line-height:1.05;
+    letter-spacing:-.03em;
+    max-width:780px;
+  }
+  .landing-hero p {
+    margin:10px 0 0;
+    max-width:820px;
+    color:rgba(255,255,255,.86);
+    font-size:clamp(.9rem, 1.4vw, 1rem);
+    line-height:1.5;
+  }
+  .landing-badges {
+    display:flex;
+    flex-wrap:wrap;
+    gap:8px;
+    margin-top:14px;
+  }
+  .landing-badge {
+    display:inline-flex;
+    align-items:center;
+    gap:8px;
+    padding:7px 11px;
+    border-radius:999px;
+    background:rgba(255,255,255,.12);
+    border:1px solid rgba(255,255,255,.14);
+    color:#fff;
+    font-size:.8em;
+    font-weight:700;
+  }
+  .landing-grid {
+    display:grid;
+    grid-template-columns: minmax(0, 1.45fr) minmax(260px, .55fr);
+    gap:clamp(12px, 1.6vw, 18px);
+    align-items:start;
+  }
+  .landing-panel {
+    background:rgba(255,255,255,.9);
+    backdrop-filter:blur(12px);
+    border:1px solid rgba(148, 163, 184, .16);
+    border-radius:24px;
+    padding:clamp(16px, 2vh, 22px);
+    box-shadow:0 18px 38px rgba(15, 23, 42, .08);
+  }
+  .landing-panel h2 {
+    margin:0;
+    font-size:1.05rem;
+    color:#0f172a;
+  }
+  .landing-panel p {
+    margin:8px 0 0;
+    color:#64748b;
+    line-height:1.55;
+  }
+  .feature-grid {
+    display:grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap:clamp(10px, 1.2vw, 14px);
+    margin-top:14px;
+  }
+  .feature-card {
+    position:relative;
+    overflow:hidden;
+    display:flex;
+    flex-direction:column;
+    justify-content:space-between;
+    min-height:clamp(122px, 15vh, 148px);
+    height:clamp(122px, 15vh, 148px);
+    padding:clamp(14px, 1.8vh, 18px);
+    border-radius:22px;
+    color:#fff;
+    text-decoration:none;
+    box-shadow:0 16px 34px rgba(15, 23, 42, .12);
+    transition:transform .18s ease, box-shadow .18s ease, filter .18s ease;
+  }
+  .feature-card.static {
+    cursor: default;
+  }
+  .feature-card.static:hover {
+    transform: none;
+    box-shadow: 0 16px 34px rgba(15, 23, 42, .12);
+    filter: none;
+  }
+  .feature-metrics {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+    margin-top: 8px;
+  }
+  .feature-metric {
+    background: rgba(255,255,255,.14);
+    border: 1px solid rgba(255,255,255,.16);
+    border-radius: 14px;
+    padding: 6px 5px;
+    min-width: 0;
+    text-align: center;
+    overflow: hidden;
+  }
+  .feature-metric strong {
+    display: block;
+    /* Auto-shrink bei großen Demo-Werten — nie breiter als die Kachel */
+    font-size: clamp(.70rem, 2.2vw, .88rem);
+    line-height: 1.05;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+  }
+  .feature-metric span {
+    display: block;
+    margin-top: 2px;
+    font-size: .88rem;
+    line-height: 1;
+    color: rgba(255,255,255,.9);
+  }
+  /* Skeleton/Platzhalter während /dashboard/data geladen wird */
+  .stat-loading {
+    color: rgba(255,255,255,.35);
+    font-variant-numeric: tabular-nums;
+  }
+  .stat-loading::before { content: "…"; }
+  .feature-card.compact .feature-title {
+    margin-top: 10px;
+  }
+  .feature-card.compact .feature-sub {
+    display: none;
+  }
+  .feature-card:hover {
+    transform:translateY(-3px);
+    box-shadow:0 24px 40px rgba(15, 23, 42, .16);
+    filter:saturate(1.04);
+  }
+  .feature-card::after {
+    content:"";
+    position:absolute;
+    right:-32px;
+    bottom:-42px;
+    width:120px;
+    height:120px;
+    border-radius:50%;
+    background:rgba(255,255,255,.14);
+  }
+  .feature-icon {
+    position:relative;
+    z-index:1;
+    width:42px;
+    height:42px;
+    border-radius:12px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    background:rgba(255,255,255,.14);
+    font-size:1.15rem;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.18);
+  }
+  .feature-title {
+    position:relative;
+    z-index:1;
+    margin-top:12px;
+    font-size:.96rem;
+    font-weight:800;
+    letter-spacing:-.02em;
+  }
+  .feature-sub {
+    position:relative;
+    z-index:1;
+    margin-top:6px;
+    color:rgba(255,255,255,.9);
+    font-size:.78em;
+    line-height:1.35;
+  }
+  .feature-card[data-tone="blue"] { background:linear-gradient(135deg, #0f4c81 0%, #1d70a2 100%); }
+  .feature-card[data-tone="teal"] { background:linear-gradient(135deg, #0f766e 0%, #14b8a6 100%); }
+  .feature-card[data-tone="amber"] { background:linear-gradient(135deg, #b45309 0%, #f59e0b 100%); }
+  .feature-card[data-tone="green"] { background:linear-gradient(135deg, #166534 0%, #22c55e 100%); }
+  .feature-card[data-tone="slate"] { background:linear-gradient(135deg, #334155 0%, #64748b 100%); }
+  .feature-card[data-tone="rose"] { background:linear-gradient(135deg, #be123c 0%, #fb7185 100%); }
+  .feature-card[data-tone="indigo"] { background:linear-gradient(135deg, #4338ca 0%, #818cf8 100%); }
+  .feature-card[data-tone="cyan"] { background:linear-gradient(135deg, #155e75 0%, #06b6d4 100%); }
+  .feature-card[data-tone="emerald"] { background:linear-gradient(135deg, #047857 0%, #10b981 100%); }
+  .feature-card[data-tone="orange"] { background:linear-gradient(135deg, #c2410c 0%, #fb923c 100%); }
+  .feature-card[data-tone="violet"] { background:linear-gradient(135deg, #6d28d9 0%, #a78bfa 100%); }
+  /* v6.7.30: Sky-Ton für WebUpload-Kachel — passt zu "Papier fliegt hoch" */
+  .feature-card[data-tone="sky"] { background:linear-gradient(135deg, #0369a1 0%, #38bdf8 100%); }
+  .landing-stats {
+    display:grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap:10px;
+    margin-top:14px;
+  }
+  .landing-stat {
+    border-radius:18px;
+    padding:14px;
+    background:#f8fbff;
+    border:1px solid #dbeafe;
+  }
+  .landing-stat strong {
+    display:block;
+    font-size:1.18rem;
+    color:#0f172a;
+    line-height:1.1;
+  }
+  .landing-stat span {
+    display:block;
+    margin-top:4px;
+    color:#64748b;
+    font-size:.8em;
+  }
+  .landing-status-list {
+    display:flex;
+    flex-direction:column;
+    gap:10px;
+    margin-top:14px;
+  }
+  .landing-status-item {
+    display:flex;
+    justify-content:space-between;
+    gap:12px;
+    align-items:flex-start;
+    padding:12px 14px;
+    border-radius:18px;
+    background:#f8fafc;
+    border:1px solid #e2e8f0;
+  }
+  .landing-status-item strong {
+    display:block;
+    color:#0f172a;
+    font-size:.86em;
+  }
+  .landing-status-item span {
+    display:block;
+    color:#64748b;
+    font-size:.78em;
+    margin-top:4px;
+    line-height:1.45;
+  }
+  .landing-status-pill {
+    flex-shrink:0;
+    border-radius:999px;
+    padding:5px 9px;
+    font-size:.72em;
+    font-weight:800;
+  }
+  .landing-status-pill.ok { background:#dcfce7; color:#166534; }
+  .landing-status-pill.warn { background:#fef3c7; color:#92400e; }
+  .landing-status-pill.info { background:#dbeafe; color:#1e40af; }
+  .landing-links {
+    display:flex;
+    flex-direction:column;
+    gap:8px;
+    margin-top:14px;
+  }
+  .landing-link {
+    display:flex;
+    justify-content:space-between;
+    gap:12px;
+    align-items:center;
+    padding:12px 14px;
+    border-radius:18px;
+    border:1px solid #e2e8f0;
+    background:#fff;
+    text-decoration:none;
+    color:#0f172a;
+    transition:transform .16s ease, border-color .16s ease, box-shadow .16s ease;
+  }
+  .landing-link:hover {
+    transform:translateY(-1px);
+    border-color:#93c5fd;
+    box-shadow:0 12px 26px rgba(37, 99, 235, .08);
+  }
+  .landing-link small {
+    display:block;
+    color:#64748b;
+    font-size:.78em;
+    margin-top:4px;
+  }
+  .landing-arrow {
+    color:#2563eb;
+    font-weight:800;
+    font-size:1rem;
+    flex-shrink:0;
+  }
+  @media (max-width: 1320px) {
+    .feature-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  }
+  @media (max-width: 1040px) {
+    .landing-grid { grid-template-columns: 1fr; }
+    .feature-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+  @media (min-width: 1041px) and (max-height: 940px) {
+    .landing-shell { gap: 12px; }
+    .landing-hero { padding: 18px; }
+    .landing-hero p { display:none; }
+    .landing-badges { margin-top: 10px; }
+    .landing-panel { padding: 16px; }
+    .feature-grid { margin-top: 12px; }
+    .feature-card {
+      min-height: 118px;
+      height: 118px;
+      padding: 12px;
+    }
+    .feature-icon {
+      width: 38px;
+      height: 38px;
+      font-size: 1.02rem;
+    }
+    .feature-title {
+      margin-top: 8px;
+      font-size: .9rem;
+    }
+    .feature-sub {
+      margin-top: 4px;
+      font-size: .72em;
+      line-height: 1.22;
+    }
+    .landing-stats,
+    .landing-status-list,
+    .landing-links {
+      margin-top: 12px;
+    }
+  }
+  @media (max-width: 700px) {
+    .landing-hero { padding:22px 18px; border-radius:22px; }
+    .feature-grid { grid-template-columns: 1fr; }
+    .landing-stats { grid-template-columns: 1fr; }
+    .feature-card {
+      height: auto;
+      min-height: 156px;
+    }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container" style="max-width:1500px;">
+  <div class="landing-shell">
+    <section class="landing-hero">
+      <h1>{{ _('dash_landing_title') }}</h1>
+      <p>{{ _('dash_landing_sub') }}</p>
+      <div class="landing-badges">
+        <span class="landing-badge">🏠 {{ _('dash_badge_home') }}</span>
+        <span class="landing-badge">{% if has_api %}🔌 {{ _('dash_badge_api_ok') }}{% else %}⚠️ {{ _('dash_badge_api_missing') }}{% endif %}</span>
+        <span class="landing-badge">{% if has_sql %}🗄️ {{ _('dash_badge_sql_ok') }}{% else %}ℹ️ {{ _('dash_badge_sql_optional') }}{% endif %}</span>
+        <span class="landing-badge">👤 {{ user.full_name or user.username }}</span>
+        <span class="landing-badge">🏷️ {{ _('dash_badge_version') }} {{ app_version }}</span>
+      </div>
+    </section>
+
+    <div class="landing-grid">
+      <section class="landing-panel">
+        <h2>{{ _('dash_quick_access') }}</h2>
+        <p>{{ _('dash_quick_access_sub') }}</p>
+
+        <div class="feature-grid">
+          <a class="feature-card" data-tone="blue" href="/tenant/printers">
+            <div class="feature-icon">🖨️</div>
+            <div class="feature-title">{{ _('dash_tile_printers') }}</div>
+            <div class="feature-sub">{{ _('dash_tile_printers_sub') }}</div>
+          </a>
+          <a class="feature-card" data-tone="teal" href="/tenant/queues">
+            <div class="feature-icon">📋</div>
+            <div class="feature-title">{{ _('dash_tile_queues') }}</div>
+            <div class="feature-sub">{{ _('dash_tile_queues_sub') }}</div>
+          </a>
+          <a class="feature-card" data-tone="amber" href="/tenant/workstations">
+            <div class="feature-icon">💻</div>
+            <div class="feature-title">{{ _('dash_tile_workstations') }}</div>
+            <div class="feature-sub">{{ _('dash_tile_workstations_sub') }}</div>
+          </a>
+          <a class="feature-card" data-tone="green" href="/tenant/users">
+            <div class="feature-icon">👤</div>
+            <div class="feature-title">{{ _('dash_tile_users') }}</div>
+            <div class="feature-sub">{{ _('dash_tile_users_sub') }}</div>
+          </a>
+          <a class="feature-card" data-tone="slate" href="/tenant/demo">
+            <div class="feature-icon">🧪</div>
+            <div class="feature-title">{{ _('dash_tile_demo') }}</div>
+            <div class="feature-sub">{{ _('dash_tile_demo_sub') }}</div>
+          </a>
+          <a class="feature-card" data-tone="rose" href="/cards">
+            <div class="feature-icon">🃏</div>
+            <div class="feature-title">{{ _('dash_tile_cards') }}</div>
+            <div class="feature-sub">{{ _('dash_tile_cards_sub') }}</div>
+          </a>
+          <a class="feature-card" data-tone="indigo" href="/reports">
+            <div class="feature-icon">📊</div>
+            <div class="feature-title">{{ _('dash_tile_reports') }}</div>
+            <div class="feature-sub">{{ _('dash_tile_reports_sub') }}</div>
+          </a>
+          <a class="feature-card" data-tone="cyan" href="/fleet/package-builder">
+            <div class="feature-icon">📦</div>
+            <div class="feature-title">{{ _('dash_tile_builder') }}</div>
+            <div class="feature-sub">{{ _('dash_tile_builder_sub') }}</div>
+          </a>
+          <a class="feature-card" data-tone="orange" href="/capture">
+            <div class="feature-icon">📥</div>
+            <div class="feature-title">{{ _('dash_tile_capture') }}</div>
+            <div class="feature-sub">{{ _('dash_tile_capture_sub') }}</div>
+          </a>
+          <a class="feature-card" data-tone="emerald" href="/my">
+            <div class="feature-icon">🧑‍💼</div>
+            <div class="feature-title">{{ _('dash_tile_delegate_print') }}</div>
+            <div class="feature-sub">{{ _('dash_tile_delegate_print_sub') }}</div>
+          </a>
+          <a class="feature-card" data-tone="violet" href="/logs">
+            <div class="feature-icon">📋</div>
+            <div class="feature-title">{{ _('dash_tile_logs') }}</div>
+            <div class="feature-sub">{{ _('dash_tile_logs_sub') }}</div>
+          </a>
+          {# v6.7.29: Umweltwirkung-Kachel raus, WebUpload rein. Umwelt bleibt
+             als Daten-Endpoint erhalten (andere Stellen könnten es nutzen) —
+             auf dem Admin-Dashboard ist WebUpload aber die bessere Priorität.
+             Umwelt erscheint stattdessen auf dem Mitarbeiter-Dashboard. #}
+          <a class="feature-card" data-tone="sky" href="/my/upload">
+            <div class="feature-icon">📄</div>
+            <div class="feature-title">{{ _('dash_tile_web_upload') }}</div>
+            <div class="feature-sub">{{ _('dash_tile_web_upload_sub') }}</div>
+          </a>
+        </div>
+      </section>
+
+      <aside class="landing-panel">
+        <h2>{{ _('dash_system_status') }}</h2>
+        <p>{{ _('dash_system_status_sub') }}</p>
+
+        <div class="landing-stats">
+          <div class="landing-stat">
+            <strong id="kpi-total-printers" class="stat-loading"></strong>
+            <span>{{ _('dash_stat_detected_printers') }}</span>
+          </div>
+          <div class="landing-stat">
+            <strong id="kpi-active-printers" class="stat-loading"></strong>
+            <span>{{ _('dash_stat_active_online') }}</span>
+          </div>
+          <div class="landing-stat">
+            <strong id="kpi-month-pages" class="stat-loading"></strong>
+            <span>{{ _('dash_stat_month_pages') }}</span>
+          </div>
+          <div class="landing-stat">
+            <strong id="kpi-today-jobs" class="stat-loading"></strong>
+            <span>{{ _('dash_stat_jobs_today') }}</span>
+          </div>
+        </div>
+
+        <div class="landing-status-list">
+          <div class="landing-status-item">
+            <div>
+              <strong>{{ _('dash_status_api') }}</strong>
+              <span>{% if has_api %}{{ _('dash_status_api_ok') }}{% else %}{{ _('dash_status_api_missing') }}{% endif %}</span>
+            </div>
+            <span class="landing-status-pill {{ 'ok' if has_api else 'warn' }}">{{ _('admin_status_active') if has_api else _('dash_status_check') }}</span>
+          </div>
+          <div class="landing-status-item">
+            <div>
+              <strong>{{ _('dash_status_sql') }}</strong>
+              <span>{% if has_sql %}{{ _('dash_status_sql_ok') }}{% else %}{{ _('dash_status_sql_missing') }}{% endif %}</span>
+            </div>
+            <span class="landing-status-pill {{ 'ok' if has_sql else 'info' }}">{{ _('dash_status_connected') if has_sql else _('dash_badge_sql_optional') }}</span>
+          </div>
+          <div class="landing-status-item">
+            <div>
+              <strong>{{ _('dash_status_tenant') }}</strong>
+              <span>{% if tenant %}{{ tenant.get('company') or tenant.get('tenant_name') or tenant.get('tenant_url') or _('dash_status_tenant_connected') }}{% else %}{{ _('dash_status_tenant_missing') }}{% endif %}</span>
+            </div>
+            <span class="landing-status-pill {{ 'ok' if tenant else 'warn' }}">{{ _('dash_status_ready') if tenant else _('dash_status_open') }}</span>
+          </div>
+        </div>
+
+        <div class="landing-links">
+          <a class="landing-link" href="/settings">
+            <div>
+              <strong>{{ _('dash_link_settings_title') }}</strong>
+              <small>{{ _('dash_link_settings_sub') }}</small>
+            </div>
+            <span class="landing-arrow">→</span>
+          </a>
+          <a class="landing-link" href="/help">
+            <div>
+              <strong>{{ _('dash_link_help_title') }}</strong>
+              <small>{{ _('dash_link_help_sub') }}</small>
+            </div>
+            <span class="landing-arrow">→</span>
+          </a>
+        </div>
+      </aside>
+    </div>
+  </div>
+</div>
+
+<script>
+/* v6.0.0 — Dashboard Lazy-Loading.
+   Der GET /dashboard rendert ohne teure Calls, hier holen wir die echten
+   KPIs + Umwelt-Daten aus /dashboard/data. So ist die Landing-Page auch
+   bei schlafender Azure-SQL-DB sofort offen. */
+(function() {
+  const lang = document.documentElement.lang || 'en';
+
+  function fmtNum(n) {
+    if (n === null || n === undefined || isNaN(n)) return '0';
+    n = Number(n);
+    try {
+      // Kompakte Notation für große Zahlen (1234 → 1,2K)
+      if (Math.abs(n) >= 10000) {
+        return new Intl.NumberFormat(lang, {
+          notation: 'compact', maximumFractionDigits: 1,
+        }).format(n);
+      }
+      return new Intl.NumberFormat(lang).format(n);
+    } catch (e) {
+      return String(n);
+    }
+  }
+
+  function setStat(id, value) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.classList.remove('stat-loading');
+    el.textContent = fmtNum(value);
+  }
+
+  // v6.7.117 — Robust fetch with timeout. Falls /dashboard/data haengt
+  // (z.B. Printix-API blockiert), darf der User nicht mit "…" sitzen bleiben.
+  const ALL_IDS = ['kpi-total-printers','kpi-active-printers','kpi-month-pages',
+                   'kpi-today-jobs','env-trees','env-water','env-co2'];
+  const clearAll = (val) => ALL_IDS.forEach(id => setStat(id, val));
+
+  // v6.7.117: 80s Timeout — Server hat 75s Hard-Cap, 5s Netzwerk-Puffer.
+  // Azure SQL Cold-Start kann 30-60s brauchen beim ersten Request; danach
+  // liefert der Server-Cache (60s TTL) instant.
+  const ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+  const timeoutId = setTimeout(() => {
+    if (ctrl) ctrl.abort();
+    console.warn('[dashboard] /dashboard/data timeout (80s) — showing zeros');
+    clearAll(0);
+  }, 80000);
+
+  fetch('/dashboard/data', {
+    credentials: 'same-origin',
+    signal: ctrl ? ctrl.signal : undefined,
+  })
+    .then(r => {
+      if (!r.ok) {
+        console.warn('[dashboard] /dashboard/data HTTP', r.status);
+        return {};
+      }
+      return r.json();
+    })
+    .then(data => {
+      clearTimeout(timeoutId);
+      if (data && (data.error_printers || data.error_sql)) {
+        console.warn('[dashboard] backend errors:', data.error_printers, data.error_sql);
+      }
+      const k = data.kpis || {};
+      setStat('kpi-total-printers',  k.total_printers);
+      setStat('kpi-active-printers', k.active_printers);
+      setStat('kpi-month-pages',     k.month_pages);
+      setStat('kpi-today-jobs',      k.today_jobs);
+
+      const env = data.env_summary || {};
+      setStat('env-trees', env.trees);
+      setStat('env-water', env.water_l);
+      setStat('env-co2',   env.co2_kg);
+    })
+    .catch(err => {
+      clearTimeout(timeoutId);
+      console.error('[dashboard] /dashboard/data failed:', err);
+      clearAll(0);
+    });
+})();
+</script>
+{% endblock %}

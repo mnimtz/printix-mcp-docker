@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block title %}{{ _('reg_title') }} — {{ _('reg_step1') }}{% endblock %}
+{% block content %}
+<div class="container">
+  <div class="card">
+    <div class="steps">
+      <div class="step-item"><div class="step-circle active">1</div><span class="step-label active">{{ _('reg_step1') }}</span></div>
+      <div class="step-connector"></div>
+      <div class="step-item"><div class="step-circle pending">2</div><span class="step-label">{{ _('reg_step2') }}</span></div>
+      <div class="step-connector"></div>
+      <div class="step-item"><div class="step-circle pending">3</div><span class="step-label">{{ _('reg_step3') }}</span></div>
+      <div class="step-connector"></div>
+      <div class="step-item"><div class="step-circle pending">4</div><span class="step-label">{{ _('reg_step4') }}</span></div>
+    </div>
+
+    <div class="section-title">{{ _('reg_account_create') }}</div>
+    <div class="section-sub">{{ _('reg_account_subtitle') }}</div>
+
+    <div style="margin:14px 0 18px; padding:12px 14px; border:1px dashed #d1d5db;
+                border-radius:8px; background:#fafafa;
+                font-size:.78em; line-height:1.5; color:#6b7280;">
+      <div style="font-weight:600; color:#4b5563; margin-bottom:4px;">
+        ⚠️ Hinweis · Disclaimer
+      </div>
+      <div style="margin-bottom:6px;">
+        <strong>DE:</strong> Privates Entwicklungsprojekt — <u>keine offizielle
+        Printix-Seite</u>. Beispielimplementierung der öffentlichen Printix-API.
+        Nutzung auf eigene Gefahr; keine Gewährleistung, kein Support, keine Haftung.
+      </div>
+      <div>
+        <strong>EN:</strong> Private development project — <u>not an official
+        Printix site</u>. Example implementation of the public Printix API.
+        Use at your own risk; no warranty, no support, no liability.
+      </div>
+    </div>
+
+    {% if error %}<div class="alert alert-error">{{ error }}</div>{% endif %}
+
+    <form method="post" action="/register">
+      <div class="form-group">
+        <label for="username">{{ _('reg_username') }}</label>
+        <input type="text" id="username" name="username" value="{{ username | default('') }}"
+               placeholder="z.B. marcus" required minlength="3" autocomplete="username">
+        <small class="hint">{{ _('reg_username_hint') }}</small>
+      </div>
+      <div class="form-group">
+        <label for="full_name">{{ _('reg_full_name') }}</label>
+        <input type="text" id="full_name" name="full_name" value="{{ full_name | default('') }}"
+               placeholder="z.B. Marcus Mustermann" autocomplete="name">
+      </div>
+      <div class="form-group">
+        <label for="company">{{ _('reg_company') }}</label>
+        <input type="text" id="company" name="company" value="{{ company | default('') }}"
+               placeholder="z.B. Acme GmbH" autocomplete="organization">
+      </div>
+      <div class="form-group">
+        <label for="email">{{ _('reg_email_optional') }}</label>
+        <input type="email" id="email" name="email" value="{{ email | default('') }}"
+               placeholder="name@firma.de" autocomplete="email">
+      </div>
+      <div class="form-group">
+        <label for="password">{{ _('reg_password') }}</label>
+        <input type="password" id="password" name="password"
+               placeholder="{{ _('reg_password_min_placeholder') }}" required minlength="8" autocomplete="new-password">
+      </div>
+      <div class="form-group">
+        <label for="password2">{{ _('reg_password_repeat') }}</label>
+        <input type="password" id="password2" name="password2"
+               placeholder="{{ _('reg_password2') }}" required autocomplete="new-password">
+      </div>
+      <button type="submit" class="btn btn-primary">{{ _('reg_next') }} →</button>
+    </form>
+    <div style="margin-top: 20px; font-size: .85em; color: #6b7280;">
+      {{ _('reg_already_registered') }} <a href="/login" style="color: #2563eb;">{{ _('nav_login') }}</a>
+    </div>
+  </div>
+</div>
+{% endblock %}

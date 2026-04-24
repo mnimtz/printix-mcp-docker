@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% set show_nav = false %}
+{% block title %}{{ _('login_title') }} — {{ _('brand_console_name') }}{% endblock %}
+{% block content %}
+<div style="display:flex; align-items:center; justify-content:center; min-height:100vh; padding:20px;">
+  <div style="width:100%; max-width:380px;">
+    <div style="text-align:center; margin-bottom:28px;">
+      <div style="width:96px; margin:0 auto 12px; color:#002854;">
+        {% include "_brand_logo.svg" %}
+      </div>
+      <h1 style="font-size:1.3em; color:#1e3a5f;">{{ _('brand_console_name') }}</h1>
+    </div>
+
+    <div class="card">
+      {% if error %}
+      <div class="alert alert-error">{{ error }}</div>
+      {% endif %}
+
+      {% if entra_enabled | default(false) %}
+      <a href="/auth/entra/login"
+         style="display:flex;align-items:center;justify-content:center;gap:10px;
+                width:100%;padding:10px 16px;border:1px solid #d1d5db;border-radius:8px;
+                background:#fff;color:#374151;font-size:.95em;font-weight:600;
+                text-decoration:none;transition:background .15s,box-shadow .15s;
+                margin-bottom:20px;"
+         onmouseover="this.style.background='#f8fafc';this.style.boxShadow='0 2px 8px rgba(0,0,0,.08)'"
+         onmouseout="this.style.background='#fff';this.style.boxShadow='none'">
+        <svg width="20" height="20" viewBox="0 0 21 21">
+          <rect x="1" y="1" width="9" height="9" fill="#f25022"/>
+          <rect x="11" y="1" width="9" height="9" fill="#7fba00"/>
+          <rect x="1" y="11" width="9" height="9" fill="#00a4ef"/>
+          <rect x="11" y="11" width="9" height="9" fill="#ffb900"/>
+        </svg>
+        {{ _('login_microsoft') }}
+      </a>
+
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;">
+        <div style="flex:1;height:1px;background:#e5e7eb;"></div>
+        <span style="font-size:.82em;color:#9ca3af;white-space:nowrap;">{{ _('login_or') }}</span>
+        <div style="flex:1;height:1px;background:#e5e7eb;"></div>
+      </div>
+      {% endif %}
+
+      <form method="post" action="/login">
+        <div class="form-group">
+          <label for="username">{{ _('login_username') }}</label>
+          <input type="text" id="username" name="username"
+                 value="{{ username | default('') }}"
+                 autocomplete="username" autofocus required>
+        </div>
+        <div class="form-group">
+          <label for="password">{{ _('login_password') }}</label>
+          <input type="password" id="password" name="password"
+                 autocomplete="current-password" required>
+        </div>
+        <button type="submit" class="btn btn-primary" style="width:100%;">
+          {{ _('login_submit') }}
+        </button>
+      </form>
+
+      <div style="margin-top:20px; text-align:center; font-size:.85em; color:#6b7280;">
+        {{ _('login_no_account') }}
+        <a href="/register" style="color:#2563eb;">{{ _('login_register_link') }}</a>
+      </div>
+
+      <!-- Rechtlicher Hinweis / Legal disclaimer -->
+      <div style="margin-top:22px; padding:12px 14px; border:1px dashed #d1d5db;
+                  border-radius:8px; background:#fafafa;
+                  font-size:.75em; line-height:1.5; color:#6b7280;">
+        <div style="font-weight:600; color:#4b5563; margin-bottom:4px;">
+          ⚠️ Hinweis · Disclaimer
+        </div>
+        <div style="margin-bottom:6px;">
+          <strong>DE:</strong> Dies ist ein <u>privates Entwicklungsprojekt</u> und
+          <u>keine offizielle Seite von Printix</u> oder Tungsten Automation. Es dient ausschließlich
+          als Beispiel dafür, was mit der öffentlichen Printix-API umgesetzt werden kann.
+          Nutzung auf eigene Gefahr — keine Gewährleistung, kein Support, keine Haftung
+          für Datenverluste oder Schäden jeglicher Art.
+        </div>
+        <div>
+          <strong>EN:</strong> This is a <u>private development project</u> and
+          <u>not an official Printix</u> or Tungsten Automation site. It is provided solely as an
+          example of what can be built with the public Printix API. Use at your own
+          risk — no warranty, no support, and no liability for data loss or damages
+          of any kind.
+        </div>
+      </div>
+
+      <!-- Sprach-Switcher auf Login-Seite -->
+      <div style="margin-top:24px; text-align:center; font-size:.82em;">
+        {% if supported_langs and lang_names %}
+          {% for code in supported_langs %}
+            <a href="/lang/{{ code }}"
+               style="color:{% if code == lang %}#2563eb{% else %}#9ca3af{% endif %};
+                      text-decoration:none; margin:0 4px;
+                      font-weight:{% if code == lang %}700{% else %}400{% endif %};">
+              {{ lang_names[code] }}
+            </a>
+          {% endfor %}
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

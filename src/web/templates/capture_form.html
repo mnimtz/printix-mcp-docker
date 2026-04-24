@@ -1,0 +1,180 @@
+{% extends "base.html" %}
+{% block title %}{% if mode == 'create' %}{{ _('cap_new_title') }}{% else %}{{ _('cap_edit_title') }}{% endif %} — {{ _('brand_console_name') }}{% endblock %}
+
+{% block extra_head %}
+<style>
+  .cap-form-hero {
+    background: linear-gradient(135deg, {{ plugin.color }} 0%, {{ plugin.color }}cc 100%);
+    color: #fff; border-radius: 16px; padding: 28px 32px; margin-bottom: 24px;
+    display: flex; align-items: center; gap: 16px;
+  }
+  .cap-form-hero .icon { font-size: 2em; }
+  .cap-form-hero h1 { font-size: 1.25em; font-weight: 800; }
+  .cap-form-hero p { opacity: .85; font-size: .88em; margin-top: 2px; }
+
+  .cap-form-card {
+    background: #fff; border-radius: 12px; padding: 28px 32px;
+    box-shadow: 0 4px 20px rgba(0,0,0,.07); margin-bottom: 24px;
+  }
+  .cap-section-title {
+    font-size: .95em; font-weight: 700; color: #6366f1;
+    margin-bottom: 16px; padding-bottom: 8px;
+    border-bottom: 2px solid #f1f5f9;
+  }
+  .cap-field-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
+  }
+  .cap-field-full { grid-column: 1 / -1; }
+  .cap-hint { font-size: .78em; color: #9ca3af; margin-top: 3px; }
+
+  /* Webhook URL preview */
+  .webhook-preview {
+    background: #1e293b; color: #a5b4fc; padding: 12px 16px;
+    border-radius: 8px; font-family: monospace; font-size: .82em;
+    margin-top: 12px; word-break: break-all;
+  }
+  .webhook-preview strong { color: #e2e8f0; }
+
+  .form-actions {
+    display: flex; gap: 10px; margin-top: 24px;
+    flex-wrap: wrap; align-items: center;
+  }
+
+  @media (max-width: 768px) {
+    .cap-form-hero { padding: 18px 16px; }
+    .cap-form-card { padding: 18px 16px; }
+    .cap-field-grid { grid-template-columns: 1fr; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+
+  <!-- Hero -->
+  <div class="cap-form-hero">
+    <div class="icon">{{ plugin.icon }}</div>
+    <div>
+      <h1>{% if mode == 'create' %}{{ _('cap_new_title') }}{% else %}{{ _('cap_edit_title') }}{% endif %}</h1>
+      <p>{{ plugin.name }} — {{ _('cap_plugin_desc_' + plugin.id) }}</p>
+    </div>
+  </div>
+
+  {% if error %}
+  <div class="alert alert-error">{{ error }}</div>
+  {% endif %}
+
+  <form method="POST" action="{% if mode == 'create' %}/capture/new{% else %}/capture/{{ profile.id }}/edit{% endif %}">
+    {% if mode == 'create' %}
+    <input type="hidden" name="plugin_type" value="{{ plugin.id }}">
+    {% endif %}
+
+    <!-- Basic Settings -->
+    <div class="cap-form-card">
+      <div class="cap-section-title">{{ _('cap_section_basic') }}</div>
+      <div class="cap-field-grid">
+        <div class="form-group cap-field-full">
+          <label for="name">{{ _('cap_field_name') }}</label>
+          <input type="text" id="name" name="name"
+                 value="{{ profile.name if profile else '' }}"
+                 placeholder="{{ _('cap_field_name_hint') }}" required>
+        </div>
+      </div>
+    </div>
+
+    <!-- Plugin Configuration -->
+    <div class="cap-form-card">
+      <div class="cap-section-title">{{ _('cap_section_plugin') }} — {{ plugin.name }}</div>
+      <div class="cap-field-grid">
+        {% for field in config_fields %}
+        <div class="form-group {% if field.type == 'url' or loop.last and loop.length % 2 == 1 %}cap-field-full{% endif %}">
+          <label for="cfg_{{ field.key }}">{{ field.label }}{% if field.required %} *{% endif %}</label>
+          <input type="{{ field.type }}" id="cfg_{{ field.key }}" name="cfg_{{ field.key }}"
+                 value="{{ config_values.get(field.key, field.get('default', '')) }}"
+                 placeholder="{{ field.get('hint', '') }}"
+                 {% if field.required %}required{% endif %}>
+          {% if field.hint %}
+          <div class="cap-hint">{{ field.hint }}</div>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- Security Settings -->
+    <div class="cap-form-card">
+      <div class="cap-section-title">{{ _('cap_section_security') }}</div>
+      <div class="cap-field-grid">
+        <div class="form-group cap-field-full">
+          <label for="secret_key">{{ _('capture_security_hmac_keys') }}</label>
+          <textarea id="secret_key" name="secret_key" rows="3"
+                    placeholder="{{ _('capture_security_hmac_placeholder') }}"
+                    style="font-family:monospace;font-size:.88em;">{{ profile.secret_key if profile else '' }}</textarea>
+          <div class="cap-hint">{{ _('capture_security_hmac_hint') | safe }}</div>
+        </div>
+        <div class="form-group cap-field-full">
+          <label for="connector_token">{{ _('capture_security_connector_tokens') }}</label>
+          <textarea id="connector_token" name="connector_token" rows="3"
+                    placeholder="{{ _('capture_security_connector_placeholder') }}"
+                    style="font-family:monospace;font-size:.88em;">{{ profile.connector_token if profile else '' }}</textarea>
+          <div class="cap-hint">{{ _('capture_security_connector_hint') | safe }}</div>
+        </div>
+        <div class="form-group cap-field-full" style="margin-top:4px;">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+            <input type="checkbox" name="require_signature" value="1"
+                   {% if profile and profile.require_signature %}checked{% endif %}
+                   style="width:18px;height:18px;">
+            <span>{{ _('capture_require_auth') }}</span>
+          </label>
+          <div class="cap-hint" style="margin-left:26px;">
+            {{ _('capture_require_auth_hint') | safe }}
+          </div>
+        </div>
+      </div>
+
+      {% if mode == 'edit' %}
+      <!-- Webhook URL -->
+      <div style="margin-top: 16px;">
+        <label>{{ _('cap_webhook_url') }}</label>
+        <div class="webhook-preview">
+          <strong>POST</strong> {{ webhook_base }}/capture/webhook/{{ profile.id }}
+        </div>
+        <div class="cap-hint">{{ _('cap_webhook_hint') }}</div>
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- Metadata Settings -->
+    <div class="cap-form-card">
+      <div class="cap-section-title">{{ _('capture_metadata_title') }}</div>
+      <div class="cap-field-grid">
+        <div class="form-group">
+          <label for="metadata_format">{{ _('capture_metadata_format') }}</label>
+          <select id="metadata_format" name="metadata_format" style="padding:8px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:.9em;">
+            <option value="flat" {% if not profile or (profile.metadata_format|default('flat')) == 'flat' %}selected{% endif %}>{{ _('capture_metadata_format_flat') }}</option>
+            <option value="structured" {% if profile and profile.metadata_format == 'structured' %}selected{% endif %}>{{ _('capture_metadata_format_structured') }}</option>
+            <option value="passthrough" {% if profile and profile.metadata_format == 'passthrough' %}selected{% endif %}>{{ _('capture_metadata_format_passthrough') }}</option>
+          </select>
+          <div class="cap-hint">{{ _('capture_metadata_format_hint') }}</div>
+        </div>
+        <div class="form-group">
+          <label for="index_fields_json">{{ _('capture_index_fields') }}</label>
+          <textarea id="index_fields_json" name="index_fields_json" rows="4"
+                    placeholder='[{"name": "department", "type": "string"}, {"name": "cost_center", "type": "string"}]'
+                    style="font-family:monospace;font-size:.82em;">{{ profile.index_fields_json if profile else '[]' }}</textarea>
+          <div class="cap-hint">{{ _('capture_index_fields_hint') }}</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Actions -->
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary">
+        {% if mode == 'create' %}{{ _('cap_btn_create') }}{% else %}{{ _('cap_btn_save') }}{% endif %}
+      </button>
+      <a href="/capture" class="btn btn-secondary">{{ _('cap_btn_cancel') }}</a>
+    </div>
+  </form>
+
+</div>
+{% endblock %}

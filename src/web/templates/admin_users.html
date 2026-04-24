@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+{% block title %}{{ _('admin_users') }} — {{ _('brand_console_name') }}{% endblock %}
+{% block content %}
+<div class="container">
+  <div class="card">
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:20px; flex-wrap:wrap; gap:10px;">
+      <div>
+        <div class="section-title">{{ _('admin_users') }}</div>
+        <div class="section-sub">{{ _('admin_users_sub') }}</div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <a href="/admin/users/invite" class="btn btn-success btn-sm">✉️ {{ _('admin_invite_user') }}</a>
+        <a href="/admin/users/create" class="btn btn-primary btn-sm">+ {{ _('admin_create_user') }}</a>
+        <a href="/admin" class="btn btn-secondary btn-sm">← {{ _('admin_title') }}</a>
+      </div>
+    </div>
+
+    {% if users %}
+    <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
+    <table>
+      <thead>
+        <tr>
+          <th>{{ _('reg_username') }}</th>
+          <th>{{ _('admin_email') }}</th>
+          <th>{{ _('admin_role') }}</th>
+          <th>{{ _('admin_assignment') }}</th>
+          <th>{{ _('admin_status') }}</th>
+          <th>{{ _('admin_invitation') }}</th>
+          <th>{{ _('common_created') }}</th>
+          <th>{{ _('common_actions') }}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for u in users %}
+        <tr>
+          <td><strong>{{ u.username }}</strong></td>
+          <td>{{ u.email or '—' }}</td>
+          <td>
+            {% if u.role_type == 'admin' %}
+              <span class="badge badge-blue">{{ _('role_admin') }}</span>
+            {% elif u.role_type == 'employee' %}
+              <span class="badge badge-yellow">{{ _('role_employee') }}</span>
+            {% else %}
+              <span style="color:#6b7280; font-size:.85em;">{{ _('role_user') }}</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if u.relationship_kind == 'global_admin' %}
+              <span class="badge badge-blue">{{ _('admin_assignment_global') }}</span>
+            {% elif u.relationship_kind == 'employee_of' %}
+              <div style="display:flex; flex-direction:column; gap:2px;">
+                <span class="badge badge-yellow">{{ _('admin_assignment_employee_of') }}</span>
+                <strong style="font-size:.92em;">{{ u.relationship_name or '—' }}</strong>
+                {% if u.relationship_email %}
+                <span style="font-size:.8em; color:#6b7280;">{{ u.relationship_email }}</span>
+                {% endif %}
+              </div>
+            {% else %}
+              <div style="display:flex; flex-direction:column; gap:2px;">
+                <span class="badge badge-green">{{ _('admin_assignment_tenant_admin') }}</span>
+                <strong style="font-size:.92em;">{{ u.relationship_name or u.username }}</strong>
+                {% if u.relationship_email %}
+                <span style="font-size:.8em; color:#6b7280;">{{ u.relationship_email }}</span>
+                {% endif %}
+              </div>
+            {% endif %}
+          </td>
+          <td>
+            {% if u.status == 'approved' %}
+              <span class="badge badge-green">✓ {{ _('admin_status_active') }}</span>
+            {% elif u.status == 'pending' %}
+              <span class="badge badge-yellow">⏳ {{ _('admin_status_pending') }}</span>
+            {% else %}
+              <span class="badge badge-red">✗ {{ _('admin_status_suspended') }}</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if u.invitation_sent_at and u.invitation_accepted_at %}
+              <span class="badge badge-green">✓ {{ _('admin_invitation_accepted') }}</span>
+            {% elif u.invitation_sent_at %}
+              <span class="badge badge-yellow">✉️ {{ _('admin_invitation_open') }}</span>
+            {% else %}
+              <span style="color:#6b7280; font-size:.85em;">—</span>
+            {% endif %}
+          </td>
+          <td style="font-size:.85em; color:#6b7280;">
+            {{ u.created_at[:10] if u.created_at else '—' }}
+          </td>
+          <td style="white-space:nowrap;">
+            <!-- Bearbeiten -->
+            <a href="/admin/users/{{ u.id }}/edit"
+               class="btn btn-secondary btn-sm" style="margin-right:4px;">
+              ✏️ {{ _('admin_edit') }}
+            </a>
+            {% if u.id != user.id %}
+              <!-- Genehmigen / Sperren -->
+              {% if u.status != 'approved' %}
+              <form method="post" action="/admin/users/{{ u.id }}/approve" style="display:inline;">
+                <button type="submit" class="btn btn-success btn-sm">
+                  ✓ {{ _('admin_approve') }}
+                </button>
+              </form>
+              {% endif %}
+              {% if u.status == 'approved' %}
+              <form method="post" action="/admin/users/{{ u.id }}/disable" style="display:inline; margin-left:4px;">
+                <button type="submit" class="btn btn-danger btn-sm"
+                  data-username="{{ u.username }}"
+                  data-suspend-label=" {{ _('admin_status_suspended') | lower }}?"
+                  onclick="return confirm(this.dataset.username + this.dataset.suspendLabel)">
+                  ✗ {{ _('admin_suspend') }}
+                </button>
+              </form>
+              {% endif %}
+            {% else %}
+              <span style="font-size:.78em; color:#9ca3af;">{{ _('admin_self') }}</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    {% else %}
+    <div class="alert alert-info">{{ _('admin_no_users') }}</div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

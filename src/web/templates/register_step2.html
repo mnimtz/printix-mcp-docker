@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+{% block title %}{{ _('reg_title') }} — {{ _('reg_step2') }}{% endblock %}
+{% block content %}
+<div class="container">
+  <div class="card">
+    <div class="steps">
+      <div class="step-item"><div class="step-circle done">✓</div><span class="step-label">{{ _('reg_step1') }}</span></div>
+      <div class="step-connector"></div>
+      <div class="step-item"><div class="step-circle active">2</div><span class="step-label active">{{ _('reg_step2') }}</span></div>
+      <div class="step-connector"></div>
+      <div class="step-item"><div class="step-circle pending">3</div><span class="step-label">{{ _('reg_step3') }}</span></div>
+      <div class="step-connector"></div>
+      <div class="step-item"><div class="step-circle pending">4</div><span class="step-label">{{ _('reg_step4') }}</span></div>
+    </div>
+
+    <div class="section-title">{{ _('reg_api_title') }}</div>
+    <div class="section-sub">{{ _('reg_api_subtitle') | safe }}</div>
+
+    {% if error %}
+    <div class="alert alert-error">{{ error }}</div>
+    {% endif %}
+
+    <form method="post" action="/register/api">
+      <div class="form-group">
+        <label for="tenant_name">{{ _('reg_account_label_optional') }}</label>
+        <input type="text" id="tenant_name" name="tenant_name"
+               value="{{ tenant_name | default('') }}"
+               placeholder="z.B. Firma GmbH oder Standort München">
+        <small class="hint">{{ _('reg_account_label_hint') }}</small>
+      </div>
+      <div class="form-group">
+        <label for="printix_tenant_id">Printix Tenant-ID <span style="color:#ef4444">*</span></label>
+        <input type="text" id="printix_tenant_id" name="printix_tenant_id"
+               value="{{ printix_tenant_id | default('') }}"
+               placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" required>
+        <small class="hint">{{ _('reg_tenant_id_hint') }}</small>
+      </div>
+
+      <div class="divider"></div>
+      <div style="font-size:.87em; font-weight:600; color:#374151; margin-bottom:16px;">
+        {{ _('reg_api_pairs_hint') }}
+      </div>
+
+      <!-- Print API -->
+      <details style="margin-bottom:16px;" open>
+        <summary style="cursor:pointer; font-size:.9em; font-weight:600; color:#1e3a5f; padding:8px 0;">
+          {{ _('settings_print_api') }} <small style="font-weight:400; color:#6b7280;">({{ _('reg_api_print_summary') }})</small>
+        </summary>
+        <div style="padding: 12px 0 0 0; display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+          <div class="form-group">
+            <label>{{ _('common_client_id') }}</label>
+            <input type="text" name="print_client_id" placeholder="xxxxxxxx-xxxx-...">
+          </div>
+          <div class="form-group">
+            <label>{{ _('common_client_secret') }}</label>
+            <input type="password" name="print_client_secret" placeholder="Geheimer Schlüssel">
+          </div>
+        </div>
+      </details>
+
+      <!-- Card Management -->
+      <details style="margin-bottom:16px;">
+        <summary style="cursor:pointer; font-size:.9em; font-weight:600; color:#1e3a5f; padding:8px 0;">
+          {{ _('settings_card_api') }} <small style="font-weight:400; color:#6b7280;">({{ _('reg_api_card_summary') }})</small>
+        </summary>
+        <div style="padding: 12px 0 0 0; display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+          <div class="form-group">
+            <label>{{ _('common_client_id') }}</label>
+            <input type="text" name="card_client_id" placeholder="xxxxxxxx-xxxx-...">
+          </div>
+          <div class="form-group">
+            <label>{{ _('common_client_secret') }}</label>
+            <input type="password" name="card_client_secret" placeholder="Geheimer Schlüssel">
+          </div>
+        </div>
+      </details>
+
+      <!-- Workstation -->
+      <details style="margin-bottom:16px;">
+        <summary style="cursor:pointer; font-size:.9em; font-weight:600; color:#1e3a5f; padding:8px 0;">
+          {{ _('settings_workstation_api') }} <small style="font-weight:400; color:#6b7280;">({{ _('reg_api_workstation_summary') }})</small>
+        </summary>
+        <div style="padding: 12px 0 0 0; display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+          <div class="form-group">
+            <label>{{ _('common_client_id') }}</label>
+            <input type="text" name="ws_client_id" placeholder="xxxxxxxx-xxxx-...">
+          </div>
+          <div class="form-group">
+            <label>{{ _('common_client_secret') }}</label>
+            <input type="password" name="ws_client_secret" placeholder="Geheimer Schlüssel">
+          </div>
+        </div>
+      </details>
+
+      <!-- User Management -->
+      <details style="margin-bottom:16px;">
+        <summary style="cursor:pointer; font-size:.9em; font-weight:600; color:#1e3a5f; padding:8px 0;">
+          {{ _('settings_user_management_api') }} <small style="font-weight:400; color:#6b7280;">({{ _('reg_api_user_management_summary') }})</small>
+        </summary>
+        <div style="padding: 12px 0 0 0; display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+          <div class="form-group">
+            <label>{{ _('common_client_id') }}</label>
+            <input type="text" name="um_client_id" placeholder="xxxxxxxx-xxxx-...">
+          </div>
+          <div class="form-group">
+            <label>{{ _('common_client_secret') }}</label>
+            <input type="password" name="um_client_secret" placeholder="Geheimer Schlüssel">
+          </div>
+        </div>
+      </details>
+
+      <!-- Shared -->
+      <details style="margin-bottom:24px;">
+        <summary style="cursor:pointer; font-size:.9em; font-weight:600; color:#1e3a5f; padding:8px 0;">
+          Shared Credentials (Fallback) <small style="font-weight:400; color:#6b7280;">({{ _('reg_api_shared_summary') }})</small>
+        </summary>
+        <div style="padding: 12px 0 0 0; display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+          <div class="form-group">
+            <label>{{ _('reg_shared_client_id') }}</label>
+            <input type="text" name="shared_client_id" placeholder="xxxxxxxx-xxxx-...">
+          </div>
+          <div class="form-group">
+            <label>{{ _('reg_shared_client_secret') }}</label>
+            <input type="password" name="shared_client_secret" placeholder="Geheimer Schlüssel">
+          </div>
+        </div>
+      </details>
+
+      <div style="display:flex; gap:12px;">
+        <a href="/register" class="btn btn-secondary">← {{ _('reg_back') }}</a>
+        <button type="submit" class="btn btn-primary">{{ _('reg_next') }} →</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

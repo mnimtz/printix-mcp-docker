@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}{{ _('admin_title') }} — {{ _('brand_console_name') }}{% endblock %}
+{% block content %}
+<div class="container">
+  <div class="card" style="margin-bottom:20px;">
+    <div class="section-title">{{ _('admin_title') }}</div>
+    <div class="section-sub">{{ _('admin_overview_sub') }}</div>
+
+    <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap:16px; margin-bottom:24px;">
+      <div style="background:#f0f9ff; border:1px solid #bae6fd; border-radius:10px; padding:20px; text-align:center;">
+        <div style="font-size:2em; font-weight:700; color:#0369a1;">{{ users | length }}</div>
+        <div style="font-size:.85em; color:#075985; margin-top:4px;">{{ _('admin_users') }}</div>
+      </div>
+      <div style="background:#f0fdf4; border:1px solid #bbf7d0; border-radius:10px; padding:20px; text-align:center;">
+        <div style="font-size:2em; font-weight:700; color:#15803d;">
+          {{ users | selectattr('status','equalto','approved') | list | length }}
+        </div>
+        <div style="font-size:.85em; color:#166534; margin-top:4px;">{{ _('admin_status_active') }}</div>
+      </div>
+      <div style="background:#fffbeb; border:1px solid #fde68a; border-radius:10px; padding:20px; text-align:center;">
+        <div style="font-size:2em; font-weight:700; color:#d97706;">
+          {{ users | selectattr('status','equalto','pending') | list | length }}
+        </div>
+        <div style="font-size:.85em; color:#92400e; margin-top:4px;">{{ _('admin_status_pending') }}</div>
+      </div>
+    </div>
+
+    <div style="display:flex; gap:12px; flex-wrap:wrap;">
+      <a href="/admin/users" class="btn btn-primary">👥 {{ _('admin_users') }}</a>
+      <a href="/admin/users/create" class="btn btn-secondary">+ {{ _('admin_create_user') }}</a>
+      <a href="/admin/audit" class="btn btn-secondary">📋 {{ _('admin_audit') }}</a>
+      <a href="/admin/settings" class="btn btn-secondary">⚙️ {{ _('admin_settings') }}</a>
+    </div>
+  </div>
+
+  <!-- Server-Info -->
+  <div class="card">
+    <div class="section-title" style="margin-bottom:12px;">{{ _('admin_server_info') }}</div>
+    <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
+    <table>
+      <tr>
+        <th style="width:180px;">{{ _('admin_mcp_url') }}</th>
+        <td>
+          <div class="code-block" id="srv-mcp">
+            <button class="copy-btn" onclick="copyToClipboard('srv-mcp-val', this)">⧉</button>
+            <span id="srv-mcp-val">{{ base_url }}/mcp</span>
+          </div>
+        </td>
+      </tr>
+      <tr>
+        <th>{{ _('admin_sse_url') }}</th>
+        <td>
+          <div class="code-block" id="srv-sse">
+            <button class="copy-btn" onclick="copyToClipboard('srv-sse-val', this)">⧉</button>
+            <span id="srv-sse-val">{{ base_url }}/sse</span>
+          </div>
+        </td>
+      </tr>
+      <tr><th>{{ _('admin_oauth_authorize') }}</th><td><code>{{ base_url }}/oauth/authorize</code></td></tr>
+      <tr><th>{{ _('admin_oauth_token') }}</th><td><code>{{ base_url }}/oauth/token</code></td></tr>
+      <tr><th>{{ _('admin_healthcheck') }}</th><td><code>{{ base_url }}/health</code></td></tr>
+    </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

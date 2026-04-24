@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}{{ _('tenant_tab_sites') }} — {{ _('brand_console_name') }}{% endblock %}
+{% block content %}
+<div class="container" style="max-width:1480px;">
+  <div class="tenant-shell">
+    {% include "_tenant_sidebar.html" %}
+    <section class="tenant-main">
+      <div class="card tenant-main-card">
+        <div style="display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:16px;">
+          <div>
+            <h2 class="section-title" style="margin:0 0 6px;">📍 {{ _('tenant_tab_sites') }}</h2>
+            <p class="section-sub" style="margin:0;">{{ _('tenant_sites_intro') }}</p>
+          </div>
+          <a href="/tenant/sites/create" class="btn btn-primary">＋ {{ _('tenant_btn_create_site') }}</a>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:16px;">
+          <form class="search-bar" method="get" action="/tenant/sites" style="flex:1;min-width:220px;margin:0;display:flex;gap:8px;">
+            <input type="text" name="search" value="{{ search }}" placeholder="{{ _('tenant_search_sites') }}" style="flex:1;">
+            <button type="submit">🔍</button>
+          </form>
+          <a href="/tenant/sites{% if search %}?search={{ search }}{% endif %}" class="btn btn-secondary">🔄 {{ _('common_refresh') }}</a>
+        </div>
+        {% if flash == 'created' %}<div class="alert alert-success">✅ {{ _('tenant_flash_created') }}</div>{% endif %}
+        {% if flash == 'updated' %}<div class="alert alert-success">✅ {{ _('tenant_flash_updated') }}</div>{% endif %}
+        {% if flash == 'deleted' %}<div class="alert alert-success">✅ {{ _('tenant_flash_deleted') }}</div>{% endif %}
+        {% if error == 'no_print_creds' %}<div class="alert alert-warning">⚠️ {{ _('tenant_no_print_creds') }}</div>
+        {% elif error == 'no_tenant' %}<div class="alert alert-warning">⚠️ {{ _('common_no_tenant') }}</div>
+        {% elif error %}<div class="alert alert-error">❌ {{ error }}</div>
+        {% elif sites %}
+        <div style="overflow-x:auto;">
+          <table>
+            <thead><tr><th>{{ _('common_name') }}</th><th>{{ _('tenant_site_path') }}</th><th>{{ _('tenant_site_networks') }}</th><th>{{ _('tenant_site_admin_groups') }}</th><th>{{ _('common_actions') }}</th></tr></thead>
+            <tbody>
+              {% for site in sites %}
+              <tr>
+                <td><a href="/tenant/sites/{{ site.get('site_id') }}" style="color:#1d4ed8;text-decoration:none;font-weight:600;">{{ site.get('name') or site.get('site_id') }}</a></td>
+                <td>{{ site.get('path') or '–' }}</td>
+                <td>{{ site.get('network_count') }}</td>
+                <td>{{ site.get('admin_group_count') }}</td>
+                <td><a href="/tenant/sites/{{ site.get('site_id') }}" class="btn btn-secondary">{{ _('tenant_detail_open') }}</a></td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}<div class="alert alert-info">{{ _('tenant_sites_empty') }}</div>{% endif %}
+      </div>
+    </section>
+  </div>
+</div>
+{% endblock %}

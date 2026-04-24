@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+{% block title %}{{ _('tenant_tab_sites') }} — {{ _('brand_console_name') }}{% endblock %}
+{% block extra_head %}
+<style>
+  .tenant-form-grid { display:grid; grid-template-columns:minmax(0, 1.1fr) minmax(320px, .9fr); gap:16px; }
+  .tenant-form-card { border:1px solid #dbe4ef; border-radius:18px; background:#fff; padding:18px; }
+  .tenant-field-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .tenant-detail-list { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:10px 14px; }
+  .tenant-detail-list dt { font-size:.78em; color:#64748b; margin-bottom:4px; }
+  .tenant-detail-list dd { margin:0; color:#0f172a; font-weight:600; word-break:break-word; }
+  .tenant-chip-row { display:flex; flex-wrap:wrap; gap:8px; }
+  .tenant-chip { display:inline-flex; align-items:center; gap:6px; border-radius:999px; padding:6px 10px; background:#eff6ff; color:#1d4ed8; font-size:.78em; font-weight:700; }
+  .tenant-multiselect { min-height:150px; }
+  @media (max-width: 980px) { .tenant-form-grid, .tenant-field-grid { grid-template-columns:1fr; } }
+</style>
+{% endblock %}
+{% block content %}
+<div class="container" style="max-width:1480px;">
+  <div class="tenant-shell">
+    {% include "_tenant_sidebar.html" %}
+    <section class="tenant-main">
+      <div class="card tenant-main-card">
+        <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start;flex-wrap:wrap;margin-bottom:18px;">
+          <div>
+            <span class="tenant-sidebar-kicker">📍 {{ _('tenant_tab_sites') }}</span>
+            <h2 class="section-title" style="font-size:1.35em;margin:14px 0 8px;">{{ site.get('name') if site else _('tenant_btn_create_site') }}</h2>
+            <p class="section-sub" style="margin-bottom:0;">{{ _('tenant_site_detail_sub') }}</p>
+          </div>
+          <a href="/tenant/sites" class="btn btn-secondary">← {{ _('tenant_tab_sites') }}</a>
+        </div>
+        {% if flash == 'created' %}<div class="alert alert-success">✅ {{ _('tenant_flash_created') }}</div>{% endif %}
+        {% if flash == 'updated' %}<div class="alert alert-success">✅ {{ _('tenant_flash_updated') }}</div>{% endif %}
+        {% if error %}<div class="alert alert-error">❌ {{ _(error) if error.isidentifier() else error }}</div>{% endif %}
+        <div class="tenant-form-grid">
+          {% if site %}
+          <div class="tenant-form-card">
+            <h3 style="margin:0 0 14px;">{{ _('tenant_detail_summary') }}</h3>
+            <dl class="tenant-detail-list">
+              <div><dt>{{ _('common_name') }}</dt><dd>{{ site.get('name') or '–' }}</dd></div>
+              <div><dt>{{ _('tenant_object_id') }}</dt><dd>{{ site.get('site_id') or '–' }}</dd></div>
+              <div><dt>{{ _('tenant_site_path') }}</dt><dd>{{ site.get('path') or '–' }}</dd></div>
+              <div><dt>{{ _('tenant_site_admin_groups') }}</dt><dd>{{ (selected_admin_group_names or [])|length }}</dd></div>
+              <div><dt>{{ _('tenant_site_networks') }}</dt><dd>{{ (selected_network_names or [])|length }}</dd></div>
+            </dl>
+            {% if selected_admin_group_names %}
+            <div style="margin-top:14px;">
+              <div style="font-size:.78em;color:#64748b;margin-bottom:6px;">{{ _('tenant_site_admin_groups') }}</div>
+              <div class="tenant-chip-row">
+                {% for name in selected_admin_group_names %}
+                <span class="tenant-chip">{{ name }}</span>
+                {% endfor %}
+              </div>
+            </div>
+            {% endif %}
+            {% if selected_network_names %}
+            <div style="margin-top:14px;">
+              <div style="font-size:.78em;color:#64748b;margin-bottom:6px;">{{ _('tenant_site_networks') }}</div>
+              <div class="tenant-chip-row">
+                {% for name in selected_network_names %}
+                <span class="tenant-chip">{{ name }}</span>
+                {% endfor %}
+              </div>
+            </div>
+            {% endif %}
+          </div>
+          {% endif %}
+          <div class="tenant-form-card">
+            <form method="post" action="{{ '/tenant/sites/create' if not site else '/tenant/sites/' ~ (site.get('id') or site.get('site_id') or '') }}">
+              <div class="tenant-field-grid">
+                <div>
+                  <label>{{ _('common_name') }}</label>
+                  <input type="text" name="name" value="{{ (site or {}).get('name', '') }}" required>
+                </div>
+                <div>
+                  <label>{{ _('tenant_site_path') }}</label>
+                  <input type="text" name="path" value="{{ (site or {}).get('path', '') }}" placeholder="/Europe/Germany/Hamburg" required>
+                </div>
+              </div>
+              <div class="tenant-field-grid" style="margin-top:12px;">
+                <div>
+                  <label>{{ _('tenant_site_admin_groups') }}</label>
+                  <select name="admin_group_ids" multiple class="tenant-multiselect">
+                    {% for group in groups %}
+                    <option value="{{ group.get('id') }}" {% if group.get('id') in selected_admin_group_ids %}selected{% endif %}>{{ group.get('name') or group.get('id') }}</option>
+                    {% endfor %}
+                  </select>
+                </div>
+                <div>
+                  <label>{{ _('tenant_site_networks') }}</label>
+                  <select name="network_ids" multiple class="tenant-multiselect">
+                    {% for network in networks %}
+                    <option value="{{ network.get('id') }}" {% if network.get('id') in selected_network_ids %}selected{% endif %}>{{ network.get('name') or network.get('id') }}</option>
+                    {% endfor %}
+                  </select>
+                </div>
+              </div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:16px;">
+                <button type="submit" class="btn btn-primary">{{ _('common_save') }}</button>
+                {% if site %}
+                <button type="submit" formaction="/tenant/sites/{{ site.get('id') or site.get('site_id') }}/delete" formmethod="post" class="btn btn-secondary" onclick="return confirm('{{ _('tenant_confirm_delete') }}');">{{ _('common_delete') }}</button>
+                {% endif %}
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,188 @@
+{% extends "base.html" %}
+{% block title %}{{ _('tenant_tab_users') }} — {{ _('brand_console_name') }}{% endblock %}
+{% block extra_head %}
+<style>
+  .search-bar { display:flex; gap:8px; margin-bottom:16px; }
+  .search-bar input { flex:1; padding:8px 12px; border:1px solid #d1d5db; border-radius:8px; font-size:.9em; }
+  .search-bar button { padding:8px 16px; background:#2563eb; color:#fff; border:none; border-radius:8px; cursor:pointer; font-size:.9em; font-weight:600; }
+  .avatar {
+    width:32px; height:32px; border-radius:50%; background:#dbeafe; color:#1d4ed8;
+    font-weight:700; font-size:.85em; display:inline-flex; align-items:center;
+    justify-content:center; text-transform:uppercase; flex-shrink:0;
+  }
+  .card-count {
+    display:inline-block; background:#dcfce7; color:#166534;
+    font-size:.78em; font-weight:700; padding:1px 8px; border-radius:10px;
+  }
+  .card-count.zero { background:#f1f5f9; color:#9ca3af; }
+  .role-badge {
+    display:inline-block; font-size:.72em; padding:1px 6px; border-radius:8px;
+    background:#fef3c7; color:#92400e;
+  }
+  .role-badge.guest { background:#ede9fe; color:#5b21b6; }
+  .card-match {
+    display:inline-block; margin-left:6px;
+    font-size:.70em; padding:1px 6px; border-radius:8px;
+    background:#fee2e2; color:#b91c1c; font-weight:700;
+  }
+  tr.clickable { cursor:pointer; }
+  tr.clickable:hover td { background:#f0f7ff; }
+  .flash-ok  { background:#d1fae5; color:#065f46; border:1px solid #6ee7b7; padding:10px 16px; border-radius:8px; margin-bottom:16px; }
+  .hint-box { background:#eff6ff; color:#1e3a8a; border:1px solid #bfdbfe; border-radius:8px; padding:10px 12px; font-size:.84em; margin-bottom:16px; }
+  .filter-row {
+    display:flex; gap:6px; flex-wrap:wrap; margin-bottom:14px; align-items:center;
+  }
+  .filter-chip {
+    display:inline-flex; align-items:center; gap:6px;
+    padding:5px 11px; border:1px solid #d1d5db; border-radius:999px;
+    font-size:.82em; color:#374151; background:#fff;
+    text-decoration:none; transition:.12s;
+  }
+  .filter-chip:hover { border-color:#2563eb; color:#1d4ed8; }
+  .filter-chip.active { background:#2563eb; color:#fff; border-color:#2563eb; font-weight:700; }
+  .filter-chip .badge {
+    background:rgba(255,255,255,.25); color:inherit;
+    font-size:.74em; padding:0 6px; border-radius:8px; font-weight:700;
+  }
+  .filter-chip:not(.active) .badge { background:#f3f4f6; color:#6b7280; }
+</style>
+{% endblock %}
+{% block content %}
+<div class="container" style="max-width:1480px;">
+  <div class="tenant-shell">
+    {% include "_tenant_sidebar.html" %}
+    <section class="tenant-main">
+      <div class="card tenant-main-card">
+        <h2 class="section-title" style="margin-bottom:16px;">👤 {{ _('tenant_tab_users') }}</h2>
+
+        {% if request.query_params.get('flash') == 'deleted' %}
+        <div class="flash-ok">✅ {{ _('user_deleted_ok') }}</div>
+        {% elif request.query_params.get('flash') == 'created' %}
+        <div class="flash-ok">✅ {{ _('user_card_added_ok') }}</div>
+        {% endif %}
+
+        {% set role_param = request.query_params.get('role', 'all') %}
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px;">
+          <form class="search-bar" method="get" action="/tenant/users" style="flex:1;min-width:200px;margin:0;">
+            <input type="text" name="search" value="{{ search }}" placeholder="{{ _('tenant_search_all') }}">
+            {% if role_param and role_param != 'all' %}
+            <input type="hidden" name="role" value="{{ role_param }}">
+            {% endif %}
+            <button type="submit">🔍</button>
+          </form>
+          {% set cache_topic = "users" %}
+          {% set cache_meta  = cache_meta_users | default({}) %}
+          {% set cache_back  = request.url.path + ("?search=" + search if search else "") %}
+          {% include "_cache_refresh.html" %}
+          <a href="/tenant/users/create" class="btn btn-primary">➕ {{ _('user_new_btn') }}</a>
+        </div>
+
+        <!-- Filter-Chips: Alle | Benutzer | Gäste -->
+        <div class="filter-row">
+          <span style="font-size:.8em;color:#6b7280;margin-right:4px;">{{ _('tenant_filter_label') }}:</span>
+          <a class="filter-chip {% if role_param == 'all' %}active{% endif %}"
+             href="/tenant/users{% if search %}?search={{ search }}{% endif %}">
+            🗂 {{ _('tenant_filter_all') }}
+          </a>
+          <a class="filter-chip {% if role_param == 'user' %}active{% endif %}"
+             href="/tenant/users?role=user{% if search %}&search={{ search }}{% endif %}">
+            ✉️ {{ _('tenant_filter_users') }}
+          </a>
+          <a class="filter-chip {% if role_param == 'guest' %}active{% endif %}"
+             href="/tenant/users?role=guest{% if search %}&search={{ search }}{% endif %}">
+            👤 {{ _('tenant_filter_guests') }}
+          </a>
+          {% if search and card_matches %}
+            <span style="margin-left:auto;font-size:.8em;color:#b91c1c;">
+              🃏 {{ _('tenant_card_match_info', count=card_matches) }}
+            </span>
+          {% endif %}
+        </div>
+
+        <div class="hint-box">
+          {{ _('tenant_users_hint') | safe }}
+        </div>
+
+        {% if error == "no_card_creds" %}
+        <div class="alert alert-warning">⚠️ {{ _('tenant_no_card_creds') }}</div>
+        {% elif error == "no_tenant" %}
+        <div class="alert alert-warning">⚠️ {{ _('common_no_tenant') }}</div>
+        {% elif error %}
+        <div class="alert alert-error">❌ {{ error }}</div>
+        {% elif users %}
+        <p style="font-size:.82em;color:#6b7280;margin-bottom:10px;">
+          {{ _('tenant_users_count', count=total_count) }}{% if total_pages > 1 %} — Seite {{ page + 1 }} / {{ total_pages }}{% endif %}
+        </p>
+        <div style="overflow-x:auto;">
+          <table>
+            <thead>
+              <tr>
+                <th>{{ _('tenant_col_name') }}</th>
+                <th>{{ _('tenant_col_email') }}</th>
+                <th>{{ _('tenant_col_cards') }}</th>
+                <th>{{ _('tenant_role') }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for u in users %}
+              {% set display = u.get('displayName') or u.get('fullName') or u.get('name') or '?' %}
+              {% set email   = u.get('email', '–') %}
+              {% set card_count = u.get('_card_count', 0) %}
+              {% set role    = u.get('role', '') %}
+              {% set uid     = u.get('id', '') %}
+              {% set card_match = u.get('_card_match', False) %}
+              <tr class="clickable" onclick="location.href='/tenant/users/{{ uid }}'">
+                <td>
+                  <div style="display:flex;align-items:center;gap:10px;">
+                    <div class="avatar">{{ display[:1] }}</div>
+                    <span style="font-weight:600;color:#2563eb;text-decoration:underline;">{{ display }}</span>
+                    {% if card_match %}<span class="card-match" title="{{ _('tenant_card_match_tooltip') }}">🃏 {{ _('tenant_card_match_badge') }}</span>{% endif %}
+                  </div>
+                </td>
+                <td style="color:#6b7280;font-size:.88em;">{{ email }}</td>
+                <td>
+                  <span class="card-count {% if card_count == 0 %}zero{% endif %}">🃏 {{ card_count }}</span>
+                </td>
+                <td>
+                  {% if role == 'USER' %}
+                    <span class="role-badge">✉️ {{ _('tenant_role_user') }}</span>
+                  {% elif role == 'GUEST_USER' %}
+                    <span class="role-badge guest">👤 {{ _('tenant_role_guest') }}</span>
+                  {% else %}
+                    –
+                  {% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+
+        {% if total_pages > 1 %}
+        <div style="display:flex;justify-content:center;gap:6px;margin-top:16px;align-items:center;">
+          {% if page > 0 %}
+            <a href="/tenant/users?page={{ page - 1 }}{% if search %}&search={{ search }}{% endif %}{% if role_param and role_param != 'all' %}&role={{ role_param }}{% endif %}" class="btn btn-secondary" style="padding:6px 14px;font-size:.85em;">← {{ _('reg_back') }}</a>
+          {% endif %}
+          {% for p in range(total_pages) %}
+            {% if p == page %}
+              <span style="display:inline-block;padding:6px 12px;font-size:.85em;font-weight:700;background:#2563eb;color:#fff;border-radius:6px;">{{ p + 1 }}</span>
+            {% elif (p - page)|abs <= 2 or p == 0 or p == total_pages - 1 %}
+              <a href="/tenant/users?page={{ p }}{% if search %}&search={{ search }}{% endif %}{% if role_param and role_param != 'all' %}&role={{ role_param }}{% endif %}" style="display:inline-block;padding:6px 12px;font-size:.85em;color:#2563eb;text-decoration:none;border:1px solid #d1d5db;border-radius:6px;">{{ p + 1 }}</a>
+            {% elif (p - page)|abs == 3 %}
+              <span style="color:#9ca3af;font-size:.85em;">…</span>
+            {% endif %}
+          {% endfor %}
+          {% if page < total_pages - 1 %}
+            <a href="/tenant/users?page={{ page + 1 }}{% if search %}&search={{ search }}{% endif %}{% if role_param and role_param != 'all' %}&role={{ role_param }}{% endif %}" class="btn btn-secondary" style="padding:6px 14px;font-size:.85em;">{{ _('reg_next') }} →</a>
+          {% endif %}
+        </div>
+        {% endif %}
+
+        {% else %}
+        <div class="alert alert-info">{{ _('tenant_no_users') }}</div>
+        {% endif %}
+      </div>
+    </section>
+  </div>
+</div>
+{% endblock %}

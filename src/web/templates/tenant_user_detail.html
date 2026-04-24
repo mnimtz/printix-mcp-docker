@@ -1,0 +1,734 @@
+{% extends "base.html" %}
+{% block title %}{{ _('tenant_tab_users') }} — {{ _('brand_console_name') }}{% endblock %}
+{% block extra_head %}
+<style>
+  .info-grid { display:grid; grid-template-columns:160px 1fr; gap:6px 16px; font-size:.9em; margin-bottom:20px; }
+  .info-label { color:#6b7280; font-weight:600; }
+  .role-badge {
+    display:inline-block; font-size:.78em; padding:2px 10px; border-radius:10px;
+    background:#fef3c7; color:#92400e; font-weight:700;
+  }
+  .role-badge.guest { background:#ede9fe; color:#5b21b6; }
+  .flash-ok  { background:#d1fae5; color:#065f46; border:1px solid #6ee7b7; padding:10px 16px; border-radius:8px; margin-bottom:16px; }
+  .flash-err { background:#fee2e2; color:#991b1b; border:1px solid #fca5a5; padding:10px 16px; border-radius:8px; margin-bottom:16px; }
+  .divider { border:none; border-top:1px solid #e5e7eb; margin:20px 0; }
+  .avatar-lg {
+    width:56px; height:56px; border-radius:50%; background:#dbeafe; color:#1d4ed8;
+    font-weight:700; font-size:1.4em; display:inline-flex; align-items:center;
+    justify-content:center; text-transform:uppercase; flex-shrink:0;
+  }
+  .cards-browser { display:grid; grid-template-columns: minmax(220px, .8fr) minmax(0, 1.2fr); gap:14px; align-items:start; margin-top:12px; }
+  .cards-nav { display:flex; flex-direction:column; gap:8px; max-height:560px; overflow:auto; padding-right:4px; }
+  .card-link { width:100%; text-align:left; border:1px solid #dbe4ef; background:#fff; border-radius:14px; padding:10px 12px; cursor:pointer; transition:all .18s ease; }
+  .card-link:hover { border-color:#93c5fd; background:#f8fbff; transform:translateY(-1px); }
+  .card-link.active { border-color:#2563eb; background:linear-gradient(135deg, #eff6ff 0%, #f8fafc 100%); box-shadow:0 10px 22px rgba(37, 99, 235, .08); }
+  .card-link strong { display:block; color:#0f172a; font-size:.92em; }
+  .card-link span { display:block; color:#64748b; font-size:.8em; margin-top:3px; word-break:break-all; }
+  .card-detail { border:1px solid #dbe4ef; border-radius:18px; padding:16px; background:linear-gradient(135deg, #fafcff 0%, #f8fafc 100%); min-height:280px; }
+  .card-detail-head { display:flex; justify-content:space-between; gap:12px; align-items:flex-start; }
+  .card-id { font-family:monospace; font-size:.92em; color:#111827; word-break:break-all; }
+  .card-meta { font-size:.8em; color:#6b7280; margin-top:5px; word-break:break-all; }
+  .btn-danger-sm { background:#ef4444; color:#fff; border:none; border-radius:8px; padding:7px 12px; font-size:.82em; cursor:pointer; }
+  .btn-danger-sm:hover { background:#dc2626; }
+  .page-grid { display:grid; grid-template-columns: minmax(0, 1.2fr) minmax(320px, .8fr); gap:18px; }
+  .panel { background:#fff; border:1px solid #e5e7eb; border-radius:18px; padding:18px; box-shadow:0 10px 28px rgba(15, 23, 42, .04); }
+  .panel h3, .panel h4 { margin-top:0; }
+  .panel-sub { color:#6b7280; font-size:.9em; margin-top:-6px; }
+  .summary-note { border-radius:14px; padding:12px 14px; background:linear-gradient(135deg, #f8fafc 0%, #eff6ff 100%); border:1px solid #dbeafe; color:#334155; }
+  .summary-note strong { display:block; margin-bottom:4px; color:#0f172a; }
+  .form-grid { display:grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap:12px; }
+  .preview-table { width:100%; border-collapse:collapse; margin-top:14px; font-size:.88em; }
+  .preview-table th, .preview-table td { border-top:1px solid #e5e7eb; padding:8px 10px; vertical-align:top; }
+  .preview-table th { text-align:left; color:#6b7280; width:220px; }
+  .preview-value { font-family:monospace; word-break:break-all; color:#111827; }
+  .checkbox-row { display:flex; align-items:center; gap:8px; margin-top:10px; font-size:.88em; color:#374151; flex-wrap:wrap; }
+  .form-actions { display:flex; gap:8px; flex-wrap:wrap; margin-top:14px; }
+  .profile-callout { background:#f8fafc; border:1px dashed #cbd5e1; border-radius:14px; padding:12px 14px; margin-top:12px; }
+  .profile-callout a { color:#1d4ed8; text-decoration:none; font-weight:700; }
+  .profile-callout a:hover { text-decoration:underline; }
+  .local-value-form { display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; }
+  .local-value-form input { flex:1 1 240px; }
+  details.advanced-box { margin-top:14px; border:1px solid #dbeafe; border-radius:14px; background:#f8fbff; }
+  details.advanced-box summary { cursor:pointer; list-style:none; padding:14px 16px; font-weight:700; color:#1e3a5f; }
+  details.advanced-box summary::-webkit-details-marker { display:none; }
+  details.advanced-box > div { padding:0 16px 16px; }
+  @media (max-width: 1020px) {
+    .page-grid { grid-template-columns: 1fr; }
+    .cards-browser { grid-template-columns: 1fr; }
+    .cards-nav { max-height:none; }
+  }
+  @media (max-width: 760px) {
+    .form-grid { grid-template-columns: 1fr; }
+  }
+</style>
+{% endblock %}
+{% block content %}
+<div class="container" style="max-width:1480px;">
+  <div class="tenant-shell">
+    {% include "_tenant_sidebar.html" %}
+    <section class="tenant-main">
+      <div class="card tenant-main-card">
+        <h2 class="section-title" style="margin-bottom:16px;">👤 {{ _('tenant_tab_users') }}</h2>
+
+    {% if flash == "card_added" %}
+    <div class="flash-ok">✅ {{ _('user_card_added_ok') }}</div>
+    {% elif flash == "card_deleted" %}
+    <div class="flash-ok">✅ {{ _('user_card_deleted_ok') }}</div>
+    {% elif flash == "code_generated" %}
+    <div class="flash-ok">🔑 {{ _('user_code_generated') }}: <strong>{{ request.query_params.get('idcode', '?') }}</strong></div>
+    {% elif flash == "created" %}
+    <div class="flash-ok">✅ {{ _('user_card_added_ok') }}</div>
+    {% elif flash == "error" %}
+    <div class="flash-err">❌ {{ request.query_params.get('errmsg', _('user_error_default')) }}</div>
+    {% endif %}
+
+    {# v6.7.13: einmalige Anzeige der Auto-Generated-Credentials (Pin, IdCode,
+       MCP-Portal-Zugangsdaten). Werden über request.session.pop() geliefert
+       und sind nach dem nächsten Seitenaufruf weg. #}
+    {% if flash_secrets %}
+    <div class="panel" style="background:#fffbeb;border:1px solid #fbbf24;padding:14px 16px;border-radius:8px;margin:12px 0 20px;">
+      <div style="font-weight:700;color:#78350f;margin-bottom:8px;">
+        🔐 Zugangsdaten — einmalig abrufbar, bitte jetzt sichern
+      </div>
+      <table style="width:100%;font-size:.9em;">
+        {% if flash_secrets.pin %}
+        <tr><th style="text-align:left;padding:4px 8px;color:#6b7280;">Printix-Pin</th>
+            <td><code style="font-size:1em;">{{ flash_secrets.pin }}</code></td></tr>
+        {% endif %}
+        {% if flash_secrets.idCode %}
+        <tr><th style="text-align:left;padding:4px 8px;color:#6b7280;">Printix-ID-Code</th>
+            <td><code style="font-size:1em;">{{ flash_secrets.idCode }}</code></td></tr>
+        {% endif %}
+        {% if flash_secrets.password %}
+        <tr><th style="text-align:left;padding:4px 8px;color:#6b7280;">Printix-Initialpasswort</th>
+            <td><code style="font-size:1em;">{{ flash_secrets.password }}</code></td></tr>
+        {% endif %}
+        {% if flash_secrets.mcp_username or flash_secrets.mcp_password %}
+        <tr><td colspan="2"><hr style="border:0;border-top:1px solid #fcd34d;margin:6px 0;"></td></tr>
+        <tr><td colspan="2" style="padding:4px 8px;color:#78350f;font-size:.82em;">
+          <strong>MCP-Self-Service-Portal</strong> — Einladung konnte nicht per
+          E-Mail versendet werden (kein Mail-Setup). Bitte manuell an den User weitergeben:
+        </td></tr>
+        {% if flash_secrets.mcp_username %}
+        <tr><th style="text-align:left;padding:4px 8px;color:#6b7280;">Benutzername</th>
+            <td><code style="font-size:1em;">{{ flash_secrets.mcp_username }}</code></td></tr>
+        {% endif %}
+        {% if flash_secrets.mcp_password %}
+        <tr><th style="text-align:left;padding:4px 8px;color:#6b7280;">Portal-Passwort</th>
+            <td><code style="font-size:1em;">{{ flash_secrets.mcp_password }}</code><br>
+                <small style="color:#6b7280;">Muss beim ersten Login geändert werden.</small></td></tr>
+        {% endif %}
+        {% endif %}
+      </table>
+    </div>
+    {% endif %}
+
+    {% if error == "no_card_creds" %}
+    <div class="alert alert-warning">⚠️ {{ _('tenant_no_card_creds') }}</div>
+    {% elif error %}
+    <div class="alert alert-error">❌ {{ error }}</div>
+    {% elif px_user %}
+
+    {% set display = px_user.get('name') or px_user.get('displayName') or px_user.get('fullName') or '?' %}
+    {% set roles_list = px_user.get('roles') or [] %}
+    {% set role = roles_list[0] if roles_list else px_user.get('role', 'USER') %}
+    {% set is_guest = role == 'GUEST_USER' %}
+
+    <div style="display:flex;align-items:center;gap:16px;margin-bottom:20px;">
+      <div class="avatar-lg">{{ display[:1] }}</div>
+      <div>
+        <div style="font-size:1.15em;font-weight:700;color:#1e3a5f;">{{ display }}</div>
+        <div style="color:#6b7280;font-size:.88em;">{{ px_user.get('email', '–') }}</div>
+        <span class="role-badge {% if is_guest %}guest{% endif %}">{{ role | replace('_', ' ') }}</span>
+      </div>
+    </div>
+
+    <div class="page-grid">
+      <div>
+        <div class="panel">
+          <div class="summary-note">
+            <strong>{{ _('user_simple_mode_title') }}</strong>
+            {{ _('user_simple_mode_body') | safe }}
+          </div>
+
+          <div class="info-grid" style="margin-top:18px; margin-bottom:0;">
+            <span class="info-label">{{ _('user_label_id') }}:</span>
+            <span style="font-family:monospace;font-size:.82em;color:#6b7280;">{{ printix_user_id }}</span>
+            {% if px_user.get('idCode') %}
+            <span class="info-label">{{ _('user_label_id_code') }}:</span>
+            <span style="font-family:monospace;">{{ px_user.get('idCode') }}</span>
+            {% endif %}
+            {% if px_user.get('expirationTimestamp') %}
+            <span class="info-label">{{ _('user_label_expires') }}:</span>
+            <span>{{ px_user.get('expirationTimestamp') }}</span>
+            {% endif %}
+          </div>
+        </div>
+
+        <div class="panel" style="margin-top:18px;">
+          <div style="display:flex; justify-content:space-between; gap:12px; align-items:flex-start;">
+            <div>
+              <h3>🃏 {{ _('user_detail_cards') }} ({{ cards|length }})</h3>
+              <p class="panel-sub">{{ _('user_cards_subtitle') }}</p>
+            </div>
+          </div>
+
+          {% if cards %}
+          <div class="cards-browser">
+            <div class="cards-nav">
+              {% for c in cards %}
+              {% set cid = c.get('card_id') or c.get('id', '') %}
+              {% set raw_secret = c.get('secret') or c.get('cardNumber') or c.get('number') or '' %}
+              <button
+                type="button"
+                class="card-link"
+                onclick="showUserCardDetail(this)"
+                data-card-id="{{ cid }}"
+                data-display-value="{{ (c.get('display_value') or _('user_card_missing_original')) | e }}"
+                data-raw-secret="{{ raw_secret | e }}"
+                data-final-value="{{ (c.get('final_value') or '') | e }}"
+                data-printix-secret-value="{{ (c.get('printix_secret_value') or '') | e }}"
+                data-working-value="{{ (c.get('working_value') or '') | e }}"
+                data-hex-value="{{ (c.get('hex_value') or '') | e }}"
+                data-decimal-value="{{ (c.get('decimal_value') or '') | e }}"
+                data-needs-local-value="{{ '1' if not c.get('display_value') else '0' }}"
+              >
+                <strong>{{ c.get("display_value") or _('user_card_missing_original') }}</strong>
+                <span>{{ cid }}</span>
+              </button>
+              {% endfor %}
+            </div>
+            <div class="card-detail">
+              <div class="card-detail-head">
+                <div>
+                  <div id="user_card_detail_name" class="card-id">{{ _('user_card_detail_select') }}</div>
+                  <div id="user_card_detail_id" class="card-meta">{{ _('user_card_detail_intro') }}</div>
+                </div>
+                <span class="role-badge">{{ _('user_card_label') }}</span>
+              </div>
+              <div id="user_card_detail_final" class="card-meta" style="margin-top:12px;"></div>
+              <div id="user_card_detail_printix" class="card-meta"></div>
+              <div id="user_card_detail_working" class="card-meta"></div>
+              <div id="user_card_detail_hex" class="card-meta"></div>
+              <div id="user_card_detail_decimal" class="card-meta"></div>
+
+              <form id="user_card_local_form" method="post" action="/tenant/users/{{ printix_user_id }}/save-local-card-value" class="local-value-form" style="display:none;">
+                <input type="hidden" name="card_id" id="user_card_local_card_id" value="">
+                <input type="text" name="local_value" id="user_card_local_value" placeholder="{{ _('user_card_local_placeholder') }}">
+                <button type="submit" class="btn btn-secondary btn-sm">💾 {{ _('user_btn_save_local') }}</button>
+              </form>
+
+              <div class="form-actions" style="margin-top:16px;">
+                <form method="post" action="/tenant/users/{{ printix_user_id }}/delete-card" id="user_card_delete_form" onsubmit="return confirm('{{ _('user_confirm_del_card') }}')">
+                  <input type="hidden" name="card_id" id="user_card_delete_id" value="">
+                  <button type="submit" class="btn-danger-sm">🗑 {{ _('common_delete') }}</button>
+                </form>
+              </div>
+            </div>
+          </div>
+          {% else %}
+          <p style="color:#9ca3af;font-size:.88em;font-style:italic;">{{ _('user_no_cards') }}</p>
+          {% endif %}
+        </div>
+      </div>
+
+      <div>
+        <div class="panel">
+          <h3>➕ {{ _('user_detail_add_card') }}</h3>
+          <p class="panel-sub">{{ _('user_add_card_subtitle') | safe }}</p>
+
+          <form id="card-transform-form" method="post" action="/tenant/users/{{ printix_user_id }}/add-card">
+            <input type="hidden" name="card_number" id="card_number_submit" value="">
+            <input type="hidden" name="raw_value" id="card_raw_submit" value="">
+            <input type="hidden" name="normalized_value" id="card_normalized_submit" value="">
+            <input type="hidden" name="final_value" id="card_final_submit" value="">
+            <input type="hidden" name="profile_id" id="card_profile_submit" value="">
+
+            <div class="form-group">
+              <label for="card_raw_input">{{ _('user_raw_card_value') }}</label>
+              <textarea id="card_raw_input" rows="3" placeholder="{{ _('user_raw_card_placeholder') }}"></textarea>
+            </div>
+
+            <div class="form-group">
+              <label for="card_profile_id">{{ _('user_profile_optional') }}</label>
+              <select id="card_profile_id">
+                <option value="">{{ _('user_profile_none') }}</option>
+                {% set builtin_profiles_only = profiles | selectattr('is_builtin') | list %}
+                {% set custom_profiles_only = profiles | rejectattr('is_builtin') | list %}
+                {% if builtin_profiles_only %}
+                  <optgroup label="{{ _('cards_builtin_group') }}">
+                    {% for vendor_group in builtin_profiles_only|groupby('vendor') %}
+                      {% for p in vendor_group.list %}
+                        <option value="{{ p.id }}" data-description="{{ p.description or '' }}" data-rules="{{ (p.rules_json or '{}') | e }}">{{ vendor_group.grouper or _('common_generic') }} · {{ p.name }} — {{ p.reader_model or _('common_any') }}</option>
+                      {% endfor %}
+                    {% endfor %}
+                  </optgroup>
+                {% endif %}
+                {% if custom_profiles_only %}
+                  <optgroup label="{{ _('cards_custom_profiles_title') }}">
+                    {% for p in custom_profiles_only %}
+                      <option value="{{ p.id }}" data-description="{{ p.description or '' }}" data-rules="{{ (p.rules_json or '{}') | e }}">{{ p.vendor or _('common_custom') }} · {{ p.name }} — {{ p.reader_model or _('common_any') }}</option>
+                    {% endfor %}
+                  </optgroup>
+                {% endif %}
+              </select>
+              <div class="panel-sub" id="card_profile_help" style="margin-top:6px;">{{ _('user_profile_help') }}</div>
+              <div class="panel-sub" style="margin-top:6px;">{{ _('user_profile_vendor_hint') }}</div>
+              <div class="panel-sub" style="margin-top:6px;">{{ _('user_profile_rules_hint') | safe }}</div>
+            </div>
+
+            <div class="checkbox-row">
+              <label style="display:flex; align-items:center; gap:6px;"><input type="checkbox" id="strip_separators" checked> {{ _('user_strip_separators') }}</label>
+            </div>
+
+            <details class="advanced-box">
+              <summary>{{ _('user_advanced_options') }}</summary>
+              <div>
+                <div class="form-grid">
+                  <div class="form-group">
+                    <label for="card_input_mode">{{ _('user_input_interpretation') }}</label>
+                    <select id="card_input_mode">
+                      <option value="auto">{{ _('user_input_mode_auto') }}</option>
+                      <option value="text">{{ _('user_input_mode_text') }}</option>
+                      <option value="hex">{{ _('user_input_mode_hex') }}</option>
+                      <option value="decimal">{{ _('user_input_mode_decimal') }}</option>
+                    </select>
+                  </div>
+                  <div class="form-group">
+                    <label for="card_submit_mode">{{ _('user_value_sent_to_printix') }}</label>
+                    <select id="card_submit_mode">
+                      <option value="raw">{{ _('user_submit_mode_raw') }}</option>
+                      <option value="normalized">{{ _('user_submit_mode_normalized') }}</option>
+                      <option value="working">{{ _('user_submit_mode_working') }}</option>
+                      <option value="hex">{{ _('user_submit_mode_hex') }}</option>
+                      <option value="hex_reversed">{{ _('user_submit_mode_hex_reversed') }}</option>
+                      <option value="decimal">{{ _('user_submit_mode_decimal') }}</option>
+                      <option value="decimal_reversed">{{ _('user_submit_mode_decimal_reversed') }}</option>
+                      <option value="base64_text">{{ _('user_submit_mode_base64_text') }}</option>
+                    </select>
+                  </div>
+                  <div class="form-group">
+                    <label for="trim_prefix">{{ _('user_remove_prefix') }}</label>
+                    <input id="trim_prefix" type="text" placeholder="{{ _('cards_prefix_placeholder') }}">
+                  </div>
+                  <div class="form-group">
+                    <label for="trim_suffix">{{ _('user_remove_suffix') }}</label>
+                    <input id="trim_suffix" type="text" placeholder="{{ _('cards_suffix_placeholder') }}">
+                  </div>
+                  <div class="form-group">
+                    <label for="leading_zero_mode">{{ _('user_leading_zeros') }}</label>
+                    <select id="leading_zero_mode">
+                      <option value="keep">{{ _('user_leading_zeros_keep') }}</option>
+                      <option value="strip">{{ _('user_leading_zeros_strip') }}</option>
+                      <option value="force_one">{{ _('user_leading_zeros_force_one') }}</option>
+                    </select>
+                  </div>
+                  <div class="form-group">
+                    <label for="pad_even_hex">{{ _('user_hex_normalization') }}</label>
+                    <select id="pad_even_hex">
+                      <option value="yes">{{ _('user_hex_pad_even_yes') }}</option>
+                      <option value="no">{{ _('user_hex_pad_even_no') }}</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div class="checkbox-row">
+                  <label style="display:flex; align-items:center; gap:6px;"><input type="checkbox" id="lowercase_input"> {{ _('user_lowercase_before_processing') }}</label>
+                  <label style="display:flex; align-items:center; gap:6px;"><input type="checkbox" id="double_base64_input"> {{ _('user_double_base64') }}</label>
+                </div>
+              </div>
+            </details>
+
+            <table class="preview-table">
+              <tbody>
+                <tr><th>{{ _('user_preview_normalized') }}</th><td class="preview-value" id="preview_normalized">—</td></tr>
+                <tr><th>{{ _('user_preview_working') }}</th><td class="preview-value" id="preview_working">—</td></tr>
+                <tr><th>{{ _('user_preview_hex') }}</th><td class="preview-value" id="preview_hex">—</td></tr>
+                <tr><th>{{ _('user_preview_hex_reversed') }}</th><td class="preview-value" id="preview_hex_reversed">—</td></tr>
+                <tr><th>{{ _('user_preview_decimal') }}</th><td class="preview-value" id="preview_decimal">—</td></tr>
+                <tr><th>{{ _('user_preview_decimal_reversed') }}</th><td class="preview-value" id="preview_decimal_reversed">—</td></tr>
+                <tr><th>{{ _('user_preview_base64') }}</th><td class="preview-value" id="preview_b64">—</td></tr>
+                <tr><th>{{ _('user_preview_submit') }}</th><td class="preview-value" id="preview_submit">—</td></tr>
+                <tr><th>{{ _('user_preview_printix_secret') }}</th><td class="preview-value" id="preview_printix_secret">—</td></tr>
+              </tbody>
+            </table>
+
+            <div class="profile-callout">
+              <strong style="display:block; margin-bottom:6px; color:#0f172a;">{{ _('user_when_switch_title') }}</strong>
+              {{ _('user_when_switch_body') | safe }}
+            </div>
+
+            <div class="form-actions">
+              <button type="button" class="btn btn-secondary" id="card_use_preview_btn">{{ _('user_btn_use_preview') }}</button>
+              <button type="submit" class="btn btn-primary">➕ {{ _('user_detail_add_card') }}</button>
+            </div>
+          </form>
+        </div>
+
+        <div class="panel" style="margin-top:18px;">
+          <h4>{{ _('user_more_actions') }}</h4>
+          <div class="form-actions">
+            {% if is_guest %}
+            <form method="post" action="/tenant/users/{{ printix_user_id }}/generate-id-code">
+              <button type="submit" class="btn btn-secondary">🔑 {{ _('user_detail_gen_code') }}</button>
+            </form>
+            {% endif %}
+
+            {# v6.7.12: Delete-Button jetzt für ALLE Rollen (Guest + regulärer User).
+               Printix-User-Management-API (delete_user) unterstützt beide — der
+               alte "nur für Guest"-Schutz war ein Relikt aus v5.x. #}
+            <form method="post" action="/tenant/users/{{ printix_user_id }}/delete" onsubmit="return confirm('{{ _('user_confirm_del_user') }}')">
+              <button type="submit" class="btn" style="background:#ef4444;color:#fff;border:none;">🗑 {{ _('user_detail_delete_user') }}</button>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {% else %}
+    <div class="alert alert-info">{{ _('user_not_found') }}</div>
+    {% endif %}
+
+        <div style="margin-top:24px;">
+          <a href="/tenant/users" class="btn btn-secondary">← {{ _('user_detail_back') }}</a>
+        </div>
+      </div>
+    </section>
+  </div>
+</div>
+
+<script>
+(function () {
+  const I18N = {
+    profileHelp: {{ _('user_profile_help') | tojson }},
+    noCardValue: {{ _('user_enter_card_first') | tojson }},
+    missingOriginal: {{ _('user_card_missing_original') | tojson }},
+    storedCardId: {{ _('user_card_stored_id', value='{value}') | tojson }},
+    storedFinal: {{ _('user_card_stored_final', value='{value}') | tojson }},
+    storedPrintix: {{ _('user_card_stored_printix_secret', value='{value}') | tojson }},
+    storedWorking: {{ _('user_card_stored_working', value='{value}') | tojson }},
+    storedHex: {{ _('user_card_stored_hex', value='{value}') | tojson }},
+    storedDecimal: {{ _('user_card_stored_decimal', value='{value}') | tojson }}
+  };
+  const rawEl = document.getElementById('card_raw_input');
+  if (!rawEl) return;
+
+  const profileEl = document.getElementById('card_profile_id');
+  const profileHelpEl = document.getElementById('card_profile_help');
+  const inputModeEl = document.getElementById('card_input_mode');
+  const submitModeEl = document.getElementById('card_submit_mode');
+  const stripEl = document.getElementById('strip_separators');
+  const submitHiddenEl = document.getElementById('card_number_submit');
+  const rawHiddenEl = document.getElementById('card_raw_submit');
+  const normalizedHiddenEl = document.getElementById('card_normalized_submit');
+  const finalHiddenEl = document.getElementById('card_final_submit');
+  const profileSubmitEl = document.getElementById('card_profile_submit');
+  const trimPrefixEl = document.getElementById('trim_prefix');
+  const trimSuffixEl = document.getElementById('trim_suffix');
+  const leadingZeroModeEl = document.getElementById('leading_zero_mode');
+  const padEvenHexEl = document.getElementById('pad_even_hex');
+  const lowercaseEl = document.getElementById('lowercase_input');
+  const doubleBase64El = document.getElementById('double_base64_input');
+
+  const out = {
+    normalized: document.getElementById('preview_normalized'),
+    working: document.getElementById('preview_working'),
+    hex: document.getElementById('preview_hex'),
+    hexRev: document.getElementById('preview_hex_reversed'),
+    dec: document.getElementById('preview_decimal'),
+    decRev: document.getElementById('preview_decimal_reversed'),
+    b64: document.getElementById('preview_b64'),
+    submit: document.getElementById('preview_submit'),
+    printixSecret: document.getElementById('preview_printix_secret')
+  };
+  const userCardDetail = {
+    name: document.getElementById('user_card_detail_name'),
+    id: document.getElementById('user_card_detail_id'),
+    finalValue: document.getElementById('user_card_detail_final'),
+    printixSecret: document.getElementById('user_card_detail_printix'),
+    workingValue: document.getElementById('user_card_detail_working'),
+    hexValue: document.getElementById('user_card_detail_hex'),
+    decimalValue: document.getElementById('user_card_detail_decimal'),
+    localForm: document.getElementById('user_card_local_form'),
+    localCardId: document.getElementById('user_card_local_card_id'),
+    deleteCardId: document.getElementById('user_card_delete_id')
+  };
+
+  function encBase64(str) {
+    try { return btoa(unescape(encodeURIComponent(str))); } catch (e) { return ''; }
+  }
+
+  function encBase64Bytes(bytes) {
+    try {
+      let binary = '';
+      bytes.forEach(function (b) { binary += String.fromCharCode(b); });
+      return btoa(binary);
+    } catch (e) {
+      return '';
+    }
+  }
+
+  function textToBytes(value, encoding) {
+    try {
+      if ((encoding || 'utf-8') === 'latin-1') {
+        return Array.from(value || '', function (ch) { return ch.charCodeAt(0) & 0xFF; });
+      }
+      return Array.from(new TextEncoder().encode(value || ''));
+    } catch (e) {
+      return [];
+    }
+  }
+
+  function hexToBytes(value) {
+    const normalized = String(value || '').replace(/\s+/g, '');
+    if (!normalized || normalized.length % 2 !== 0 || !/^[0-9a-fA-F]+$/.test(normalized)) return [];
+    const bytes = [];
+    for (let i = 0; i < normalized.length; i += 2) bytes.push(parseInt(normalized.slice(i, i + 2), 16));
+    return bytes;
+  }
+
+  function parseRules(value) {
+    try { return JSON.parse(value || '{}'); } catch (e) { return {}; }
+  }
+
+  function isBase64Like(value) {
+    if (!value) return false;
+    try { return btoa(atob(value)) === value; } catch (e) { return false; }
+  }
+
+  function isHexString(value) {
+    return !!value && /^[0-9a-fA-F]+$/.test(value);
+  }
+
+  function reverseHexBytes(hex) {
+    if (!hex || hex.length % 2 !== 0) return '';
+    return (hex.match(/../g) || []).reverse().join('');
+  }
+
+  function hexToDecimalString(hex) {
+    if (!hex || !/^[0-9A-F]+$/i.test(hex)) return '';
+    try { return BigInt('0x' + hex).toString(10); } catch (e) { return ''; }
+  }
+
+  function decimalToHexString(dec) {
+    if (!/^\d+$/.test(dec || '')) return '';
+    try {
+      let hex = BigInt(dec).toString(16);
+      if (padEvenHexEl.value === 'yes' && hex.length % 2 !== 0) hex = '0' + hex;
+      return hex.toUpperCase();
+    } catch (e) {
+      return '';
+    }
+  }
+
+  function applyPrefixSuffixRules(value) {
+    let v = (value || '').trim();
+    const prefix = trimPrefixEl.value || '';
+    const suffix = trimSuffixEl.value || '';
+    if (prefix && v.startsWith(prefix)) v = v.slice(prefix.length);
+    if (suffix && v.endsWith(suffix)) v = v.slice(0, -suffix.length);
+    return v;
+  }
+
+  function applyLeadingZeroRule(value) {
+    let v = value || '';
+    if (!v) return v;
+    if (leadingZeroModeEl.value === 'strip') {
+      v = v.replace(/^0+/, '');
+      return v || '0';
+    }
+    if (leadingZeroModeEl.value === 'force_one') {
+      v = v.replace(/^0+/, '');
+      return '0' + (v || '0');
+    }
+    return v;
+  }
+
+  function normalizeRaw(raw) {
+    let value = applyPrefixSuffixRules(raw || '');
+    value = value.trim();
+    if (!value) return '';
+    if (stripEl.checked) value = value.replace(/[\s:\-]/g, '');
+    if (lowercaseEl.checked) value = value.toLowerCase();
+    value = applyLeadingZeroRule(value);
+    return value;
+  }
+
+  function detectMode(normalized, rawMode) {
+    if (rawMode !== 'auto') return rawMode;
+    if (/^\d+$/.test(normalized)) return 'decimal';
+    if (isHexString(normalized)) return 'hex';
+    return 'text';
+  }
+
+  function applyProfileRules() {
+    const opt = profileEl.options[profileEl.selectedIndex];
+    const rules = parseRules(opt ? opt.getAttribute('data-rules') : '{}');
+    const description = opt ? (opt.getAttribute('data-description') || '') : '';
+
+    profileHelpEl.textContent = description || I18N.profileHelp;
+    profileSubmitEl.value = profileEl.value || '';
+    stripEl.checked = rules.strip_separators === undefined ? true : !!rules.strip_separators;
+    inputModeEl.value = rules.input_mode || 'auto';
+    submitModeEl.value = rules.submit_mode || 'raw';
+    trimPrefixEl.value = rules.trim_prefix || '';
+    trimSuffixEl.value = rules.trim_suffix || '';
+    leadingZeroModeEl.value = rules.leading_zero_mode || 'keep';
+    padEvenHexEl.value = rules.pad_even_hex === false ? 'no' : 'yes';
+    lowercaseEl.checked = !!rules.lowercase;
+    doubleBase64El.checked = !!rules.double_base64;
+    profileEl.dataset.removeChars = rules.remove_chars || '';
+    profileEl.dataset.replaceMap = JSON.stringify(rules.replace_map || {});
+    profileEl.dataset.prependText = rules.prepend_text || '';
+    profileEl.dataset.appendText = rules.append_text || '';
+    profileEl.dataset.appendChar = rules.append_char || '';
+    profileEl.dataset.appendCount = String(rules.append_count || 0);
+    profileEl.dataset.base64Source = rules.base64_source || 'raw';
+    profileEl.dataset.base64Encoding = rules.base64_encoding || 'utf-8';
+    profileEl.dataset.base64SuffixHex = rules.base64_suffix_hex || '';
+    profileEl.dataset.base64SuffixCount = String(rules.base64_suffix_count || 0);
+  }
+
+  function compute() {
+    const raw = (rawEl.value || '').trim();
+    let normalized = applyPrefixSuffixRules(raw).trim();
+    let replaceMap = {};
+    try { replaceMap = JSON.parse(profileEl.dataset.replaceMap || '{}'); } catch (e) { replaceMap = {}; }
+    Object.keys(replaceMap).forEach(function (key) {
+      normalized = normalized.split(key).join(String(replaceMap[key] || ''));
+    });
+    if (stripEl.checked) normalized = normalized.replace(/[\s:\-]/g, '');
+    const removeChars = profileEl.dataset.removeChars || '';
+    if (removeChars) {
+      normalized = normalized.split('').filter(function (ch) { return !removeChars.includes(ch); }).join('');
+    }
+    if (lowercaseEl.checked) normalized = normalized.toLowerCase();
+    normalized = applyLeadingZeroRule(normalized);
+    const prependText = profileEl.dataset.prependText || '';
+    const appendText = profileEl.dataset.appendText || '';
+    const appendChar = profileEl.dataset.appendChar || '';
+    const appendCount = Number(profileEl.dataset.appendCount || '0') || 0;
+    const working = prependText + normalized + appendText + (appendChar ? appendChar.repeat(Math.max(0, appendCount)) : '');
+    const mode = detectMode(working, inputModeEl.value);
+    let hex = '';
+    let dec = '';
+    let b64 = '';
+
+    if (mode === 'hex') {
+      hex = working.toUpperCase();
+      if (padEvenHexEl.value === 'yes' && hex.length % 2 !== 0) hex = '0' + hex;
+      dec = hexToDecimalString(hex);
+    } else if (mode === 'decimal') {
+      dec = working;
+      hex = decimalToHexString(dec);
+    } else if (isHexString(working)) {
+      hex = working.toUpperCase();
+      if (padEvenHexEl.value === 'yes' && hex.length % 2 !== 0) hex = '0' + hex;
+      dec = hexToDecimalString(hex);
+    }
+
+    const hexReversed = reverseHexBytes(hex);
+    const decReversed = hexToDecimalString(hexReversed);
+    const base64Sources = {
+      raw: raw,
+      normalized: normalized,
+      working: working,
+      hex: hex,
+      hex_reversed: hexReversed,
+      decimal: dec,
+      decimal_reversed: decReversed
+    };
+    const base64Input = base64Sources[profileEl.dataset.base64Source || 'raw'] || raw;
+    let base64Bytes = textToBytes(base64Input, profileEl.dataset.base64Encoding || 'utf-8');
+    const suffixBytes = hexToBytes(profileEl.dataset.base64SuffixHex || '');
+    const suffixCount = Number(profileEl.dataset.base64SuffixCount || '0') || 0;
+    if (suffixBytes.length && suffixCount > 0) {
+      const extra = [];
+      for (let i = 0; i < suffixCount; i += 1) extra.push.apply(extra, suffixBytes);
+      base64Bytes = base64Bytes.concat(extra);
+    }
+    b64 = encBase64Bytes(base64Bytes);
+    if (doubleBase64El.checked && b64) b64 = encBase64(b64);
+
+    let finalValue = raw;
+    if (submitModeEl.value === 'normalized') finalValue = normalized;
+    if (submitModeEl.value === 'working') finalValue = working;
+    if (submitModeEl.value === 'hex') finalValue = hex;
+    if (submitModeEl.value === 'hex_reversed') finalValue = hexReversed;
+    if (submitModeEl.value === 'decimal') finalValue = dec;
+    if (submitModeEl.value === 'decimal_reversed') finalValue = decReversed;
+    if (submitModeEl.value === 'base64_text') finalValue = b64;
+
+    const printixSecret = isBase64Like(finalValue) ? finalValue : encBase64(finalValue);
+    submitHiddenEl.value = finalValue || '';
+    rawHiddenEl.value = raw.trim() || '';
+    normalizedHiddenEl.value = normalized || '';
+    finalHiddenEl.value = finalValue || '';
+    out.normalized.textContent = normalized || '—';
+    out.working.textContent = working || '—';
+    out.hex.textContent = hex || '—';
+    out.hexRev.textContent = hexReversed || '—';
+    out.dec.textContent = dec || '—';
+    out.decRev.textContent = decReversed || '—';
+    out.b64.textContent = b64 || '—';
+    out.submit.textContent = finalValue || '—';
+    out.printixSecret.textContent = printixSecret || '—';
+  }
+
+  window.showUserCardDetail = function (btn) {
+    document.querySelectorAll('.card-link').forEach(function (node) {
+      node.classList.toggle('active', node === btn);
+    });
+    const cardId = btn.dataset.cardId || '';
+    const displayValue = btn.dataset.displayValue || I18N.missingOriginal;
+    const finalValue = btn.dataset.finalValue || '';
+    const printixSecret = btn.dataset.printixSecretValue || btn.dataset.rawSecret || '';
+    const workingValue = btn.dataset.workingValue || '';
+    const hexValue = btn.dataset.hexValue || '';
+    const decimalValue = btn.dataset.decimalValue || '';
+    const needsLocalValue = btn.dataset.needsLocalValue === '1';
+
+    userCardDetail.name.textContent = displayValue;
+    userCardDetail.id.textContent = I18N.storedCardId.replace('{value}', cardId);
+    userCardDetail.finalValue.textContent = finalValue ? I18N.storedFinal.replace('{value}', finalValue) : '';
+    userCardDetail.printixSecret.textContent = printixSecret ? I18N.storedPrintix.replace('{value}', printixSecret) : '';
+    userCardDetail.workingValue.textContent = workingValue ? I18N.storedWorking.replace('{value}', workingValue) : '';
+    userCardDetail.hexValue.textContent = hexValue ? I18N.storedHex.replace('{value}', hexValue) : '';
+    userCardDetail.decimalValue.textContent = decimalValue ? I18N.storedDecimal.replace('{value}', decimalValue) : '';
+    userCardDetail.localCardId.value = cardId;
+    userCardDetail.deleteCardId.value = cardId;
+    userCardDetail.localForm.style.display = needsLocalValue ? 'flex' : 'none';
+  };
+
+  profileEl.addEventListener('change', function () { applyProfileRules(); compute(); });
+  rawEl.addEventListener('input', compute);
+  inputModeEl.addEventListener('change', compute);
+  submitModeEl.addEventListener('change', compute);
+  stripEl.addEventListener('change', compute);
+  trimPrefixEl.addEventListener('input', compute);
+  trimSuffixEl.addEventListener('input', compute);
+  leadingZeroModeEl.addEventListener('change', compute);
+  padEvenHexEl.addEventListener('change', compute);
+  lowercaseEl.addEventListener('change', compute);
+  doubleBase64El.addEventListener('change', compute);
+
+  document.getElementById('card_use_preview_btn').addEventListener('click', function () {
+    rawEl.value = submitHiddenEl.value || rawEl.value;
+    compute();
+  });
+
+  document.getElementById('card-transform-form').addEventListener('submit', function (ev) {
+    compute();
+    if (!submitHiddenEl.value) {
+      ev.preventDefault();
+      alert(I18N.noCardValue);
+    }
+  });
+
+  applyProfileRules();
+  compute();
+  const firstUserCard = document.querySelector('.card-link');
+  if (firstUserCard) showUserCardDetail(firstUserCard);
+})();
+</script>
+{% endblock %}

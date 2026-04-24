@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% block title %}{{ _('reg_title') }} — {{ _('reg_step3') }}{% endblock %}
+{% block content %}
+<div class="container">
+  <div class="card">
+    <div class="steps">
+      <div class="step-item"><div class="step-circle done">✓</div><span class="step-label">{{ _('reg_step1') }}</span></div>
+      <div class="step-connector"></div>
+      <div class="step-item"><div class="step-circle done">✓</div><span class="step-label">{{ _('reg_step2') }}</span></div>
+      <div class="step-connector"></div>
+      <div class="step-item"><div class="step-circle active">3</div><span class="step-label active">{{ _('reg_step3') }}</span></div>
+      <div class="step-connector"></div>
+      <div class="step-item"><div class="step-circle pending">4</div><span class="step-label">{{ _('reg_step4') }}</span></div>
+    </div>
+
+    <div class="section-title">{{ _('reg_optional_title') }}</div>
+    <div class="section-sub">{{ _('reg_optional_subtitle') }}</div>
+
+    {% if error %}
+    <div class="alert alert-error">{{ error }}</div>
+    {% endif %}
+
+    <form method="post" action="/register/optional">
+      <!-- SQL Reporting -->
+      <div style="font-size:.9em; font-weight:700; color:#1e3a5f; margin-bottom:4px;">
+        📊 {{ _('reg_sql_reporting_title') }}
+      </div>
+      <div style="font-size:.83em; color:#6b7280; margin-bottom:16px;">
+        {{ _('reg_sql_reporting_subtitle') }}
+      </div>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+        <div class="form-group" style="grid-column: 1 / -1;">
+          <label>SQL Server</label>
+          <input type="text" name="sql_server"
+                 placeholder="printix-bi-data-2.database.windows.net">
+        </div>
+        <div class="form-group">
+          <label>Datenbank</label>
+          <input type="text" name="sql_database" value="printix_bi_data_2_1">
+        </div>
+        <div class="form-group">
+          <label>Benutzername</label>
+          <input type="text" name="sql_username" placeholder="SQL-Benutzername">
+        </div>
+        <div class="form-group" style="grid-column: 1 / -1;">
+          <label>Passwort</label>
+          <input type="password" name="sql_password" placeholder="SQL-Passwort">
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <!-- Mail -->
+      <div style="font-size:.9em; font-weight:700; color:#1e3a5f; margin-bottom:4px;">
+        📧 {{ _('reg_mail_title') }}
+      </div>
+      <div style="font-size:.83em; color:#6b7280; margin-bottom:16px;">
+        {{ _('reg_mail_subtitle') | safe }}
+      </div>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+        <div class="form-group">
+          <label>Resend API-Key</label>
+          <input type="password" name="mail_api_key" placeholder="re_...">
+        </div>
+        <div class="form-group">
+          <label>{{ _('reg_mail_sender') }}</label>
+          <input type="email" name="mail_from" placeholder="reports@firma.de">
+        </div>
+      </div>
+
+      <div style="display:flex; gap:12px; margin-top:8px;">
+        <a href="/register/api" class="btn btn-secondary">← {{ _('reg_back') }}</a>
+        <button type="submit" class="btn btn-primary">{{ _('reg_next') }} →</button>
+        <a href="/register/optional" onclick="skipOptional(event)" class="btn btn-secondary" style="color:#6b7280;">
+          {{ _('reg_skip_optional') }} →
+        </a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+{% block extra_scripts %}
+<script>
+  function skipOptional(e) {
+    e.preventDefault();
+    // Submit form with empty optional fields
+    document.querySelector('form').submit();
+  }
+</script>
+{% endblock %}

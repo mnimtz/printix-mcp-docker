@@ -1,0 +1,139 @@
+{% extends "base.html" %}
+{% block title %}{{ _('tenant_tab_snmp') }} — {{ _('brand_console_name') }}{% endblock %}
+{% block extra_head %}
+<style>
+  .tenant-form-grid { display:grid; grid-template-columns:minmax(0, 1.1fr) minmax(320px, .9fr); gap:16px; }
+  .tenant-form-card { border:1px solid #dbe4ef; border-radius:18px; background:#fff; padding:18px; }
+  .tenant-field-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .tenant-detail-list { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:10px 14px; }
+  .tenant-detail-list dt { font-size:.78em; color:#64748b; margin-bottom:4px; }
+  .tenant-detail-list dd { margin:0; color:#0f172a; font-weight:600; word-break:break-word; }
+  .tenant-chip-row { display:flex; flex-wrap:wrap; gap:8px; }
+  .tenant-chip { display:inline-flex; align-items:center; gap:6px; border-radius:999px; padding:6px 10px; background:#eff6ff; color:#1d4ed8; font-size:.78em; font-weight:700; }
+  .tenant-multiselect { min-height:150px; }
+  @media (max-width: 980px) { .tenant-form-grid, .tenant-field-grid { grid-template-columns:1fr; } }
+</style>
+{% endblock %}
+{% block content %}
+<div class="container" style="max-width:1480px;">
+  <div class="tenant-shell">
+    {% include "_tenant_sidebar.html" %}
+    <section class="tenant-main">
+      <div class="card tenant-main-card">
+        <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start;flex-wrap:wrap;margin-bottom:18px;">
+          <div>
+            <span class="tenant-sidebar-kicker">📡 {{ _('tenant_tab_snmp') }}</span>
+            <h2 class="section-title" style="font-size:1.35em;margin:14px 0 8px;">{{ snmp_config.get('name') if snmp_config else _('tenant_btn_create_snmp') }}</h2>
+            <p class="section-sub" style="margin-bottom:0;">{{ _('tenant_snmp_detail_sub') }}</p>
+          </div>
+          <a href="/tenant/snmp" class="btn btn-secondary">← {{ _('tenant_tab_snmp') }}</a>
+        </div>
+        {% if flash == 'created' %}<div class="alert alert-success">✅ {{ _('tenant_flash_created') }}</div>{% endif %}
+        {% if flash == 'updated' %}<div class="alert alert-success">✅ {{ _('tenant_flash_updated') }}</div>{% endif %}
+        {% if error %}<div class="alert alert-error">❌ {{ _(error) if error.isidentifier() else error }}</div>{% endif %}
+        <div class="tenant-form-grid">
+          {% if snmp_config %}
+          <div class="tenant-form-card">
+            <h3 style="margin:0 0 14px;">{{ _('tenant_detail_summary') }}</h3>
+            <dl class="tenant-detail-list">
+              <div><dt>{{ _('common_name') }}</dt><dd>{{ snmp_config.get('name') or '–' }}</dd></div>
+              <div><dt>{{ _('tenant_object_id') }}</dt><dd>{{ snmp_config.get('snmp_id') or '–' }}</dd></div>
+              <div><dt>{{ _('tenant_snmp_version') }}</dt><dd>{{ snmp_config.get('version') or '–' }}</dd></div>
+              <div><dt>{{ _('tenant_snmp_security_level') }}</dt><dd>{{ snmp_config.get('securityLevel') or '–' }}</dd></div>
+              <div><dt>{{ _('tenant_snmp_default') }}</dt><dd>{{ _('common_yes') if snmp_config.get('tenantDefault') else _('common_no') }}</dd></div>
+              <div><dt>{{ _('tenant_snmp_username') }}</dt><dd>{{ snmp_config.get('username') or '–' }}</dd></div>
+              <div><dt>{{ _('tenant_snmp_context') }}</dt><dd>{{ snmp_config.get('contextName') or '–' }}</dd></div>
+              <div><dt>{{ _('tenant_snmp_authentication') }}</dt><dd>{{ snmp_config.get('authentication') or '–' }}</dd></div>
+              <div><dt>{{ _('tenant_snmp_privacy') }}</dt><dd>{{ snmp_config.get('privacy') or '–' }}</dd></div>
+              <div><dt>{{ _('tenant_snmp_networks') }}</dt><dd>{{ (selected_network_names or [])|length }}</dd></div>
+            </dl>
+            {% if selected_network_names %}
+            <div style="margin-top:14px;">
+              <div style="font-size:.78em;color:#64748b;margin-bottom:6px;">{{ _('tenant_snmp_networks') }}</div>
+              <div class="tenant-chip-row">
+                {% for name in selected_network_names %}
+                <span class="tenant-chip">{{ name }}</span>
+                {% endfor %}
+              </div>
+            </div>
+            {% endif %}
+          </div>
+          {% endif %}
+          <div class="tenant-form-card">
+            <form method="post" action="{{ '/tenant/snmp/create' if not snmp_config else '/tenant/snmp/' ~ (snmp_config.get('id') or snmp_config.get('snmp_id') or '') }}">
+              <div class="tenant-field-grid">
+                <div><label>{{ _('common_name') }}</label><input type="text" name="name" value="{{ (snmp_config or {}).get('name', '') }}" required></div>
+                <div>
+                  <label>{{ _('tenant_snmp_version') }}</label>
+                  {% set version = (snmp_config or {}).get('version', 'V2C') %}
+                  <select name="version">
+                    <option value="V1" {% if version == 'V1' %}selected{% endif %}>V1</option>
+                    <option value="V2C" {% if version == 'V2C' %}selected{% endif %}>V2C</option>
+                    <option value="V3" {% if version == 'V3' %}selected{% endif %}>V3</option>
+                  </select>
+                </div>
+                <div><label>{{ _('tenant_snmp_get_community') }}</label><input type="text" name="get_community_name" value="{{ (snmp_config or {}).get('getCommunityName', '') }}"></div>
+                <div><label>{{ _('tenant_snmp_set_community') }}</label><input type="text" name="set_community_name" value="{{ (snmp_config or {}).get('setCommunityName', '') }}"></div>
+                <div>
+                  <label>{{ _('tenant_snmp_security_level') }}</label>
+                  {% set sec = (snmp_config or {}).get('securityLevel', '') %}
+                  <select name="security_level">
+                    <option value="">{{ _('tenant_field_none') }}</option>
+                    <option value="NO_AUTH_NO_PRIVACY" {% if sec == 'NO_AUTH_NO_PRIVACY' %}selected{% endif %}>NO_AUTH_NO_PRIVACY</option>
+                    <option value="AUTH_NO_PRIVACY" {% if sec == 'AUTH_NO_PRIVACY' %}selected{% endif %}>AUTH_NO_PRIVACY</option>
+                    <option value="AUTH_PRIVACY" {% if sec == 'AUTH_PRIVACY' %}selected{% endif %}>AUTH_PRIVACY</option>
+                  </select>
+                </div>
+                <div><label>{{ _('tenant_snmp_username') }}</label><input type="text" name="username" value="{{ (snmp_config or {}).get('username', '') }}"></div>
+                <div><label>{{ _('tenant_snmp_context') }}</label><input type="text" name="context_name" value="{{ (snmp_config or {}).get('contextName', '') }}"></div>
+                <div>
+                  <label>{{ _('tenant_snmp_authentication') }}</label>
+                  {% set auth = (snmp_config or {}).get('authentication', '') %}
+                  <select name="authentication">
+                    <option value="">{{ _('tenant_field_none') }}</option>
+                    <option value="MD5" {% if auth == 'MD5' %}selected{% endif %}>MD5</option>
+                    <option value="SHA" {% if auth == 'SHA' %}selected{% endif %}>SHA</option>
+                    <option value="SHA256" {% if auth == 'SHA256' %}selected{% endif %}>SHA256</option>
+                    <option value="SHA384" {% if auth == 'SHA384' %}selected{% endif %}>SHA384</option>
+                    <option value="SHA512" {% if auth == 'SHA512' %}selected{% endif %}>SHA512</option>
+                  </select>
+                </div>
+                <div><label>{{ _('tenant_snmp_auth_key') }}</label><input type="password" name="authentication_key" value=""></div>
+                <div>
+                  <label>{{ _('tenant_snmp_privacy') }}</label>
+                  {% set priv = (snmp_config or {}).get('privacy', '') %}
+                  <select name="privacy">
+                    <option value="">{{ _('tenant_field_none') }}</option>
+                    <option value="DES" {% if priv == 'DES' %}selected{% endif %}>DES</option>
+                    <option value="AES" {% if priv == 'AES' %}selected{% endif %}>AES</option>
+                    <option value="AES192" {% if priv == 'AES192' %}selected{% endif %}>AES192</option>
+                    <option value="AES256" {% if priv == 'AES256' %}selected{% endif %}>AES256</option>
+                  </select>
+                </div>
+                <div><label>{{ _('tenant_snmp_priv_key') }}</label><input type="password" name="privacy_key" value=""></div>
+              </div>
+              <div class="check-row" style="margin-top:12px;">
+                <label><input type="checkbox" name="tenant_default" value="1" {% if (snmp_config or {}).get('tenantDefault') %}checked{% endif %}> {{ _('tenant_snmp_default') }}</label>
+              </div>
+              <div style="margin-top:12px;">
+                <label>{{ _('tenant_snmp_networks') }}</label>
+                <select name="network_ids" multiple class="tenant-multiselect">
+                  {% for network in networks %}
+                  <option value="{{ network.get('network_id') }}" {% if network.get('network_id') in selected_network_ids %}selected{% endif %}>{{ network.get('name') or network.get('network_id') }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:16px;">
+                <button type="submit" class="btn btn-primary">{{ _('common_save') }}</button>
+                {% if snmp_config %}
+                <button type="submit" formaction="/tenant/snmp/{{ snmp_config.get('id') or snmp_config.get('snmp_id') }}/delete" formmethod="post" class="btn btn-secondary" onclick="return confirm('{{ _('tenant_confirm_delete') }}');">{{ _('common_delete') }}</button>
+                {% endif %}
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+</div>
+{% endblock %}

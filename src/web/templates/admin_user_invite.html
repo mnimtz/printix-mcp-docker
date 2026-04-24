@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block title %}{{ _('admin_invite_user') }} — {{ _('brand_console_name') }}{% endblock %}
+{% block content %}
+<div class="container">
+  <div class="card" style="max-width:620px;margin:40px auto;">
+    <h2 class="section-title">{{ _('admin_invite_user') }}</h2>
+    <p class="section-sub" style="margin-bottom:24px;">
+      {{ _('admin_invite_user_sub') }}
+    </p>
+
+    {% if saved %}
+    <div class="alert alert-success">
+      ✓ {{ _('admin_invite_success') }}
+      {% if created_username and created_email %}
+        <br><strong>{{ created_username }}</strong> · {{ created_email }}
+      {% endif %}
+    </div>
+    {% endif %}
+    {% if error %}
+    <div class="alert alert-error">{{ error }}</div>
+    {% endif %}
+
+    <form method="post" action="/admin/users/invite">
+      <div class="form-group">
+        <label>{{ _('reg_username') }} *</label>
+        <input type="text" name="username" value="{{ f_username | default('') }}" required minlength="3" autofocus>
+      </div>
+      <div class="form-group">
+        <label>{{ _('admin_email') }} *</label>
+        <input type="email" name="email" value="{{ f_email | default('') }}" required>
+      </div>
+      <div class="form-group">
+        <label>{{ _('reg_full_name') }}</label>
+        <input type="text" name="full_name" value="{{ f_full_name | default('') }}">
+      </div>
+      <div class="form-group">
+        <label>{{ _('reg_company') }}</label>
+        <input type="text" name="company" value="{{ f_company | default('') }}">
+      </div>
+      <div class="form-group">
+        <label>{{ _('invite_language_label') }}</label>
+        <select name="invite_lang">
+          {% for code in supported_langs %}
+          <option value="{{ code }}" {% if f_invite_lang | default(lang) == code %}selected{% endif %}>
+            {{ lang_names[code] }}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group">
+        <label>{{ _('admin_role') }}</label>
+        <select name="role_type">
+          <option value="user" {% if f_role_type | default('user') == 'user' %}selected{% endif %}>{{ _('role_user') }}</option>
+          <option value="employee" {% if f_role_type | default('') == 'employee' %}selected{% endif %}>{{ _('role_employee') }}</option>
+          <option value="admin" {% if f_role_type | default('') == 'admin' %}selected{% endif %}>{{ _('role_admin') }}</option>
+        </select>
+        <small class="hint">{{ _('admin_role_hint') }}</small>
+      </div>
+      <div class="alert alert-info" style="margin-bottom:18px;">
+        {{ _('admin_invite_info') }}
+      </div>
+      <div style="display:flex;gap:12px;flex-wrap:wrap;">
+        <button type="submit" class="btn btn-primary">✉️ {{ _('admin_invite_send') }}</button>
+        <a href="/admin/users" class="btn btn-secondary">{{ _('cancel') }}</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

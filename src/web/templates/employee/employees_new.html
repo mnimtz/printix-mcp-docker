@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}{{ _('emp_add_employee') }} — Printix MCP{% endblock %}
+{% block content %}
+<div class="container">
+  <div class="card" style="max-width:560px;margin:32px auto;">
+    <div class="section-title">{{ _('emp_add_employee') }}</div>
+    <div class="section-sub">{{ _('emp_add_employee_desc') }}</div>
+
+    {% if error == 'username_exists' %}
+      <div class="alert alert-danger" style="margin-top:12px;">
+        {{ _('emp_error_username_exists') }}
+      </div>
+    {% endif %}
+
+    <form method="post" action="/my/employees/new" style="margin-top:16px;">
+      <div style="margin-bottom:14px;">
+        <label for="full_name" style="font-size:.85em;font-weight:600;display:block;margin-bottom:4px;">
+          {{ _('emp_name') }}
+        </label>
+        <input type="text" name="full_name" id="full_name" placeholder="Max Mustermann"
+               style="width:100%;padding:8px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:.9em;">
+      </div>
+
+      <div style="margin-bottom:14px;">
+        <label for="username" style="font-size:.85em;font-weight:600;display:block;margin-bottom:4px;">
+          {{ _('emp_username') }} *
+        </label>
+        <input type="text" name="username" id="username" required placeholder="mmustermann"
+               style="width:100%;padding:8px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:.9em;">
+      </div>
+
+      <div style="margin-bottom:14px;">
+        <label for="email" style="font-size:.85em;font-weight:600;display:block;margin-bottom:4px;">
+          {{ _('emp_delegate_email') }}
+        </label>
+        <input type="email" name="email" id="email" placeholder="max@firma.de"
+               style="width:100%;padding:8px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:.9em;">
+      </div>
+
+      <div style="margin-bottom:20px;">
+        <label for="password" style="font-size:.85em;font-weight:600;display:block;margin-bottom:4px;">
+          {{ _('emp_password') }}
+        </label>
+        <input type="text" name="password" id="password" placeholder="{{ _('emp_password_auto') }}"
+               style="width:100%;padding:8px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:.9em;">
+        <small style="color:#64748b;font-size:.78em;">{{ _('emp_password_hint') }}</small>
+      </div>
+
+      <div style="display:flex;gap:12px;">
+        <button type="submit" class="btn btn-primary">{{ _('emp_create') }}</button>
+        <a href="/my/employees" class="btn btn-secondary">{{ _('emp_cancel') }}</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

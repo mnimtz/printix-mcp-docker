@@ -1,0 +1,165 @@
+{% extends "base.html" %}
+{% block title %}{{ _('emp_employees') }} — Printix MCP{% endblock %}
+{% block content %}
+<div class="container">
+  {% if flash == 'employee_created' %}
+    <div class="alert alert-success">{{ _('emp_flash_created') }}</div>
+  {% elif flash == 'employee_deleted' %}
+    <div class="alert alert-success">{{ _('emp_flash_deleted') }}</div>
+  {% elif flash == 'employee_imported' %}
+    <div class="alert alert-success">{{ _('emp_flash_imported') }}</div>
+  {% elif flash == 'employee_import_failed' %}
+    <div class="alert alert-danger">{{ _('emp_flash_import_failed') }}</div>
+  {% endif %}
+
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px;">
+    <a href="/my" class="btn btn-secondary" style="font-size:.85em;">{{ _('emp_my_dashboard') }}</a>
+    <a href="/my/jobs" class="btn btn-secondary" style="font-size:.85em;">{{ _('emp_my_jobs') }}</a>
+    <a href="/my/upload" class="btn btn-secondary" style="font-size:.85em;">📤 {{ _('emp_upload_tab') }}</a>
+    <a href="/my/delegation" class="btn btn-secondary" style="font-size:.85em;">{{ _('emp_delegation') }}</a>
+    {% if user.role_type != "employee" %}
+    <a href="/my/cloud-print" class="btn btn-secondary" style="font-size:.85em;">{{ _('emp_cloud_print') }}</a>
+    <a href="/my/send-to" class="btn btn-secondary" style="font-size:.85em;">💻 {{ _('emp_send_to') }}</a>
+    {% endif %}
+    <a href="/my/mobile-app" class="btn btn-secondary" style="font-size:.85em;">📱 {{ _('emp_mobile_app') }}</a>
+    <a href="/my/employees" class="btn btn-primary" style="font-size:.85em;">{{ _('nav_employees') }}</a>
+    <a href="/my/setup-guide" class="btn btn-secondary" style="font-size:.85em;">{{ _('emp_setup_guide') }}</a>
+  </div>
+
+  {% if imported_result %}
+  <div class="alert alert-info" style="margin-bottom:16px;">
+    <strong>{{ imported_result.full_name or imported_result.username }}</strong><br>
+    {{ _('emp_import_login_ready') }}<br>
+    {{ _('emp_username') }}: <code>{{ imported_result.username }}</code><br>
+    {{ _('emp_temp_password') }}: <code>{{ imported_result.password }}</code>
+    {% if imported_result.email %}<br>{{ _('emp_delegate_email') }}: {{ imported_result.email }}{% endif %}
+  </div>
+  {% endif %}
+
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">
+      <div>
+        <div class="section-title">{{ _('emp_employees') }}</div>
+        <div class="section-sub">{{ _('emp_employees_desc') }}</div>
+      </div>
+      <a href="/my/employees/new" class="btn btn-primary" style="white-space:nowrap;">
+        + {{ _('emp_add_employee') }}
+      </a>
+    </div>
+
+    {% if employees %}
+    <table style="margin-top:16px;">
+      <thead>
+        <tr>
+          <th>{{ _('emp_name') }}</th>
+          <th>{{ _('emp_username') }}</th>
+          <th>{{ _('emp_delegate_email') }}</th>
+          <th>{{ _('emp_status') }}</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for emp in employees %}
+        <tr>
+          <td>
+            <a href="/my/employees/{{ emp.id }}" style="font-weight:600;">
+              {{ emp.full_name or emp.username }}
+            </a>
+          </td>
+          <td>{{ emp.username }}</td>
+          <td>{{ emp.email }}</td>
+          <td>
+            {% if emp.status == 'approved' %}
+              <span style="color:#16a34a;">{{ _('emp_active') }}</span>
+            {% else %}
+              <span style="color:#94a3b8;">{{ emp.status }}</span>
+            {% endif %}
+          </td>
+          <td>
+            <form method="post" action="/my/employees/{{ emp.id }}/delete"
+                  onsubmit="return confirm('{{ _('emp_confirm_delete_employee') }}');"
+                  style="margin:0;">
+              <button type="submit" class="btn btn-danger" style="font-size:.78em;padding:4px 10px;">
+                {{ _('emp_delete') }}
+              </button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="alert alert-info" style="margin-top:16px;">
+      {{ _('emp_no_employees') }}
+    </div>
+    {% endif %}
+  </div>
+
+  <div class="card" style="margin-top:16px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">
+      <div>
+        <div class="section-title">{{ _('emp_import_from_printix') }}</div>
+        <div class="section-sub">{{ _('emp_import_from_printix_desc') }}</div>
+      </div>
+      {# v6.7.24: Bulk-Import aller gecachten Printix-User in einem Schritt.
+         Zwei-stufige Confirmation, da das viele Mails auf einmal versendet. #}
+      {% if importable_printix_users and importable_printix_users|length > 0 %}
+      <form method="post" action="/my/employees/bulk-import" style="margin:0;"
+            onsubmit="return confirm('{{ _('emp_bulk_import_confirm1') }}') && confirm('{{ _('emp_bulk_import_confirm2') | replace('{count}', importable_printix_users|length|string) }}');">
+        <button type="submit" class="btn btn-primary" style="white-space:nowrap;">
+          📨 {{ _('emp_bulk_import_action') }} ({{ importable_printix_users|length }})
+        </button>
+      </form>
+      {% endif %}
+    </div>
+
+    {% if flash == 'bulk_import_done' %}
+    <div class="alert alert-success" style="margin-top:12px;">
+      ✅ {{ _('emp_bulk_import_flash')|replace('{created}', bulk_stats.created|default(0)|string)|replace('{mailed}', bulk_stats.mailed|default(0)|string)|replace('{skipped}', bulk_stats.skipped|default(0)|string) }}
+    </div>
+    {% endif %}
+
+    {% if import_error %}
+    <div class="alert alert-warning" style="margin-top:16px;">
+      {{ _('emp_import_warning') }}: {{ import_error }}
+    </div>
+    {% endif %}
+
+    {% if importable_printix_users %}
+    <table style="margin-top:16px;">
+      <thead>
+        <tr>
+          <th>{{ _('emp_name') }}</th>
+          <th>{{ _('emp_delegate_email') }}</th>
+          <th>{{ _('emp_source_role') }}</th>
+          <th>{{ _('emp_username') }}</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for px in importable_printix_users %}
+        <tr>
+          <td>{{ px.full_name or '-' }}</td>
+          <td>{{ px.email or '-' }}</td>
+          <td>{{ px.role }}</td>
+          <td><code>{{ px.username_candidate }}</code></td>
+          <td>
+            <form method="post" action="/my/employees/import" style="margin:0;">
+              <input type="hidden" name="printix_user_id" value="{{ px.id }}">
+              <button type="submit" class="btn btn-secondary" style="font-size:.78em;padding:4px 10px;">
+                {{ _('emp_import_action') }}
+              </button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="alert alert-info" style="margin-top:16px;">
+      {{ _('emp_no_importable_users') }}
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

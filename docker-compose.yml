@@ -1,0 +1,83 @@
+# =============================================================================
+# Printix MCP — Docker Compose (Referenz-Setup)
+# =============================================================================
+# Erst-Installation:
+#   1.  cp .env.example .env      # Defaults anpassen (PUBLIC_URL, Ports etc.)
+#   2.  docker compose up -d
+#   3.  Browser: http://localhost:8080   → Erstkonfiguration im Web-UI
+#
+# Update auf neue Version:
+#   docker compose pull && docker compose up -d
+#
+# Logs / Health:
+#   docker compose logs -f printix-mcp
+#   docker compose ps
+# =============================================================================
+
+services:
+  printix-mcp:
+    image: ghcr.io/mnimtz/printix-mcp-docker:${PRINTIX_TAG:-latest}
+    # Alternative fürs lokale Bauen (statt image:latest):
+    #   build: .
+    container_name: printix-mcp
+    restart: unless-stopped
+
+    environment:
+      # --- Basis ---------------------------------------------------------------
+      # Öffentliche URL (z.B. via Cloudflare Tunnel / Reverse Proxy).
+      # Wenn leer: Endpunkte werden mit <host> im Log angezeigt.
+      MCP_PUBLIC_URL: ${MCP_PUBLIC_URL:-}
+      MCP_LOG_LEVEL: ${MCP_LOG_LEVEL:-info}
+
+      # --- Ports (im Container — Host-Seite wird unten in ports: gemapped) ----
+      WEB_PORT: 8080
+      MCP_PORT: 8765
+      CAPTURE_PORT: 8775
+
+      # --- Capture-Server (optional, separater Port) ---------------------------
+      # true = eigener Server auf CAPTURE_PORT, false = Webhooks laufen über MCP_PORT
+      CAPTURE_ENABLED: ${CAPTURE_ENABLED:-false}
+      CAPTURE_PUBLIC_URL: ${CAPTURE_PUBLIC_URL:-}
+
+      # --- IPP/IPPS Listener (Cloud Print) -------------------------------------
+      # 0 = deaktiviert (IPP läuft nur auf WEB_PORT). 631 = Standard-IPP-Port.
+      IPP_PORT: ${IPP_PORT:-0}
+      # TLS-Zertifikat für IPPS (wenn IPP_PORT gesetzt):
+      IPPS_CERTFILE: ${IPPS_CERTFILE:-}
+      IPPS_KEYFILE: ${IPPS_KEYFILE:-}
+
+    ports:
+      # Host-Port : Container-Port
+      - "${HOST_WEB_PORT:-8080}:8080"       # Web-UI
+      - "${HOST_MCP_PORT:-8765}:8765"       # MCP Endpoint
+      - "${HOST_CAPTURE_PORT:-8775}:8775"   # Capture-Webhook (nur relevant wenn CAPTURE_ENABLED=true)
+      # IPP optional — auskommentieren und IPP_PORT in .env setzen, wenn Cloud-Print genutzt wird:
+      # - "${HOST_IPP_PORT:-631}:631"
+
+    volumes:
+      # Persistente Daten: SQLite-DB, Fernet-Key, Session-Key, Report-Templates
+      - printix-data:/data
+      # Optional: TLS-Zertifikate für IPPS einblenden (read-only)
+      # - ./certs:/certs:ro
+
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8765/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  printix-data:
+    # Wenn du einen Host-Pfad statt eines Named Volumes willst, ersetze oben
+    # "printix-data:/data" durch "./data:/data" und lösche diesen volumes:-Block.
+    # Wichtig bei Bind-Mount: Ownership 1000:1000 setzen, sonst kann der
+    # Container nicht schreiben:
+    #   mkdir -p ./data && sudo chown -R 1000:1000 ./data
+    driver: local

@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% block title %}{{ _('emp_setup_guide') }} — Printix MCP{% endblock %}
+{% block content %}
+<div class="container">
+
+  <!-- Sub-Navigation -->
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px;">
+    <a href="/my" class="btn btn-secondary" style="font-size:.85em;">{{ _('emp_my_dashboard') }}</a>
+    <a href="/my/jobs" class="btn btn-secondary" style="font-size:.85em;">{{ _('emp_my_jobs') }}</a>
+    <a href="/my/upload" class="btn btn-secondary" style="font-size:.85em;">📤 {{ _('emp_upload_tab') }}</a>
+    <a href="/my/delegation" class="btn btn-secondary" style="font-size:.85em;">{{ _('emp_delegation') }}</a>
+    {% if user.role_type != 'employee' %}
+    <a href="/my/cloud-print" class="btn btn-secondary" style="font-size:.85em;">{{ _('emp_cloud_print') }}</a>
+    <a href="/my/send-to" class="btn btn-secondary" style="font-size:.85em;">💻 {{ _('emp_send_to') }}</a>
+    {% endif %}
+    <a href="/my/mobile-app" class="btn btn-secondary" style="font-size:.85em;">📱 {{ _('emp_mobile_app') }}</a>
+    {% if user.role_type != 'employee' %}
+    <a href="/my/employees" class="btn btn-secondary" style="font-size:.85em;">{{ _('nav_employees') }}</a>
+    <a href="/my/setup-guide" class="btn btn-primary" style="font-size:.85em;">{{ _('emp_setup_guide') }}</a>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <div class="section-title">🖨️ {{ _('emp_setup_guide_title') }}</div>
+    <div class="section-sub">{{ _('emp_setup_guide_intro') }}</div>
+
+    {# v6.7.21: Schritt-für-Schritt-Anleitung zum manuellen Anlegen des
+       Delegation-Druckers in Printix. Werte werden dynamisch aus der
+       Tenant-Config gezogen damit Admin sie direkt copy-pasten kann. #}
+
+    <ol style="margin-top:20px;padding-left:22px;line-height:1.7;font-size:.95em;">
+
+      <li style="margin-bottom:16px;">
+        <strong>{{ _('emp_guide_step1_title') }}</strong>
+        <div style="color:#6b7280;font-size:.9em;margin-top:4px;">{{ _('emp_guide_step1_desc') }}</div>
+      </li>
+
+      <li style="margin-bottom:16px;">
+        <strong>{{ _('emp_guide_step2_title') }}</strong>
+        <div style="color:#6b7280;font-size:.9em;margin-top:4px;">{{ _('emp_guide_step2_desc') }}</div>
+      </li>
+
+      <li style="margin-bottom:16px;">
+        <strong>{{ _('emp_guide_step3_title') }}</strong>
+        <div style="color:#6b7280;font-size:.9em;margin-top:4px;">{{ _('emp_guide_step3_desc') }}</div>
+        <div style="margin-top:10px;padding:12px 14px;background:#f3f4f6;border-left:3px solid #2563eb;border-radius:6px;font-family:ui-monospace,monospace;font-size:.85em;">
+          <div style="margin:2px 0;"><span style="color:#6b7280;">{{ _('emp_guide_field_address') }}:</span>
+            <code>{{ ipps_public_host or 'ipps.printix.cloud' }} $$ipps$$port:{{ ipps_port or '621' }}</code></div>
+          <div style="margin:2px 0;"><span style="color:#6b7280;">{{ _('emp_guide_field_network') }}:</span>
+            <code>{{ _('emp_guide_field_network_value') }}</code></div>
+          <div style="margin:2px 0;"><span style="color:#6b7280;">{{ _('emp_guide_field_protocol') }}:</span>
+            <code>IPPS</code></div>
+          <div style="margin:2px 0;"><span style="color:#6b7280;">{{ _('emp_guide_field_port') }}:</span>
+            <code>{{ ipps_port or '621' }}</code></div>
+        </div>
+      </li>
+
+      <li style="margin-bottom:16px;">
+        <strong>{{ _('emp_guide_step4_title') }}</strong>
+        <div style="color:#6b7280;font-size:.9em;margin-top:4px;">{{ _('emp_guide_step4_desc') }}</div>
+      </li>
+
+      <li style="margin-bottom:16px;">
+        <strong>{{ _('emp_guide_step5_title') }}</strong>
+        <div style="color:#6b7280;font-size:.9em;margin-top:4px;">{{ _('emp_guide_step5_desc') }}</div>
+      </li>
+
+    </ol>
+
+    <!-- Hinweise -->
+    <div class="alert alert-info" style="margin-top:20px;">
+      <strong>💡 {{ _('emp_guide_hint_title') }}</strong>
+      <ul style="margin:8px 0 0 18px;padding:0;">
+        <li>{{ _('emp_guide_hint_dns') }}</li>
+        <li>{{ _('emp_guide_hint_cert') }}</li>
+        <li>{{ _('emp_guide_hint_port') }}</li>
+      </ul>
+    </div>
+
+    <!-- Troubleshooting -->
+    <div class="alert alert-warning" style="margin-top:12px;">
+      <strong>⚠️ {{ _('emp_guide_trouble_title') }}</strong><br>
+      {{ _('emp_guide_trouble_desc') }}
+    </div>
+  </div>
+
+</div>
+{% endblock %}

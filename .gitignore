@@ -1,0 +1,33 @@
+# Environment (enthält ggf. Secrets/PUBLIC_URLs)
+.env
+
+# Persistente Daten (gehört NIE ins Repo)
+data/
+certs/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# OS / Editor
+.DS_Store
+.vscode/
+.idea/
+*.swp
+*~
+
+# Logs / temporäre Files
+*.log
+*.sqlite*
+*.bak
+
+# Das Backup-Verzeichnis ist nur lokale Referenz — nicht ins neue Repo
+backup_HA/

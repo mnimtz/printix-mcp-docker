@@ -1,0 +1,1137 @@
+{% extends "base.html" %}
+{% block title %}{{ _('cards_title') }} — {{ _('brand_console_name') }}{% endblock %}
+{% block extra_head %}
+<style>
+  .cards-shell { display:grid; grid-template-columns: minmax(0, 1.45fr) minmax(320px, .95fr); gap:20px; }
+  .cards-panel { background:#fff; border:1px solid #e5e7eb; border-radius:18px; padding:18px; box-shadow:0 12px 30px rgba(15, 23, 42, .05); }
+  .cards-hero { background:linear-gradient(135deg, #f7fbff 0%, #eef7f2 100%); border:1px solid #dbeafe; border-radius:22px; padding:22px; margin-bottom:18px; }
+  .cards-hero h2 { margin:0 0 8px; }
+  .cards-hero-grid { display:grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap:12px; margin-top:18px; }
+  .cards-note { border-radius:14px; padding:12px 14px; font-size:.9em; }
+  .cards-note strong { display:block; margin-bottom:4px; }
+  .cards-note.basic { background:#f8fafc; border:1px solid #e5e7eb; }
+  .cards-note.advanced { background:#eff6ff; border:1px solid #bfdbfe; }
+  .cards-note.profiles { background:#f5f3ff; border:1px solid #ddd6fe; }
+  .cards-toolbar { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+  .cards-toolbar .btn { white-space:nowrap; }
+  .cards-toolbar input { flex:1 1 260px; min-width:180px; }
+  .cards-section-head { display:flex; justify-content:space-between; gap:12px; align-items:flex-start; margin-bottom:14px; }
+  .cards-section-head h3 { margin:0; }
+  .cards-section-head p { margin:4px 0 0; color:#6b7280; font-size:.9em; }
+  .cards-grid { display:grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap:12px; }
+  .cards-grid-tight { display:grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap:10px; }
+  .cards-preview { width:100%; border-collapse:collapse; margin-top:14px; font-size:.9em; }
+  .cards-preview th, .cards-preview td { border-top:1px solid #e5e7eb; padding:9px 10px; vertical-align:top; }
+  .cards-preview th { width:210px; text-align:left; color:#6b7280; font-size:.82em; }
+  .cards-code { font-family:monospace; word-break:break-all; color:#111827; }
+  .cards-highlight { font-weight:700; color:#0f172a; }
+  .cards-actions { display:flex; gap:8px; flex-wrap:wrap; margin-top:14px; }
+  .cards-inline-help { color:#6b7280; font-size:.84em; margin-top:6px; }
+  .cards-profile-list, .cards-mapping-list { display:flex; flex-direction:column; gap:12px; }
+  .cards-profile-item, .cards-mapping-item { border:1px solid #e5e7eb; border-radius:16px; padding:14px; background:#fbfdff; }
+  .cards-profile-item.builtin { background:linear-gradient(135deg, #faf5ff 0%, #f8fafc 100%); }
+  .cards-profile-meta { color:#6b7280; font-size:.84em; margin-top:4px; }
+  .cards-profile-rules { margin-top:8px; font-size:.82em; color:#374151; }
+  .cards-rule-list { display:flex; gap:6px; flex-wrap:wrap; margin-top:8px; }
+  .cards-rule { display:inline-flex; align-items:center; border-radius:999px; padding:4px 10px; background:#e0f2fe; color:#075985; font-size:.76em; font-weight:700; }
+  .cards-profile-actions, .cards-mapping-actions { display:flex; gap:8px; flex-wrap:wrap; margin-top:12px; }
+  .cards-form-box { border:1px dashed #cbd5e1; border-radius:16px; padding:14px; background:#f8fafc; }
+  .cards-form-box h4 { margin:0 0 10px; }
+  .cards-empty { color:#9ca3af; font-size:.92em; border:1px dashed #d1d5db; border-radius:14px; padding:14px; background:#fafafa; }
+  .cards-subtle { color:#6b7280; font-size:.86em; }
+  .cards-link { color:#1d4ed8; text-decoration:none; font-weight:700; }
+  .cards-link:hover { text-decoration:underline; }
+  .cards-sticky { position:sticky; top:18px; }
+  .cards-row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  .cards-summary { display:grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap:10px; margin-top:12px; }
+  .cards-summary div { border:1px solid #e5e7eb; border-radius:14px; padding:10px 12px; background:#fff; }
+  .cards-summary strong { display:block; font-size:1.05em; color:#0f172a; }
+  .cards-divider { border:none; border-top:1px solid #e5e7eb; margin:18px 0; }
+  .cards-group-title { margin:14px 0 8px; font-size:.82em; font-weight:800; letter-spacing:.06em; text-transform:uppercase; color:#475569; }
+  .cards-group-note { margin:0 0 10px; color:#64748b; font-size:.84em; }
+  .cards-builtins-browser { display:grid; grid-template-columns: minmax(220px, .8fr) minmax(0, 1.25fr); gap:14px; align-items:start; }
+  .cards-builtins-nav { max-height:620px; overflow:auto; padding-right:4px; }
+  .cards-builtins-group { margin-bottom:12px; }
+  .cards-builtins-group-title { margin:0 0 8px; font-size:.8em; font-weight:800; letter-spacing:.06em; text-transform:uppercase; color:#475569; }
+  .cards-builtins-list { display:flex; flex-direction:column; gap:8px; }
+  .cards-builtin-link { width:100%; text-align:left; border:1px solid #dbe4ef; background:#fff; border-radius:14px; padding:10px 12px; cursor:pointer; transition:all .18s ease; }
+  .cards-builtin-link:hover { border-color:#93c5fd; background:#f8fbff; transform:translateY(-1px); }
+  .cards-builtin-link.active { border-color:#2563eb; background:linear-gradient(135deg, #eff6ff 0%, #f8fafc 100%); box-shadow:0 10px 22px rgba(37, 99, 235, .08); }
+  .cards-builtin-link strong { display:block; color:#0f172a; font-size:.92em; }
+  .cards-builtin-link span { display:block; color:#64748b; font-size:.8em; margin-top:3px; }
+  .cards-builtins-detail { border:1px solid #dbe4ef; border-radius:18px; padding:16px; background:linear-gradient(135deg, #fafcff 0%, #f8fafc 100%); min-height:280px; }
+  .cards-builtins-detail-head { display:flex; justify-content:space-between; gap:12px; align-items:flex-start; }
+  .cards-builtins-detail-note { margin-top:12px; padding:12px 14px; border-radius:14px; background:#eff6ff; border:1px solid #bfdbfe; color:#1e3a5f; font-size:.88em; }
+  @media (max-width: 1080px) {
+    .cards-shell { grid-template-columns: 1fr; }
+    .cards-sticky { position:static; }
+    .cards-builtins-browser { grid-template-columns: 1fr; }
+    .cards-builtins-nav { max-height:none; }
+  }
+  @media (max-width: 760px) {
+    .cards-hero-grid, .cards-grid, .cards-grid-tight, .cards-summary { grid-template-columns: 1fr; }
+  }
+</style>
+{% endblock %}
+{% block content %}
+<div class="container" style="max-width:1480px;">
+  {% set flash = request.query_params.get('flash', '') %}
+  <div class="cards-hero">
+    <h2 class="section-title">🃏 {{ _('cards_title') }}</h2>
+    <p style="margin:0; color:#475569; max-width:920px;">{{ _('cards_intro') | safe }}</p>
+
+    {% if flash == 'sync_ok' %}
+      <div class="alert alert-success" style="margin-top:16px;">✅ {{ _('cards_flash_sync_ok', imported=request.query_params.get('imported', '0'), id_only=request.query_params.get('id_only', '0')) }}</div>
+    {% elif flash == 'mapping_saved' %}
+      <div class="alert alert-success" style="margin-top:16px;">✅ {{ _('cards_flash_mapping_saved') }}</div>
+    {% elif flash == 'profile_saved' %}
+      <div class="alert alert-success" style="margin-top:16px;">✅ {{ _('cards_flash_profile_saved') }}</div>
+    {% elif flash == 'mapping_deleted' %}
+      <div class="alert alert-success" style="margin-top:16px;">✅ {{ _('cards_flash_mapping_deleted') }}</div>
+    {% elif flash == 'mapping_error' %}
+      <div class="alert alert-error" style="margin-top:16px;">❌ {{ _('cards_flash_mapping_error') }}</div>
+    {% elif flash == 'default_profile_saved' %}
+      <div class="alert alert-success" style="margin-top:16px;">✅ Firmen-Standard-Profil gespeichert.</div>
+    {% elif flash == 'default_profile_error' %}
+      <div class="alert alert-error" style="margin-top:16px;">❌ Konnte Firmen-Standard nicht speichern.</div>
+    {% endif %}
+
+    {% if tenant_configured %}
+    <!-- Firmen-Default-Profil: wird von der iOS-App (und zukuenftigen
+         Clients) automatisch genutzt, damit Mitarbeiter kein Profil
+         selbst waehlen muessen. Leer = Clients zeigen Picker. -->
+    <div style="margin-top:20px; padding:16px; border:1px solid #ddd6fe; border-radius:12px; background:#faf5ff;">
+      <strong>🏢 Firmen-Standard-Profil (fuer Mobile-App)</strong>
+      <div style="color:#6b46c1; font-size:0.9em; margin:6px 0 12px 0;">
+        Wenn gesetzt, nutzt die iOS-App dieses Profil automatisch fuer alle neuen Karten —
+        Mitarbeiter muessen kein Profil mehr waehlen.
+      </div>
+      <form method="post" action="/cards/default-profile/save" style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+        <select name="profile_id" style="min-width:280px; padding:6px 8px;">
+          <option value="" {% if not default_card_profile_id %}selected{% endif %}>— Kein Firmen-Default (Mitarbeiter waehlt selbst) —</option>
+          {% if builtin_profiles %}
+            {% for vendor_group in builtin_profiles|groupby('vendor') %}
+              <optgroup label="{{ vendor_group.grouper or 'Generic' }}">
+                {% for p in vendor_group.list %}
+                  <option value="{{ p.id }}" {% if p.id == default_card_profile_id %}selected{% endif %}>
+                    {{ p.name }}{% if p.reader_model and p.reader_model|lower != 'any' %} — {{ p.reader_model }}{% endif %}
+                  </option>
+                {% endfor %}
+              </optgroup>
+            {% endfor %}
+          {% endif %}
+          {% if custom_profiles %}
+            <optgroup label="{{ _('cards_custom_profiles_title') }}">
+              {% for p in custom_profiles %}
+                <option value="{{ p.id }}" {% if p.id == default_card_profile_id %}selected{% endif %}>
+                  {{ p.name }}{% if p.vendor %} ({{ p.vendor }}){% endif %}
+                </option>
+              {% endfor %}
+            </optgroup>
+          {% endif %}
+        </select>
+        <button type="submit" class="btn btn-primary">Speichern</button>
+      </form>
+    </div>
+    {% endif %}
+
+    <div class="cards-hero-grid">
+      <div class="cards-note basic">
+        <strong>{{ _('cards_note_basic_title') }}</strong>
+        {{ _('cards_note_basic_body') }}
+      </div>
+      <div class="cards-note advanced">
+        <strong>{{ _('cards_note_advanced_title') }}</strong>
+        {{ _('cards_note_advanced_body') }}
+      </div>
+      <div class="cards-note profiles">
+        <strong>{{ _('cards_note_profiles_title') }}</strong>
+        {{ _('cards_note_profiles_body') }}
+      </div>
+    </div>
+  </div>
+
+  <div class="cards-shell">
+    <div>
+      <div class="cards-panel">
+        <div class="cards-section-head">
+          <div>
+            <h3>{{ _('cards_lab_title') }}</h3>
+            <p>{{ _('cards_lab_subtitle') }}</p>
+          </div>
+          <a href="/tenant/users" class="cards-link">{{ _('cards_lab_to_users') }}</a>
+        </div>
+
+        <form method="post" action="/cards/mappings/save" id="card-lab-form">
+          <div class="cards-grid">
+            <div class="form-group" style="grid-column:1 / -1;">
+              <label for="lab_profile_id">{{ _('common_profile') }}</label>
+              <select id="lab_profile_id" name="profile_id">
+                <option value="">{{ _('user_profile_none') }}</option>
+                {% if builtin_profiles %}
+                  <optgroup label="{{ _('cards_builtin_group') }}">
+                    {% for vendor_group in builtin_profiles|groupby('vendor') %}
+                      {% for p in vendor_group.list %}
+                        <option value="{{ p.id }}" data-name="{{ p.name }}" data-description="{{ p.description or '' }}" data-rules="{{ (p.rules_json or '{}') | e }}">{{ vendor_group.grouper or _('common_generic') }} · {{ p.name }} — {{ p.reader_model or _('common_any') }}</option>
+                      {% endfor %}
+                    {% endfor %}
+                  </optgroup>
+                {% endif %}
+                {% if custom_profiles %}
+                  <optgroup label="{{ _('cards_custom_profiles_title') }}">
+                    {% for p in custom_profiles %}
+                      <option value="{{ p.id }}" data-name="{{ p.name }}" data-description="{{ p.description or '' }}" data-rules="{{ (p.rules_json or '{}') | e }}">{{ p.vendor or _('common_custom') }} · {{ p.name }} — {{ p.reader_model or _('common_any') }}</option>
+                    {% endfor %}
+                  </optgroup>
+                {% endif %}
+              </select>
+              <div class="cards-inline-help" id="lab_profile_help">{{ _('cards_profile_help') }}</div>
+              <div class="cards-inline-help">{{ _('cards_profile_rules_help') | safe }}</div>
+              <div class="cards-inline-help">{{ _('cards_profile_vendor_help') }}</div>
+            </div>
+
+            <div class="form-group" style="grid-column:1 / -1;">
+              <label for="lab_raw_value">{{ _('user_raw_card_value') }}</label>
+              <textarea id="lab_raw_value" name="raw_value" rows="3" placeholder="{{ _('cards_raw_value_placeholder') }}"></textarea>
+            </div>
+
+            <div class="form-group">
+              <label for="lab_input_mode">{{ _('user_input_interpretation') }}</label>
+              <select id="lab_input_mode">
+                <option value="auto">{{ _('user_input_mode_auto') }}</option>
+                <option value="text">{{ _('user_input_mode_text') }}</option>
+                <option value="hex">{{ _('user_input_mode_hex') }}</option>
+                <option value="decimal">{{ _('user_input_mode_decimal') }}</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="lab_submit_mode">{{ _('cards_submit_value_label') }}</label>
+              <select id="lab_submit_mode">
+                <option value="raw">{{ _('user_submit_mode_raw') }}</option>
+                <option value="normalized">{{ _('user_submit_mode_normalized') }}</option>
+                <option value="working">{{ _('user_submit_mode_working') }}</option>
+                <option value="hex">{{ _('user_submit_mode_hex') }}</option>
+                <option value="hex_reversed">{{ _('user_submit_mode_hex_reversed') }}</option>
+                <option value="decimal">{{ _('user_submit_mode_decimal') }}</option>
+                <option value="decimal_reversed">{{ _('user_submit_mode_decimal_reversed') }}</option>
+                <option value="base64_text">{{ _('user_submit_mode_base64_text') }}</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="lab_trim_prefix">{{ _('user_remove_prefix') }}</label>
+              <input id="lab_trim_prefix" type="text" placeholder="{{ _('cards_prefix_placeholder') }}">
+            </div>
+            <div class="form-group">
+              <label for="lab_trim_suffix">{{ _('user_remove_suffix') }}</label>
+              <input id="lab_trim_suffix" type="text" placeholder="{{ _('cards_suffix_placeholder') }}">
+            </div>
+            <div class="form-group">
+              <label for="lab_leading_zero_mode">{{ _('user_leading_zeros') }}</label>
+              <select id="lab_leading_zero_mode">
+                <option value="keep">{{ _('user_leading_zeros_keep') }}</option>
+                <option value="strip">{{ _('user_leading_zeros_strip') }}</option>
+                <option value="force_one">{{ _('user_leading_zeros_force_one') }}</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="lab_pad_even_hex">{{ _('user_hex_normalization') }}</label>
+              <select id="lab_pad_even_hex">
+                <option value="yes">{{ _('user_hex_pad_even_yes') }}</option>
+                <option value="no">{{ _('user_hex_pad_even_no') }}</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="cards-row" style="margin-top:8px;">
+            <label style="display:flex; align-items:center; gap:6px; font-size:.9em;">
+              <input type="checkbox" id="lab_strip_separators" checked> {{ _('user_strip_separators') }}
+            </label>
+            <label style="display:flex; align-items:center; gap:6px; font-size:.9em;">
+              <input type="checkbox" id="lab_lowercase"> {{ _('user_lowercase_before_processing') }}
+            </label>
+            <label style="display:flex; align-items:center; gap:6px; font-size:.9em;">
+              <input type="checkbox" id="lab_double_base64"> {{ _('user_double_base64') }}
+            </label>
+          </div>
+
+          <table class="cards-preview">
+            <tbody>
+              <tr><th>{{ _('cards_preview_normalized') }}</th><td id="lab_preview_normalized" class="cards-code">—</td></tr>
+              <tr><th>{{ _('cards_preview_working') }}</th><td id="lab_preview_working" class="cards-code">—</td></tr>
+              <tr><th>{{ _('cards_preview_hex') }}</th><td id="lab_preview_hex" class="cards-code">—</td></tr>
+              <tr><th>{{ _('cards_preview_hex_reversed') }}</th><td id="lab_preview_hex_reversed" class="cards-code">—</td></tr>
+              <tr><th>{{ _('cards_preview_decimal') }}</th><td id="lab_preview_decimal" class="cards-code">—</td></tr>
+              <tr><th>{{ _('cards_preview_decimal_reversed') }}</th><td id="lab_preview_decimal_reversed" class="cards-code">—</td></tr>
+              <tr><th>{{ _('cards_preview_base64') }}</th><td id="lab_preview_b64" class="cards-code">—</td></tr>
+              <tr><th>{{ _('cards_preview_submit') }}</th><td id="lab_preview_submit" class="cards-code cards-highlight">—</td></tr>
+              <tr><th>{{ _('cards_preview_printix_secret') }}</th><td id="lab_preview_printix_secret" class="cards-code">—</td></tr>
+            </tbody>
+          </table>
+
+          <input type="hidden" name="final_value" id="lab_final_value">
+          <input type="hidden" name="normalized_value" id="lab_normalized_value">
+
+          <div class="cards-form-box">
+            <h4>{{ _('cards_optional_mapping_title') }}</h4>
+            <p class="cards-subtle" style="margin-top:0;">{{ _('cards_optional_mapping_subtitle') }}</p>
+            <div class="cards-grid-tight">
+              <div class="form-group">
+                <label for="lab_printix_user_id">{{ _('cards_label_user_id') }}</label>
+                <input id="lab_printix_user_id" name="printix_user_id" type="text" placeholder="{{ _('cards_user_uuid_placeholder') }}">
+              </div>
+              <div class="form-group">
+                <label for="lab_printix_card_id">{{ _('cards_label_card_id') }}</label>
+                <input id="lab_printix_card_id" name="printix_card_id" type="text" placeholder="{{ _('cards_card_uuid_placeholder') }}">
+              </div>
+              <div class="form-group">
+                <label for="lab_source">{{ _('common_source') }}</label>
+                <input id="lab_source" name="source" type="text" value="cards_tool">
+              </div>
+              <div class="form-group">
+                <label for="lab_notes">{{ _('common_notes') }}</label>
+                <input id="lab_notes" name="notes" type="text" placeholder="{{ _('cards_notes_placeholder') }}">
+              </div>
+            </div>
+            <div class="cards-actions">
+              <button type="button" class="btn btn-secondary" id="lab_use_preview_btn">{{ _('cards_btn_use_preview') }}</button>
+              <button type="submit" class="btn btn-primary">💾 {{ _('cards_btn_save_local') }}</button>
+            </div>
+          </div>
+        </form>
+      </div>
+
+      <div class="cards-panel" style="margin-top:18px;">
+        <div class="cards-section-head">
+          <div>
+            <h3>{{ _('cards_mappings_title') }}</h3>
+            <p>{{ _('cards_mappings_subtitle') }}</p>
+          </div>
+          <form method="post" action="/cards/sync-import">
+            <button type="submit" class="btn btn-secondary">⤵ {{ _('cards_btn_import_printix') }}</button>
+          </form>
+        </div>
+
+        <form method="get" action="/cards" class="cards-toolbar">
+          <input type="text" name="q" value="{{ query }}" placeholder="{{ _('cards_search_placeholder') }}">
+          <button type="submit" class="btn btn-primary">{{ _('common_search') }}</button>
+        </form>
+
+        <div class="cards-summary">
+          <div><strong>{{ mappings|length }}</strong>{{ _('cards_summary_hits') }}</div>
+          <div><strong>{{ custom_profiles|length }}</strong>{{ _('cards_summary_custom_profiles') }}</div>
+          <div><strong>{{ builtin_profiles|length }}</strong>{{ _('cards_summary_builtin_profiles') }}</div>
+        </div>
+
+        <div class="cards-mapping-list" style="margin-top:16px;">
+          {% if mappings %}
+            {% for m in mappings %}
+              <div class="cards-mapping-item">
+                <div style="display:flex; justify-content:space-between; gap:10px; align-items:flex-start;">
+                  <div>
+                    <div style="font-weight:700; color:#0f172a; word-break:break-all;">{{ m.display_value or m.raw_value or '—' }}</div>
+                    <div class="cards-profile-meta">{{ _('cards_label_card_id') }}: <span class="cards-code">{{ m.printix_card_id }}</span></div>
+                    {% if m.printix_user_id %}<div class="cards-profile-meta">{{ _('cards_label_user_id') }}: <span class="cards-code">{{ m.printix_user_id }}</span></div>{% endif %}
+                    {% if m.base64_value %}<div class="cards-profile-meta">{{ _('cards_label_base64') }}: <span class="cards-code">{{ m.base64_value }}</span></div>{% endif %}
+                    {% if m.final_secret_value %}<div class="cards-profile-meta">{{ _('cards_label_final_value') }}: <span class="cards-code">{{ m.final_secret_value }}</span></div>{% endif %}
+                    {% if m.printix_secret_value %}<div class="cards-profile-meta">{{ _('cards_label_printix_secret') }}: <span class="cards-code">{{ m.printix_secret_value }}</span></div>{% endif %}
+                    {% if m.working_value %}<div class="cards-profile-meta">{{ _('cards_label_working_value') }}: <span class="cards-code">{{ m.working_value }}</span></div>{% endif %}
+                    <div class="cards-profile-meta">{{ _('common_source') }}: {{ m.source or 'local' }}</div>
+                    {% if m.notes %}<div class="cards-profile-meta" style="color:#92400e;">{{ m.notes }}</div>{% endif %}
+                  </div>
+                  {% if m.printix_user_id %}
+                    <a href="/tenant/users/{{ m.printix_user_id }}" class="btn btn-secondary">{{ _('common_open_user') }}</a>
+                  {% endif %}
+                </div>
+
+                <div class="cards-mapping-actions">
+                  <button type="button" class="btn btn-secondary" onclick="fillFromMapping(this)"
+                          data-profile-id="{{ m.profile_id or '' }}"
+                          data-user-id="{{ m.printix_user_id or '' }}"
+                          data-card-id="{{ m.printix_card_id or '' }}"
+                          data-raw-value="{{ (m.raw_value or m.display_value or '') | e }}"
+                          data-notes="{{ (m.notes or '') | e }}"
+                          data-source="{{ (m.source or 'local') | e }}">↖ {{ _('cards_btn_use_in_lab') }}</button>
+                </div>
+
+                <form method="post" action="/cards/mappings/save" style="margin-top:12px;">
+                  <input type="hidden" name="profile_id" value="{{ m.profile_id or '' }}">
+                  <input type="hidden" name="printix_user_id" value="{{ m.printix_user_id or '' }}">
+                  <input type="hidden" name="printix_card_id" value="{{ m.printix_card_id }}">
+                  <input type="hidden" name="source" value="{{ m.source or 'local' }}">
+                  <div class="cards-grid-tight">
+                    <div class="form-group">
+                      <label>{{ _('cards_label_local_value') }}</label>
+                      <input type="text" name="raw_value" value="{{ m.raw_value or m.display_value or '' }}">
+                    </div>
+                    <div class="form-group">
+                      <label>{{ _('cards_label_final_value') }}</label>
+                      <input type="text" name="final_value" value="{{ m.final_secret_value or '' }}">
+                    </div>
+                  </div>
+                  <div class="cards-grid-tight">
+                    <div class="form-group">
+                      <label>{{ _('common_notes') }}</label>
+                      <input type="text" name="notes" value="{{ m.notes or '' }}">
+                    </div>
+                    <div class="form-group" style="display:flex; align-items:flex-end;">
+                      <button type="submit" class="btn btn-primary" style="width:100%;">{{ _('common_save') }}</button>
+                    </div>
+                  </div>
+                </form>
+
+                <form method="post" action="/cards/mappings/{{ m.id }}/delete" style="margin-top:8px;" onsubmit="return confirm('{{ _('cards_confirm_delete_mapping') }}');">
+                  <button type="submit" class="btn" style="background:#ef4444; color:#fff; border:none;">🗑 {{ _('cards_btn_delete_mapping') }}</button>
+                </form>
+              </div>
+            {% endfor %}
+          {% else %}
+            <div class="cards-empty">{{ _('cards_empty_mappings') }}</div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <div class="cards-sticky">
+      <div class="cards-panel">
+        <div class="cards-section-head">
+          <div>
+            <h3>{{ _('cards_profiles_title') }}</h3>
+            <p>{{ _('cards_profiles_subtitle') }}</p>
+          </div>
+        </div>
+
+        <div class="cards-form-box">
+          <h4 id="profile_form_title">{{ _('cards_profile_new') }}</h4>
+          <form method="post" action="/cards/profiles/save" id="profile-form">
+            <input type="hidden" name="profile_id" id="profile_form_id" value="">
+            <div class="form-group"><label for="profile_name">{{ _('common_name') }}</label><input id="profile_name" type="text" name="name" required></div>
+            <div class="cards-grid-tight">
+              <div class="form-group"><label for="profile_vendor">{{ _('common_vendor') }}</label><input id="profile_vendor" type="text" name="vendor"></div>
+              <div class="form-group"><label for="profile_reader_model">{{ _('common_reader_model') }}</label><input id="profile_reader_model" type="text" name="reader_model"></div>
+            </div>
+            <div class="form-group"><label for="profile_mode">{{ _('common_mode') }}</label><input id="profile_mode" type="text" name="mode" placeholder="{{ _('cards_profile_mode_placeholder') }}"></div>
+            <div class="form-group"><label for="profile_description">{{ _('common_description') }}</label><input id="profile_description" type="text" name="description"></div>
+            <div class="cards-grid-tight">
+              <div class="form-group">
+                <label for="profile_rule_input_mode">{{ _('user_input_interpretation') }}</label>
+                <select id="profile_rule_input_mode">
+                  <option value="auto">{{ _('user_input_mode_auto') }}</option>
+                  <option value="text">{{ _('user_input_mode_text') }}</option>
+                  <option value="hex">{{ _('user_input_mode_hex') }}</option>
+                  <option value="decimal">{{ _('user_input_mode_decimal') }}</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="profile_rule_submit_mode">{{ _('cards_submit_value_label') }}</label>
+                <select id="profile_rule_submit_mode">
+                  <option value="raw">{{ _('user_submit_mode_raw') }}</option>
+                  <option value="normalized">{{ _('user_submit_mode_normalized') }}</option>
+                  <option value="working">{{ _('user_submit_mode_working') }}</option>
+                  <option value="hex">{{ _('user_submit_mode_hex') }}</option>
+                  <option value="hex_reversed">{{ _('user_submit_mode_hex_reversed') }}</option>
+                  <option value="decimal">{{ _('user_submit_mode_decimal') }}</option>
+                  <option value="decimal_reversed">{{ _('user_submit_mode_decimal_reversed') }}</option>
+                  <option value="base64_text">{{ _('user_submit_mode_base64_text') }}</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="profile_rule_base64_source">{{ _('cards_profile_base64_source') }}</label>
+                <select id="profile_rule_base64_source">
+                  <option value="raw">{{ _('cards_base64_source_raw') }}</option>
+                  <option value="normalized">{{ _('cards_base64_source_normalized') }}</option>
+                  <option value="working">{{ _('cards_base64_source_working') }}</option>
+                  <option value="hex">{{ _('cards_base64_source_hex') }}</option>
+                  <option value="hex_reversed">{{ _('cards_base64_source_hex_reversed') }}</option>
+                  <option value="decimal">{{ _('cards_base64_source_decimal') }}</option>
+                  <option value="decimal_reversed">{{ _('cards_base64_source_decimal_reversed') }}</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="profile_rule_leading_zero_mode">{{ _('user_leading_zeros') }}</label>
+                <select id="profile_rule_leading_zero_mode">
+                  <option value="keep">{{ _('user_leading_zeros_keep') }}</option>
+                  <option value="strip">{{ _('user_leading_zeros_strip') }}</option>
+                  <option value="force_one">{{ _('user_leading_zeros_force_one') }}</option>
+                </select>
+              </div>
+            </div>
+            <div class="cards-grid-tight">
+              <div class="form-group"><label for="profile_rule_trim_prefix">{{ _('user_remove_prefix') }}</label><input id="profile_rule_trim_prefix" type="text" placeholder="{{ _('cards_prefix_placeholder') }}"></div>
+              <div class="form-group"><label for="profile_rule_trim_suffix">{{ _('user_remove_suffix') }}</label><input id="profile_rule_trim_suffix" type="text" placeholder="{{ _('cards_suffix_placeholder') }}"></div>
+              <div class="form-group"><label for="profile_rule_remove_chars">{{ _('cards_profile_remove_chars') }}</label><input id="profile_rule_remove_chars" type="text" placeholder="_*"></div>
+              <div class="form-group"><label for="profile_rule_replace_map">{{ _('cards_profile_replace_map') }}</label><input id="profile_rule_replace_map" type="text" placeholder='{"_":"","*":""}'></div>
+              <div class="form-group"><label for="profile_rule_prepend_text">{{ _('cards_profile_prepend_text') }}</label><input id="profile_rule_prepend_text" type="text"></div>
+              <div class="form-group"><label for="profile_rule_append_text">{{ _('cards_profile_append_text') }}</label><input id="profile_rule_append_text" type="text"></div>
+              <div class="form-group"><label for="profile_rule_append_char">{{ _('cards_profile_append_char') }}</label><input id="profile_rule_append_char" type="text" maxlength="4" placeholder="ÿ"></div>
+              <div class="form-group"><label for="profile_rule_append_count">{{ _('cards_profile_append_count') }}</label><input id="profile_rule_append_count" type="number" min="0" step="1" value="0"></div>
+            </div>
+            <div class="cards-row" style="margin-top:8px;">
+              <label style="display:flex; align-items:center; gap:6px; font-size:.9em;"><input id="profile_rule_strip_separators" type="checkbox" checked> {{ _('user_strip_separators') }}</label>
+              <label style="display:flex; align-items:center; gap:6px; font-size:.9em;"><input id="profile_rule_lowercase" type="checkbox"> {{ _('cards_profile_lowercase') }}</label>
+              <label style="display:flex; align-items:center; gap:6px; font-size:.9em;"><input id="profile_rule_double_base64" type="checkbox"> {{ _('cards_profile_double_base64') }}</label>
+              <label style="display:flex; align-items:center; gap:6px; font-size:.9em;"><input id="profile_rule_pad_even_hex" type="checkbox" checked> {{ _('cards_profile_even_hex') }}</label>
+            </div>
+            <div class="cards-inline-help" style="margin-top:8px;">{{ _('cards_profile_rules_json_help') | safe }}</div>
+            <div class="form-group"><label for="profile_rules_json">{{ _('cards_rules_json_label') }}</label><textarea id="profile_rules_json" name="rules_json" rows="8" placeholder='{"strip_separators": true, "input_mode": "auto", "submit_mode": "decimal_reversed"}'></textarea></div>
+            <div class="cards-actions">
+              <button type="submit" class="btn btn-primary">💾 {{ _('cards_btn_save_profile') }}</button>
+              <button type="button" class="btn btn-secondary" id="profile_reset_btn">{{ _('cards_btn_reset') }}</button>
+            </div>
+          </form>
+        </div>
+
+        <hr class="cards-divider">
+
+        <h4 style="margin:0 0 10px;">{{ _('cards_custom_profiles_title') }}</h4>
+        <div class="cards-profile-list">
+          {% if custom_profiles %}
+            {% for p in custom_profiles %}
+              <div class="cards-profile-item">
+                <div style="display:flex; justify-content:space-between; gap:12px; align-items:flex-start;">
+                  <div>
+                    <div style="font-weight:700; color:#0f172a;">{{ p.name }}</div>
+                    <div class="cards-profile-meta">{{ p.vendor or _('common_generic') }} · {{ p.reader_model or _('common_any') }} · {{ p.mode or '—' }}</div>
+                    {% if p.description %}<div class="cards-profile-rules">{{ p.description }}</div>{% endif %}
+                  </div>
+                  <span class="cards-rule">{{ _('cards_profile_editable') }}</span>
+                </div>
+                <div class="cards-code" style="margin-top:10px; font-size:.8em; color:#475569;">{{ p.rules_json }}</div>
+                <div class="cards-profile-actions">
+                  <button type="button" class="btn btn-secondary" onclick="editProfile(this)"
+                          data-profile-id="{{ p.id }}"
+                          data-name="{{ p.name | e }}"
+                          data-vendor="{{ (p.vendor or '') | e }}"
+                          data-reader-model="{{ (p.reader_model or '') | e }}"
+                          data-mode="{{ (p.mode or '') | e }}"
+                          data-description="{{ (p.description or '') | e }}"
+                          data-rules="{{ (p.rules_json or '{}') | e }}">{{ _('common_edit') }}</button>
+                  <button type="button" class="btn btn-secondary" onclick="useProfileInLab('{{ p.id }}')">{{ _('cards_btn_use_in_lab') }}</button>
+                  <form method="post" action="/cards/profiles/{{ p.id }}/delete" onsubmit="return confirm('{{ _('cards_confirm_delete_profile') }}');">
+                    <button type="submit" class="btn" style="background:#ef4444; color:#fff; border:none;">🗑 {{ _('common_delete') }}</button>
+                  </form>
+                </div>
+              </div>
+            {% endfor %}
+          {% else %}
+            <div class="cards-empty">{{ _('cards_empty_profiles') }}</div>
+          {% endif %}
+        </div>
+
+        <hr class="cards-divider">
+
+        <h4 style="margin:0 0 10px;">{{ _('cards_builtin_title') }}</h4>
+        <div class="cards-builtins-browser">
+          <div class="cards-builtins-nav">
+            {% for vendor_group in builtin_profiles|groupby('vendor') %}
+              <div class="cards-builtins-group">
+                <div class="cards-builtins-group-title">{{ vendor_group.grouper or _('common_generic') }}</div>
+                <div class="cards-builtins-list">
+                  {% for p in vendor_group.list %}
+                    {% set rules = p.rules_json or {} %}
+                    {% set rules_text = rules | tojson %}
+                    <button
+                      type="button"
+                      class="cards-builtin-link"
+                      onclick="showBuiltinDetail(this)"
+                      data-name="{{ p.name | e }}"
+                      data-vendor="{{ (p.vendor or _('common_generic')) | e }}"
+                      data-reader-model="{{ (p.reader_model or _('common_any')) | e }}"
+                      data-mode="{{ (p.mode or '') | e }}"
+                      data-description="{{ (p.description or '') | e }}"
+                      data-rules="{{ rules_text | e }}"
+                      data-profile-id="{{ p.id }}"
+                    >
+                      <strong>{{ p.name }}</strong>
+                      <span>{{ p.reader_model or _('common_any') }}</span>
+                    </button>
+                  {% endfor %}
+                </div>
+              </div>
+            {% endfor %}
+          </div>
+          <div class="cards-builtins-detail">
+            <div class="cards-builtins-detail-head">
+              <div>
+                <div id="builtin_detail_name" style="font-weight:800; color:#0f172a; font-size:1.02em;">{{ _('cards_builtin_select') }}</div>
+                <div id="builtin_detail_meta" class="cards-profile-meta">{{ _('cards_builtin_meta') }}</div>
+              </div>
+              <span class="cards-rule">{{ _('cards_builtin_badge') }}</span>
+            </div>
+            <div id="builtin_detail_description" class="cards-profile-rules" style="margin-top:12px;">{{ _('cards_builtin_desc') }}</div>
+            <div id="builtin_detail_note" class="cards-builtins-detail-note">{{ _('cards_builtin_note') }}</div>
+            <div id="builtin_detail_rules" class="cards-rule-list" style="margin-top:12px;"></div>
+            <div class="cards-profile-actions" style="margin-top:16px;">
+              <button type="button" class="btn btn-secondary" id="builtin_use_btn">{{ _('cards_btn_use_in_lab') }}</button>
+              <button type="button" class="btn btn-secondary" id="builtin_copy_btn">{{ _('cards_btn_copy_profile') }}</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  const I18N = {
+    profileHelp: {{ _('cards_profile_help') | tojson }},
+    builtinSelect: {{ _('cards_builtin_select') | tojson }},
+    builtinMeta: {{ _('cards_builtin_meta') | tojson }},
+    builtinDesc: {{ _('cards_builtin_desc') | tojson }},
+    builtinNote: {{ _('cards_builtin_note') | tojson }},
+    newProfile: {{ _('cards_profile_new') | tojson }},
+    copyProfile: {{ _('cards_btn_copy_profile') | tojson }},
+    stripSeparators: {{ _('cards_rule_strip_separators') | tojson }},
+    removeChars: {{ _('cards_rule_remove_chars') | tojson }},
+    replaceMap: {{ _('cards_rule_replace_map') | tojson }},
+    prependText: {{ _('cards_rule_prepend_text') | tojson }},
+    appendText: {{ _('cards_rule_append_text') | tojson }},
+    appendChar: {{ _('cards_rule_append_char') | tojson }},
+    base64Source: {{ _('cards_rule_base64_source', value='{value}') | tojson }},
+    lowercase: {{ _('cards_rule_lowercase') | tojson }},
+    doubleBase64: {{ _('cards_rule_double_base64') | tojson }},
+    inputMode: {{ _('cards_rule_input_mode', value='{value}') | tojson }},
+    submitMode: {{ _('cards_rule_submit_mode', value='{value}') | tojson }},
+    editProfile: {{ _('common_edit') | tojson }},
+    generic: {{ _('common_generic') | tojson }},
+    any: {{ _('common_any') | tojson }},
+    vendorHintGeneral: {{ _('cards_vendor_hint_general') | tojson }},
+    vendorHintElatec: {{ _('cards_vendor_hint_elatec') | tojson }},
+    vendorHintRFIDeas: {{ _('cards_vendor_hint_rfideas') | tojson }},
+    vendorHintBaltech: {{ _('cards_vendor_hint_baltech') | tojson }},
+    vendorHintYSoft: {{ _('cards_vendor_hint_ysoft') | tojson }},
+    vendorHintInepro: {{ _('cards_vendor_hint_inepro') | tojson }},
+    vendorHintHP: {{ _('cards_vendor_hint_hp') | tojson }},
+    vendorHintMiCard: {{ _('cards_vendor_hint_micard') | tojson }}
+  };
+  const rawEl = document.getElementById('lab_raw_value');
+  if (!rawEl) return;
+
+  const profileEl = document.getElementById('lab_profile_id');
+  const profileHelpEl = document.getElementById('lab_profile_help');
+  const inputModeEl = document.getElementById('lab_input_mode');
+  const submitModeEl = document.getElementById('lab_submit_mode');
+  const stripEl = document.getElementById('lab_strip_separators');
+  const trimPrefixEl = document.getElementById('lab_trim_prefix');
+  const trimSuffixEl = document.getElementById('lab_trim_suffix');
+  const leadingZeroModeEl = document.getElementById('lab_leading_zero_mode');
+  const padEvenHexEl = document.getElementById('lab_pad_even_hex');
+  const lowercaseEl = document.getElementById('lab_lowercase');
+  const doubleBase64El = document.getElementById('lab_double_base64');
+  const finalValueEl = document.getElementById('lab_final_value');
+  const normalizedValueEl = document.getElementById('lab_normalized_value');
+  const profileForm = document.getElementById('profile-form');
+  const profileFormTitle = document.getElementById('profile_form_title');
+  const profileResetBtn = document.getElementById('profile_reset_btn');
+  const profileRulesJsonEl = document.getElementById('profile_rules_json');
+  const builtinDetail = {
+    name: document.getElementById('builtin_detail_name'),
+    meta: document.getElementById('builtin_detail_meta'),
+    description: document.getElementById('builtin_detail_description'),
+    note: document.getElementById('builtin_detail_note'),
+    rules: document.getElementById('builtin_detail_rules'),
+    useBtn: document.getElementById('builtin_use_btn'),
+    copyBtn: document.getElementById('builtin_copy_btn')
+  };
+  const profileRuleFields = {
+    inputMode: document.getElementById('profile_rule_input_mode'),
+    submitMode: document.getElementById('profile_rule_submit_mode'),
+    base64Source: document.getElementById('profile_rule_base64_source'),
+    leadingZeroMode: document.getElementById('profile_rule_leading_zero_mode'),
+    trimPrefix: document.getElementById('profile_rule_trim_prefix'),
+    trimSuffix: document.getElementById('profile_rule_trim_suffix'),
+    removeChars: document.getElementById('profile_rule_remove_chars'),
+    replaceMap: document.getElementById('profile_rule_replace_map'),
+    prependText: document.getElementById('profile_rule_prepend_text'),
+    appendText: document.getElementById('profile_rule_append_text'),
+    appendChar: document.getElementById('profile_rule_append_char'),
+    appendCount: document.getElementById('profile_rule_append_count'),
+    stripSeparators: document.getElementById('profile_rule_strip_separators'),
+    lowercase: document.getElementById('profile_rule_lowercase'),
+    doubleBase64: document.getElementById('profile_rule_double_base64'),
+    padEvenHex: document.getElementById('profile_rule_pad_even_hex')
+  };
+
+  const out = {
+    normalized: document.getElementById('lab_preview_normalized'),
+    working: document.getElementById('lab_preview_working'),
+    hex: document.getElementById('lab_preview_hex'),
+    hexRev: document.getElementById('lab_preview_hex_reversed'),
+    dec: document.getElementById('lab_preview_decimal'),
+    decRev: document.getElementById('lab_preview_decimal_reversed'),
+    b64: document.getElementById('lab_preview_b64'),
+    submit: document.getElementById('lab_preview_submit'),
+    printixSecret: document.getElementById('lab_preview_printix_secret')
+  };
+
+  function encBase64(str) {
+    try { return btoa(unescape(encodeURIComponent(str))); } catch (e) { return ''; }
+  }
+
+  function encBase64Bytes(bytes) {
+    try {
+      let binary = '';
+      bytes.forEach(function (b) { binary += String.fromCharCode(b); });
+      return btoa(binary);
+    } catch (e) {
+      return '';
+    }
+  }
+
+  function textToBytes(value, encoding) {
+    try {
+      if ((encoding || 'utf-8') === 'latin-1') {
+        return Array.from(value || '', function (ch) { return ch.charCodeAt(0) & 0xFF; });
+      }
+      return Array.from(new TextEncoder().encode(value || ''));
+    } catch (e) {
+      return [];
+    }
+  }
+
+  function hexToBytes(value) {
+    const normalized = String(value || '').replace(/\s+/g, '');
+    if (!normalized || normalized.length % 2 !== 0 || !/^[0-9a-fA-F]+$/.test(normalized)) return [];
+    const bytes = [];
+    for (let i = 0; i < normalized.length; i += 2) bytes.push(parseInt(normalized.slice(i, i + 2), 16));
+    return bytes;
+  }
+
+  function isHexString(value) {
+    return !!value && /^[0-9a-fA-F]+$/.test(value);
+  }
+
+  function reverseHexBytes(hex) {
+    if (!hex || hex.length % 2 !== 0) return '';
+    return (hex.match(/../g) || []).reverse().join('');
+  }
+
+  function hexToDecimalString(hex) {
+    if (!hex || !/^[0-9A-F]+$/i.test(hex)) return '';
+    try { return BigInt('0x' + hex).toString(10); } catch (e) { return ''; }
+  }
+
+  function decimalToHexString(dec) {
+    if (!/^\d+$/.test(dec || '')) return '';
+    try {
+      let hex = BigInt(dec).toString(16);
+      if (padEvenHexEl.value === 'yes' && hex.length % 2 !== 0) hex = '0' + hex;
+      return hex.toUpperCase();
+    } catch (e) {
+      return '';
+    }
+  }
+
+  function parseRules(value) {
+    try {
+      return JSON.parse(value || '{}');
+    } catch (e) {
+      return {};
+    }
+  }
+
+  function isBase64Like(value) {
+    if (!value) return false;
+    try { return btoa(atob(value)) === value; } catch (e) { return false; }
+  }
+
+  function vendorRecommendation(vendor) {
+    if (vendor === 'Elatec') return I18N.vendorHintElatec;
+    if (vendor === 'RFIDeas') return I18N.vendorHintRFIDeas;
+    if (vendor === 'Baltech') return I18N.vendorHintBaltech;
+    if (vendor === 'YSoft') return I18N.vendorHintYSoft;
+    if (vendor === 'Inepro') return I18N.vendorHintInepro;
+    if (vendor === 'HP') return I18N.vendorHintHP;
+    if (vendor === 'MiCard') return I18N.vendorHintMiCard;
+    return I18N.vendorHintGeneral;
+  }
+
+  function renderBuiltinRuleChips(rules) {
+    const chips = [];
+    if (rules.submit_mode) chips.push(I18N.submitMode.replace('{value}', rules.submit_mode));
+    if (rules.input_mode) chips.push(I18N.inputMode.replace('{value}', rules.input_mode));
+    if (rules.base64_source) chips.push(I18N.base64Source.replace('{value}', rules.base64_source));
+    if (rules.strip_separators) chips.push(I18N.stripSeparators);
+    if (rules.lowercase) chips.push(I18N.lowercase);
+    if (rules.double_base64) chips.push(I18N.doubleBase64);
+    if (rules.remove_chars) chips.push(I18N.removeChars + ': ' + rules.remove_chars);
+    if (rules.prepend_text) chips.push(I18N.prependText);
+    if (rules.append_text) chips.push(I18N.appendText);
+    if (rules.append_char && rules.append_count) chips.push(I18N.appendChar + ': ' + rules.append_char + ' × ' + rules.append_count);
+    if (rules.replace_map && Object.keys(rules.replace_map).length) chips.push(I18N.replaceMap);
+    return chips;
+  }
+
+  function setFieldValue(id, value) {
+    const el = document.getElementById(id);
+    if (el) el.value = value || '';
+  }
+
+  function stableStringify(value) {
+    return JSON.stringify(value, null, 2);
+  }
+
+  function normalizeProfileRules(value) {
+    const rules = parseRules(value);
+    const normalizedRules = {};
+
+    function put(key, ruleValue, emptyValue) {
+      if (ruleValue === undefined || ruleValue === null) return;
+      if (ruleValue === emptyValue) return;
+      if (typeof ruleValue === 'string' && ruleValue === '') return;
+      normalizedRules[key] = ruleValue;
+    }
+
+    put('strip_separators', rules.strip_separators, true);
+    put('input_mode', rules.input_mode || 'auto', 'auto');
+    put('submit_mode', rules.submit_mode || 'raw', 'raw');
+    put('base64_source', rules.base64_source || 'raw', 'raw');
+    put('trim_prefix', rules.trim_prefix || '', '');
+    put('trim_suffix', rules.trim_suffix || '', '');
+    put('remove_chars', rules.remove_chars || '', '');
+    if (rules.replace_map && typeof rules.replace_map === 'object' && !Array.isArray(rules.replace_map) && Object.keys(rules.replace_map).length) {
+      normalizedRules.replace_map = rules.replace_map;
+    }
+    put('prepend_text', rules.prepend_text || '', '');
+    put('append_text', rules.append_text || '', '');
+    put('append_char', rules.append_char || '', '');
+    const appendCount = Number(rules.append_count || 0) || 0;
+    put('append_count', appendCount, 0);
+    put('leading_zero_mode', rules.leading_zero_mode || 'keep', 'keep');
+    put('pad_even_hex', rules.pad_even_hex === undefined ? true : !!rules.pad_even_hex, true);
+    put('lowercase', !!rules.lowercase, false);
+    put('double_base64', !!rules.double_base64, false);
+
+    return normalizedRules;
+  }
+
+  function populateProfileRuleFields(rules) {
+    const normalizedRules = normalizeProfileRules(rules);
+    profileRuleFields.inputMode.value = normalizedRules.input_mode || 'auto';
+    profileRuleFields.submitMode.value = normalizedRules.submit_mode || 'raw';
+    profileRuleFields.base64Source.value = normalizedRules.base64_source || 'raw';
+    profileRuleFields.leadingZeroMode.value = normalizedRules.leading_zero_mode || 'keep';
+    profileRuleFields.trimPrefix.value = normalizedRules.trim_prefix || '';
+    profileRuleFields.trimSuffix.value = normalizedRules.trim_suffix || '';
+    profileRuleFields.removeChars.value = normalizedRules.remove_chars || '';
+    profileRuleFields.replaceMap.value = normalizedRules.replace_map ? JSON.stringify(normalizedRules.replace_map) : '';
+    profileRuleFields.prependText.value = normalizedRules.prepend_text || '';
+    profileRuleFields.appendText.value = normalizedRules.append_text || '';
+    profileRuleFields.appendChar.value = normalizedRules.append_char || '';
+    profileRuleFields.appendCount.value = String(normalizedRules.append_count || 0);
+    profileRuleFields.stripSeparators.checked = normalizedRules.strip_separators === undefined ? true : !!normalizedRules.strip_separators;
+    profileRuleFields.lowercase.checked = !!normalizedRules.lowercase;
+    profileRuleFields.doubleBase64.checked = !!normalizedRules.double_base64;
+    profileRuleFields.padEvenHex.checked = normalizedRules.pad_even_hex === undefined ? true : !!normalizedRules.pad_even_hex;
+  }
+
+  function buildRulesFromProfileFields() {
+    let replaceMap = {};
+    try {
+      replaceMap = parseRules(profileRuleFields.replaceMap.value || '{}');
+      if (typeof replaceMap !== 'object' || Array.isArray(replaceMap) || !replaceMap) replaceMap = {};
+    } catch (e) {
+      replaceMap = {};
+    }
+    return normalizeProfileRules({
+      strip_separators: profileRuleFields.stripSeparators.checked,
+      input_mode: profileRuleFields.inputMode.value || 'auto',
+      submit_mode: profileRuleFields.submitMode.value || 'raw',
+      base64_source: profileRuleFields.base64Source.value || 'raw',
+      trim_prefix: profileRuleFields.trimPrefix.value || '',
+      trim_suffix: profileRuleFields.trimSuffix.value || '',
+      remove_chars: profileRuleFields.removeChars.value || '',
+      replace_map: replaceMap,
+      prepend_text: profileRuleFields.prependText.value || '',
+      append_text: profileRuleFields.appendText.value || '',
+      append_char: profileRuleFields.appendChar.value || '',
+      append_count: Number(profileRuleFields.appendCount.value || '0') || 0,
+      leading_zero_mode: profileRuleFields.leadingZeroMode.value || 'keep',
+      pad_even_hex: profileRuleFields.padEvenHex.checked,
+      lowercase: profileRuleFields.lowercase.checked,
+      double_base64: profileRuleFields.doubleBase64.checked
+    });
+  }
+
+  function syncProfileJsonFromFields() {
+    profileRulesJsonEl.value = stableStringify(buildRulesFromProfileFields());
+  }
+
+  function syncProfileFieldsFromJson() {
+    populateProfileRuleFields(parseRules(profileRulesJsonEl.value || '{}'));
+  }
+
+  function resetProfileForm() {
+    profileForm.reset();
+    setFieldValue('profile_form_id', '');
+    populateProfileRuleFields({
+      strip_separators: true,
+      input_mode: 'auto',
+      submit_mode: 'raw',
+      base64_source: 'raw',
+      leading_zero_mode: 'keep',
+      pad_even_hex: true
+    });
+    syncProfileJsonFromFields();
+    profileFormTitle.textContent = I18N.newProfile;
+  }
+
+  function applyPrefixSuffixRules(value) {
+    let v = (value || '').trim();
+    const prefix = trimPrefixEl.value || '';
+    const suffix = trimSuffixEl.value || '';
+    if (prefix && v.startsWith(prefix)) v = v.slice(prefix.length);
+    if (suffix && v.endsWith(suffix)) v = v.slice(0, -suffix.length);
+    return v;
+  }
+
+  function applyLeadingZeroRule(value) {
+    let v = value || '';
+    if (!v) return v;
+    if (leadingZeroModeEl.value === 'strip') {
+      v = v.replace(/^0+/, '');
+      return v || '0';
+    }
+    if (leadingZeroModeEl.value === 'force_one') {
+      v = v.replace(/^0+/, '');
+      return '0' + (v || '0');
+    }
+    return v;
+  }
+
+  function normalizeRaw(raw) {
+    let value = applyPrefixSuffixRules(raw || '');
+    value = value.trim();
+    if (!value) return '';
+    if (stripEl.checked) value = value.replace(/[\s:\-]/g, '');
+    if (lowercaseEl.checked) value = value.toLowerCase();
+    value = applyLeadingZeroRule(value);
+    return value;
+  }
+
+  function detectMode(normalized, rawMode) {
+    if (rawMode !== 'auto') return rawMode;
+    if (/^\d+$/.test(normalized)) return 'decimal';
+    if (isHexString(normalized)) return 'hex';
+    return 'text';
+  }
+
+  function applyProfileRules() {
+    const opt = profileEl.options[profileEl.selectedIndex];
+    const rules = parseRules(opt ? opt.getAttribute('data-rules') : '{}');
+    const description = opt ? (opt.getAttribute('data-description') || '') : '';
+
+    if (profileHelpEl) {
+      profileHelpEl.textContent = description || I18N.profileHelp;
+    }
+
+    stripEl.checked = rules.strip_separators === undefined ? true : !!rules.strip_separators;
+    inputModeEl.value = rules.input_mode || 'auto';
+    submitModeEl.value = rules.submit_mode || 'raw';
+    trimPrefixEl.value = rules.trim_prefix || '';
+    trimSuffixEl.value = rules.trim_suffix || '';
+    leadingZeroModeEl.value = rules.leading_zero_mode || 'keep';
+    padEvenHexEl.value = rules.pad_even_hex === false ? 'no' : 'yes';
+    lowercaseEl.checked = !!rules.lowercase;
+    doubleBase64El.checked = !!rules.double_base64;
+    profileEl.dataset.removeChars = rules.remove_chars || '';
+    profileEl.dataset.replaceMap = JSON.stringify(rules.replace_map || {});
+    profileEl.dataset.prependText = rules.prepend_text || '';
+    profileEl.dataset.appendText = rules.append_text || '';
+    profileEl.dataset.appendChar = rules.append_char || '';
+    profileEl.dataset.appendCount = String(rules.append_count || 0);
+    profileEl.dataset.base64Source = rules.base64_source || 'raw';
+    profileEl.dataset.base64Encoding = rules.base64_encoding || 'utf-8';
+    profileEl.dataset.base64SuffixHex = rules.base64_suffix_hex || '';
+    profileEl.dataset.base64SuffixCount = String(rules.base64_suffix_count || 0);
+  }
+
+  function compute() {
+    const raw = (rawEl.value || '').trim();
+    let normalized = applyPrefixSuffixRules(raw).trim();
+    let replaceMap = {};
+    try { replaceMap = JSON.parse(profileEl.dataset.replaceMap || '{}'); } catch (e) { replaceMap = {}; }
+    Object.keys(replaceMap).forEach(function (key) {
+      normalized = normalized.split(key).join(String(replaceMap[key] || ''));
+    });
+    if (stripEl.checked) normalized = normalized.replace(/[\s:\-]/g, '');
+    const removeChars = profileEl.dataset.removeChars || '';
+    if (removeChars) {
+      normalized = normalized.split('').filter(function (ch) { return !removeChars.includes(ch); }).join('');
+    }
+    if (lowercaseEl.checked) normalized = normalized.toLowerCase();
+    normalized = applyLeadingZeroRule(normalized);
+    const prependText = profileEl.dataset.prependText || '';
+    const appendText = profileEl.dataset.appendText || '';
+    const appendChar = profileEl.dataset.appendChar || '';
+    const appendCount = Number(profileEl.dataset.appendCount || '0') || 0;
+    const working = prependText + normalized + appendText + (appendChar ? appendChar.repeat(Math.max(0, appendCount)) : '');
+    const mode = detectMode(working, inputModeEl.value);
+    let hex = '';
+    let dec = '';
+    let b64 = '';
+
+    if (mode === 'hex') {
+      hex = working.toUpperCase();
+      if (padEvenHexEl.value === 'yes' && hex.length % 2 !== 0) hex = '0' + hex;
+      dec = hexToDecimalString(hex);
+    } else if (mode === 'decimal') {
+      dec = working;
+      hex = decimalToHexString(dec);
+    } else if (isHexString(working)) {
+      hex = working.toUpperCase();
+      if (padEvenHexEl.value === 'yes' && hex.length % 2 !== 0) hex = '0' + hex;
+      dec = hexToDecimalString(hex);
+    }
+
+    const base64Sources = {
+      raw: raw,
+      normalized: normalized,
+      working: working,
+      hex: hex,
+      hex_reversed: reverseHexBytes(hex),
+      decimal: dec,
+      decimal_reversed: hexToDecimalString(reverseHexBytes(hex))
+    };
+    const base64Input = base64Sources[profileEl.dataset.base64Source || 'raw'] || raw;
+    let base64Bytes = textToBytes(base64Input, profileEl.dataset.base64Encoding || 'utf-8');
+    const suffixBytes = hexToBytes(profileEl.dataset.base64SuffixHex || '');
+    const suffixCount = Number(profileEl.dataset.base64SuffixCount || '0') || 0;
+    if (suffixBytes.length && suffixCount > 0) {
+      const extra = [];
+      for (let i = 0; i < suffixCount; i += 1) extra.push.apply(extra, suffixBytes);
+      base64Bytes = base64Bytes.concat(extra);
+    }
+    b64 = encBase64Bytes(base64Bytes);
+    if (doubleBase64El.checked && b64) b64 = encBase64(b64);
+
+    const hexRev = reverseHexBytes(hex);
+    const decRev = hexToDecimalString(hexRev);
+    let finalValue = raw;
+    if (submitModeEl.value === 'normalized') finalValue = normalized;
+    if (submitModeEl.value === 'working') finalValue = working;
+    if (submitModeEl.value === 'hex') finalValue = hex;
+    if (submitModeEl.value === 'hex_reversed') finalValue = hexRev;
+    if (submitModeEl.value === 'decimal') finalValue = dec;
+    if (submitModeEl.value === 'decimal_reversed') finalValue = decRev;
+    if (submitModeEl.value === 'base64_text') finalValue = b64;
+
+    const printixSecret = isBase64Like(finalValue) ? finalValue : encBase64(finalValue);
+    out.normalized.textContent = normalized || '—';
+    out.working.textContent = working || '—';
+    out.hex.textContent = hex || '—';
+    out.hexRev.textContent = hexRev || '—';
+    out.dec.textContent = dec || '—';
+    out.decRev.textContent = decRev || '—';
+    out.b64.textContent = b64 || '—';
+    out.submit.textContent = finalValue || '—';
+    out.printixSecret.textContent = printixSecret || '—';
+    finalValueEl.value = finalValue || '';
+    normalizedValueEl.value = normalized || '';
+  }
+
+  window.fillFromMapping = function (btn) {
+    rawEl.value = btn.dataset.rawValue || '';
+    document.getElementById('lab_printix_user_id').value = btn.dataset.userId || '';
+    document.getElementById('lab_printix_card_id').value = btn.dataset.cardId || '';
+    document.getElementById('lab_notes').value = btn.dataset.notes || '';
+    document.getElementById('lab_source').value = btn.dataset.source || 'local';
+    profileEl.value = btn.dataset.profileId || '';
+    applyProfileRules();
+    compute();
+    rawEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    rawEl.focus();
+  };
+
+  window.editProfile = function (btn) {
+    setFieldValue('profile_form_id', btn.dataset.profileId || '');
+    setFieldValue('profile_name', btn.dataset.name || '');
+    setFieldValue('profile_vendor', btn.dataset.vendor || '');
+    setFieldValue('profile_reader_model', btn.dataset.readerModel || '');
+    setFieldValue('profile_mode', btn.dataset.mode || '');
+    setFieldValue('profile_description', btn.dataset.description || '');
+    setFieldValue('profile_rules_json', btn.dataset.rules || '{}');
+    syncProfileFieldsFromJson();
+    profileFormTitle.textContent = I18N.editProfile;
+    profileForm.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  };
+
+  window.duplicateProfileTemplate = function (btn) {
+    setFieldValue('profile_form_id', '');
+    setFieldValue('profile_name', (btn.dataset.name || '') + ' ' + I18N.copyProfile);
+    setFieldValue('profile_vendor', btn.dataset.vendor || '');
+    setFieldValue('profile_reader_model', btn.dataset.readerModel || '');
+    setFieldValue('profile_mode', btn.dataset.mode || '');
+    setFieldValue('profile_description', btn.dataset.description || '');
+    setFieldValue('profile_rules_json', btn.dataset.rules || '{}');
+    syncProfileFieldsFromJson();
+    profileFormTitle.textContent = I18N.copyProfile;
+    profileForm.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  };
+
+  window.useProfileInLab = function (profileId) {
+    profileEl.value = profileId || '';
+    applyProfileRules();
+    compute();
+    rawEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    rawEl.focus();
+  };
+
+  window.showBuiltinDetail = function (btn) {
+    const rules = parseRules(btn.dataset.rules || '{}');
+    document.querySelectorAll('.cards-builtin-link').forEach(function (node) {
+      node.classList.toggle('active', node === btn);
+    });
+    builtinDetail.name.textContent = btn.dataset.name || I18N.builtinSelect;
+    builtinDetail.meta.textContent = (btn.dataset.vendor || I18N.generic) + ' · ' + (btn.dataset.readerModel || I18N.any) + ' · ' + (btn.dataset.mode || '—');
+    builtinDetail.description.textContent = btn.dataset.description || I18N.builtinDesc;
+    builtinDetail.note.textContent = vendorRecommendation(btn.dataset.vendor || I18N.generic);
+    builtinDetail.rules.innerHTML = '';
+    renderBuiltinRuleChips(rules).forEach(function (label) {
+      const chip = document.createElement('span');
+      chip.className = 'cards-rule';
+      chip.textContent = label;
+      builtinDetail.rules.appendChild(chip);
+    });
+    builtinDetail.useBtn.onclick = function () {
+      useProfileInLab(btn.dataset.profileId || '');
+    };
+    builtinDetail.copyBtn.onclick = function () {
+      duplicateProfileTemplate(btn);
+    };
+  };
+
+  profileEl.addEventListener('change', function () { applyProfileRules(); compute(); });
+  rawEl.addEventListener('input', compute);
+  inputModeEl.addEventListener('change', compute);
+  submitModeEl.addEventListener('change', compute);
+  stripEl.addEventListener('change', compute);
+  trimPrefixEl.addEventListener('input', compute);
+  trimSuffixEl.addEventListener('input', compute);
+  leadingZeroModeEl.addEventListener('change', compute);
+  padEvenHexEl.addEventListener('change', compute);
+  lowercaseEl.addEventListener('change', compute);
+  doubleBase64El.addEventListener('change', compute);
+  document.getElementById('lab_use_preview_btn').addEventListener('click', function () {
+    rawEl.value = finalValueEl.value || rawEl.value;
+    compute();
+  });
+  document.getElementById('card-lab-form').addEventListener('submit', function () {
+    compute();
+  });
+  profileResetBtn.addEventListener('click', resetProfileForm);
+  Object.values(profileRuleFields).forEach(function (field) {
+    if (!field) return;
+    field.addEventListener('input', syncProfileJsonFromFields);
+    field.addEventListener('change', syncProfileJsonFromFields);
+  });
+  profileRulesJsonEl.addEventListener('change', syncProfileFieldsFromJson);
+  const firstBuiltinLink = document.querySelector('.cards-builtin-link');
+  if (firstBuiltinLink) showBuiltinDetail(firstBuiltinLink);
+
+  resetProfileForm();
+  applyProfileRules();
+  compute();
+})();
+</script>
+{% endblock %}

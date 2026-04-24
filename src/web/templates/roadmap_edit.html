@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block title %}{% if is_new %}{{ _('roadmap_new_item') }}{% else %}{{ _('roadmap_edit_item') }}{% endif %} — Printix MCP{% endblock %}
+{% block content %}
+<div class="container" style="max-width:820px;">
+  <div style="margin-bottom:16px;">
+    <a href="/roadmap" class="btn btn-secondary" style="font-size:.85em;">← {{ _('roadmap_back') }}</a>
+  </div>
+
+  <div class="card">
+    <h2 style="margin:0 0 4px;">{% if is_new %}+ {{ _('roadmap_new_item') }}{% else %}✏️ {{ _('roadmap_edit_item') }}{% endif %}</h2>
+    <div style="color:#6b7280;margin-bottom:18px;">{{ _('roadmap_edit_desc') }}</div>
+
+    <form method="post" action="{% if is_new %}/roadmap/new{% else %}/roadmap/{{ item.id }}/edit{% endif %}">
+
+      <div class="form-group">
+        <label>{{ _('roadmap_field_title') }} *</label>
+        <input type="text" name="title" required maxlength="200"
+               value="{{ item.title if item else '' }}">
+      </div>
+
+      <div class="form-group">
+        <label>{{ _('roadmap_field_description') }}</label>
+        <textarea name="description" rows="5" style="width:100%;">{{ item.description if item else '' }}</textarea>
+        <small class="hint">{{ _('roadmap_field_description_hint') }}</small>
+      </div>
+
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;">
+        <div class="form-group">
+          <label>{{ _('roadmap_field_status') }}</label>
+          <select name="status">
+            {% for s in status_values %}
+            <option value="{{ s }}" {% if (item and item.status == s) or (not item and s == 'idea') %}selected{% endif %}>
+              {{ _('roadmap_status_' ~ s) }}
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label>{{ _('roadmap_field_category') }}</label>
+          <select name="category">
+            {% for c in category_values %}
+            <option value="{{ c }}" {% if (item and item.category == c) or (not item and c == 'feature') %}selected{% endif %}>
+              {{ _('roadmap_category_' ~ c) }}
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label>{{ _('roadmap_field_priority') }}</label>
+          <select name="priority">
+            {% for p in priority_values %}
+            <option value="{{ p }}" {% if (item and item.priority == p) or (not item and p == 'medium') %}selected{% endif %}>
+              {{ _('roadmap_priority_' ~ p) }}
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label>{{ _('roadmap_field_target_version') }}</label>
+          <input type="text" name="target_version" maxlength="40"
+                 value="{{ item.target_version if item else '' }}"
+                 placeholder="v6.8.0">
+          <small class="hint">{{ _('roadmap_field_target_version_hint') }}</small>
+        </div>
+      </div>
+
+      <div style="margin-top:20px;display:flex;gap:12px;">
+        <button type="submit" class="btn btn-primary">
+          {% if is_new %}+ {{ _('roadmap_create') }}{% else %}💾 {{ _('roadmap_save') }}{% endif %}
+        </button>
+        <a href="/roadmap" class="btn btn-secondary">{{ _('roadmap_cancel') }}</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

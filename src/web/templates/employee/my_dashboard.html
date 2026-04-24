@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+{% block title %}{{ _('emp_my_dashboard') }} — Printix MCP{% endblock %}
+{% block content %}
+<div class="container">
+  <!-- Sub-Navigation -->
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px;">
+    <a href="/my" class="btn btn-primary" style="font-size:.85em;">{{ _('emp_my_dashboard') }}</a>
+    <a href="/my/jobs" class="btn btn-secondary" style="font-size:.85em;">{{ _('emp_my_jobs') }}</a>
+    <a href="/my/upload" class="btn btn-secondary" style="font-size:.85em;">📤 {{ _('emp_upload_tab') }}</a>
+    <a href="/my/delegation" class="btn btn-secondary" style="font-size:.85em;">{{ _('emp_delegation') }}</a>
+    {% if user.role_type != "employee" %}
+    <a href="/my/cloud-print" class="btn btn-secondary" style="font-size:.85em;">{{ _('emp_cloud_print') }}</a>
+    <a href="/my/send-to" class="btn btn-secondary" style="font-size:.85em;">💻 {{ _('emp_send_to') }}</a>
+    {% endif %}
+    <a href="/my/mobile-app" class="btn btn-secondary" style="font-size:.85em;">📱 {{ _('emp_mobile_app') }}</a>
+    {% if user.role_type != 'employee' %}
+    <a href="/my/employees" class="btn btn-secondary" style="font-size:.85em;">{{ _('nav_employees') }}</a>
+    <a href="/my/setup-guide" class="btn btn-secondary" style="font-size:.85em;">{{ _('emp_setup_guide') }}</a>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <div class="section-title">{{ _('emp_my_dashboard') }}</div>
+    <div class="section-sub">{{ _('emp_welcome') }}, {{ user.full_name or user.username }}</div>
+
+    {# v6.7.29: Mitarbeiter-Kachel-Layout — 3 Hauptfeatures als große
+       klickbare Kacheln, darunter die bisherigen Zähler als kleine Stats. #}
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;margin-top:20px;">
+
+      <!-- Kachel: Web-Upload -->
+      <a href="/my/upload" class="feature-card" data-tone="sky"
+         style="text-decoration:none;display:flex;flex-direction:column;
+                padding:24px 20px;border-radius:12px;
+                background:linear-gradient(135deg,#f0f9ff 0%,#e0f2fe 100%);
+                border:1px solid #bae6fd;color:#0c4a6e;
+                transition:transform .15s ease,box-shadow .15s ease;"
+         onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 8px 20px rgba(14,165,233,.18)'"
+         onmouseout="this.style.transform='';this.style.boxShadow=''">
+        <div style="font-size:2.4em;line-height:1;margin-bottom:8px;">📄</div>
+        <div style="font-size:1.1em;font-weight:700;">{{ _('emp_dash_tile_upload') }}</div>
+        <div style="font-size:.85em;opacity:.8;margin-top:4px;">{{ _('emp_dash_tile_upload_sub') }}</div>
+      </a>
+
+      <!-- Kachel: Delegate Print -->
+      <a href="/my/delegation" class="feature-card" data-tone="emerald"
+         style="text-decoration:none;display:flex;flex-direction:column;
+                padding:24px 20px;border-radius:12px;
+                background:linear-gradient(135deg,#ecfdf5 0%,#d1fae5 100%);
+                border:1px solid #86efac;color:#064e3b;
+                transition:transform .15s ease,box-shadow .15s ease;"
+         onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 8px 20px rgba(16,185,129,.18)'"
+         onmouseout="this.style.transform='';this.style.boxShadow=''">
+        <div style="font-size:2.4em;line-height:1;margin-bottom:8px;">🧑‍💼</div>
+        <div style="font-size:1.1em;font-weight:700;">{{ _('emp_dash_tile_delegate') }}</div>
+        <div style="font-size:.85em;opacity:.8;margin-top:4px;">
+          {{ _('emp_dash_tile_delegate_sub') }}
+        </div>
+        <div style="margin-top:10px;display:flex;gap:12px;font-size:.78em;">
+          <span>↗ {{ delegations_out | length }} {{ _('emp_my_delegates') }}</span>
+          <span>↙ {{ delegations_in | length }} {{ _('emp_delegated_to_me') }}</span>
+        </div>
+      </a>
+
+      <!-- Kachel: Umweltwirkung -->
+      <a href="/my/reports" class="feature-card" data-tone="green"
+         style="text-decoration:none;display:flex;flex-direction:column;
+                padding:24px 20px;border-radius:12px;
+                background:linear-gradient(135deg,#f0fdf4 0%,#dcfce7 100%);
+                border:1px solid #86efac;color:#14532d;
+                transition:transform .15s ease,box-shadow .15s ease;"
+         onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 8px 20px rgba(34,197,94,.18)'"
+         onmouseout="this.style.transform='';this.style.boxShadow=''">
+        <div style="font-size:2.4em;line-height:1;margin-bottom:8px;">🌳</div>
+        <div style="font-size:1.1em;font-weight:700;">{{ _('emp_dash_tile_environment') }}</div>
+        <div style="font-size:.85em;opacity:.8;margin-top:4px;">{{ _('emp_dash_tile_environment_sub') }}</div>
+      </a>
+
+      <!-- Kachel: Mobile App (iOS) -->
+      <a href="/my/mobile-app" class="feature-card" data-tone="violet"
+         style="text-decoration:none;display:flex;flex-direction:column;
+                padding:24px 20px;border-radius:12px;
+                background:linear-gradient(135deg,#f5f3ff 0%,#ede9fe 100%);
+                border:1px solid #c4b5fd;color:#3b0764;
+                transition:transform .15s ease,box-shadow .15s ease;"
+         onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 8px 20px rgba(139,92,246,.18)'"
+         onmouseout="this.style.transform='';this.style.boxShadow=''">
+        <div style="font-size:2.4em;line-height:1;margin-bottom:8px;">📱</div>
+        <div style="font-size:1.1em;font-weight:700;">{{ _('emp_dash_tile_mobile_app') }}</div>
+        <div style="font-size:.85em;opacity:.8;margin-top:4px;">{{ _('emp_dash_tile_mobile_app_sub') }}</div>
+      </a>
+
+    </div>
+  </div>
+
+  <!-- Aktive Delegationen -->
+  {% if delegations_out %}
+  <div class="card" style="margin-top:16px;">
+    <div class="section-title">{{ _('emp_my_delegates') }}</div>
+    <table>
+      <thead>
+        <tr>
+          <th>{{ _('emp_delegate_name') }}</th>
+          <th>{{ _('emp_delegate_email') }}</th>
+          <th>{{ _('emp_status') }}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for d in delegations_out %}
+        <tr>
+          <td>{{ d.delegate_full_name or d.delegate_username }}</td>
+          <td>{{ d.delegate_email }}</td>
+          <td>
+            {% if d.status == 'active' %}
+              <span style="color:#16a34a;">{{ _('emp_active') }}</span>
+            {% elif d.status == 'pending' %}
+              <span style="color:#d97706;">{{ _('emp_pending') }}</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}

@@ -1,0 +1,622 @@
+{% extends "base.html" %}
+{% block title %}{{ _('rpt_form_title_edit') if is_edit else _('rpt_form_title_new') }} — {{ _('brand_console_name') }}{% endblock %}
+
+{% block extra_head %}
+<style>
+  .form-section {
+    border:1px solid #e5e7eb; border-radius:10px; margin-bottom:20px; overflow:hidden;
+  }
+  .form-section-header {
+    background:#f8fafc; padding:14px 20px; font-weight:700; color:#1e3a5f;
+    font-size:.95em; border-bottom:1px solid #e5e7eb; display:flex; align-items:center; gap:8px;
+  }
+  .form-section-body { padding:20px; }
+  .qp-group { display:none; }
+  .qp-group.active { display:block; }
+  .date-preset-row { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:16px; }
+  .custom-date-row { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:8px; }
+  .custom-date-row.hidden { display:none; }
+  .cost-grid { display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; }
+  .fmt-row { display:flex; gap:16px; flex-wrap:wrap; margin-bottom:4px; }
+  .fmt-item { display:flex; align-items:center; gap:6px; font-size:.9em; cursor:pointer; }
+  .fmt-item input { width:auto; }
+  .schedule-body { display:none; margin-top:14px; }
+  .schedule-body.open { display:block; }
+  .sched-grid { display:grid; grid-template-columns:auto 1fr 1fr; gap:12px; align-items:end; margin-top:12px; }
+  .form-actions { display:flex; gap:12px; margin-top:8px; }
+  .color-row { display:flex; align-items:center; gap:10px; }
+  .color-row input[type=color] { width:44px; height:36px; padding:2px; border-radius:6px; border:1px solid #d1d5db; cursor:pointer; }
+  .logo-preview { max-height:48px; max-width:200px; margin-top:8px; border-radius:4px; border:1px solid #e5e7eb; display:none; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container" style="max-width:780px;">
+  <div class="card">
+
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;">
+      <h2 class="section-title" style="margin:0;">
+        {{ _('rpt_form_title_edit') if is_edit else _('rpt_form_title_new') }}
+        {% if preset_key %}<span class="badge badge-blue" style="margin-left:8px;font-size:.75em;">{{ _('reports_list_preset_badge') }}</span>{% endif %}
+      </h2>
+      <a href="/reports" class="btn btn-secondary btn-sm">{{ _('rpt_back') }}</a>
+    </div>
+
+    {% if error %}
+    <div class="alert alert-error">{{ error }}</div>
+    {% endif %}
+
+    <form method="post" action="{{ '/reports/' + report.report_id + '/edit' if is_edit else '/reports/new' }}" onsubmit="return prepareLogoBeforeSubmit()">
+
+      <!-- ── 1. Grunddaten ─────────────────────────────────────────────── -->
+      <div class="form-section">
+        <div class="form-section-header">{{ _('rpt_sect_basic') }}</div>
+        <div class="form-section-body">
+
+          <div class="form-group">
+            <label>{{ _('rpt_name') }}</label>
+            <input type="text" name="name" required
+                   value="{{ report.name | default('') }}"
+                   placeholder="{{ _('rpt_name_placeholder') }}">
+          </div>
+
+          <div class="form-group">
+            <label>{{ _('rpt_type') }}</label>
+            <select name="query_type" id="query_type_select" onchange="switchQueryType(this.value)">
+              {% for key, label in query_type_labels.items() %}
+              <option value="{{ key }}" {{ 'selected' if report.query_type == key else '' }}>{{ _('rpt_type_' + key) }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label>{{ _('rpt_subject') }}</label>
+            <input type="text" name="mail_subject"
+                   value="{{ report.mail_subject | default('') }}"
+                   placeholder="{{ _('rpt_subject_placeholder') }}">
+            <small class="hint">{{ _('rpt_subject_hint') }}</small>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- ── 2. Query-Parameter ────────────────────────────────────────── -->
+      <div class="form-section">
+        <div class="form-section-header">{{ _('rpt_sect_params') }}</div>
+        <div class="form-section-body">
+
+          {% set sd_val = report.get('query_params',{}).get('start_date', 'last_month_start') %}
+          {% set ed_val = report.get('query_params',{}).get('end_date',   'last_month_end')   %}
+
+          {% set known_presets = ['last_month_start','last_month_end','this_month_start','today',
+                                   'last_year_start','last_year_end','this_year_start',
+                                   'last_week_start','last_week_end',
+                                   'last_quarter_start','last_quarter_end'] %}
+
+          {% set sd_is_custom = sd_val and sd_val not in known_presets %}
+          {% set ed_is_custom = ed_val and ed_val not in known_presets %}
+          {% set has_custom   = sd_is_custom or ed_is_custom %}
+
+          <div class="date-preset-row">
+            <div class="form-group" style="margin:0;">
+              <label>{{ _('rpt_start') }}</label>
+              <select name="start_date_preset" id="start_preset" onchange="handleDatePreset('start')">
+                <option value="last_month_start" {{ 'selected' if sd_val == 'last_month_start' and not sd_is_custom else '' }}>{{ _('date_last_month_start') }}</option>
+                <option value="last_month_end"   {{ 'selected' if sd_val == 'last_month_end' else '' }}>{{ _('date_last_month_end') }}</option>
+                <option value="this_month_start" {{ 'selected' if sd_val == 'this_month_start' else '' }}>{{ _('date_this_month_start') }}</option>
+                <option value="last_year_start"  {{ 'selected' if sd_val == 'last_year_start' else '' }}>{{ _('date_last_year_start') }}</option>
+                <option value="last_year_end"    {{ 'selected' if sd_val == 'last_year_end' else '' }}>{{ _('date_last_year_end') }}</option>
+                <option value="this_year_start"  {{ 'selected' if sd_val == 'this_year_start' else '' }}>{{ _('date_this_year_start') }}</option>
+                <option value="last_quarter_start" {{ 'selected' if sd_val == 'last_quarter_start' else '' }}>{{ _('date_last_quarter_start') }}</option>
+                <option value="last_quarter_end"   {{ 'selected' if sd_val == 'last_quarter_end' else '' }}>{{ _('date_last_quarter_end') }}</option>
+                <option value="last_week_start"  {{ 'selected' if sd_val == 'last_week_start' else '' }}>{{ _('date_last_week_start') }}</option>
+                <option value="last_week_end"    {{ 'selected' if sd_val == 'last_week_end' else '' }}>{{ _('date_last_week_end') }}</option>
+                <option value="today"            {{ 'selected' if sd_val == 'today' and not sd_is_custom else '' }}>{{ _('date_today') }}</option>
+                <option value="__custom__"       {{ 'selected' if sd_is_custom else '' }}>{{ _('date_custom') }}</option>
+              </select>
+            </div>
+            <div class="form-group" style="margin:0;">
+              <label>{{ _('rpt_end') }}</label>
+              <select name="end_date_preset" id="end_preset" onchange="handleDatePreset('end')">
+                <option value="last_month_end"     {{ 'selected' if ed_val == 'last_month_end' and not ed_is_custom else '' }}>{{ _('date_last_month_end') }}</option>
+                <option value="today"              {{ 'selected' if ed_val == 'today' and not ed_is_custom else '' }}>{{ _('date_today') }}</option>
+                <option value="last_month_start"   {{ 'selected' if ed_val == 'last_month_start' else '' }}>{{ _('date_last_month_start') }}</option>
+                <option value="this_month_start"   {{ 'selected' if ed_val == 'this_month_start' else '' }}>{{ _('date_this_month_start') }}</option>
+                <option value="last_year_end"      {{ 'selected' if ed_val == 'last_year_end' else '' }}>{{ _('date_last_year_end') }}</option>
+                <option value="last_year_start"    {{ 'selected' if ed_val == 'last_year_start' else '' }}>{{ _('date_last_year_start') }}</option>
+                <option value="this_year_start"    {{ 'selected' if ed_val == 'this_year_start' else '' }}>{{ _('date_this_year_start') }}</option>
+                <option value="last_quarter_end"   {{ 'selected' if ed_val == 'last_quarter_end' else '' }}>{{ _('date_last_quarter_end') }}</option>
+                <option value="last_quarter_start" {{ 'selected' if ed_val == 'last_quarter_start' else '' }}>{{ _('date_last_quarter_start') }}</option>
+                <option value="last_week_end"      {{ 'selected' if ed_val == 'last_week_end' else '' }}>{{ _('date_last_week_end') }}</option>
+                <option value="last_week_start"    {{ 'selected' if ed_val == 'last_week_start' else '' }}>{{ _('date_last_week_start') }}</option>
+                <option value="__custom__"         {{ 'selected' if ed_is_custom else '' }}>{{ _('date_custom') }}</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="custom-date-row {{ '' if has_custom else 'hidden' }}" id="customDateRow">
+            <div class="form-group" style="margin:0;">
+              <label style="font-size:.85em;color:#6b7280;">{{ _('rpt_start') }}</label>
+              <input type="date" name="start_date_custom" id="start_custom"
+                     value="{{ sd_val if sd_is_custom else '' }}">
+            </div>
+            <div class="form-group" style="margin:0;">
+              <label style="font-size:.85em;color:#6b7280;">{{ _('rpt_end') }}</label>
+              <input type="date" name="end_date_custom" id="end_custom"
+                     value="{{ ed_val if ed_is_custom else '' }}">
+            </div>
+          </div>
+
+          <input type="hidden" name="start_date" id="start_date_hidden" value="{{ sd_val }}">
+          <input type="hidden" name="end_date"   id="end_date_hidden"   value="{{ ed_val }}">
+
+          <!-- Preset-qp als JSON f\u00fcr Stufe-2-Typen (workstation_id, status_filter \u2026) -->
+          <input type="hidden" name="preset_qp_json" id="preset_qp_json"
+                 value="{{ report.get('query_params', {}) | tojson | e }}">
+
+          <!-- print_stats / trend: Gruppierung -->
+          <div class="qp-group" id="qp-print_stats">
+            <div class="form-group" style="margin-bottom:0;">
+              <label>{{ _('rpt_group') }}</label>
+              <select name="group_by">
+                {% set gb = report.get('query_params',{}).get('group_by','day') %}
+                <option value="day"     {{ 'selected' if gb=='day' }}>{{ _('rpt_groupby_day') }}</option>
+                <option value="week"    {{ 'selected' if gb=='week' }}>{{ _('rpt_groupby_week') }}</option>
+                <option value="month"   {{ 'selected' if gb=='month' }}>{{ _('rpt_groupby_month') }}</option>
+                <option value="user"    {{ 'selected' if gb=='user' }}>{{ _('rpt_groupby_user') }}</option>
+                <option value="printer" {{ 'selected' if gb=='printer' }}>{{ _('rpt_groupby_printer') }}</option>
+                <option value="site"    {{ 'selected' if gb=='site' }}>{{ _('rpt_groupby_site') }}</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- cost_report: Kosten + Gruppierung -->
+          <div class="qp-group" id="qp-cost_report">
+            <div class="form-group">
+              <label>{{ _('rpt_group') }}</label>
+              <select name="group_by">
+                {% set gb = report.get('query_params',{}).get('group_by','user') %}
+                <option value="user"    {{ 'selected' if gb=='user' }}>{{ _('rpt_groupby_user') }}</option>
+                <option value="printer" {{ 'selected' if gb=='printer' }}>{{ _('rpt_groupby_printer') }}</option>
+                <option value="site"    {{ 'selected' if gb=='site' }}>{{ _('rpt_groupby_site') }}</option>
+                <option value="month"   {{ 'selected' if gb=='month' }}>{{ _('rpt_groupby_month') }}</option>
+              </select>
+            </div>
+            <label>{{ _('rpt_cost_params') }}</label>
+            <div class="cost-grid">
+              <div class="form-group" style="margin:0;">
+                <label style="font-weight:400;">{{ _('rpt_cost_sheet') }}</label>
+                <input type="number" name="cost_per_sheet" step="0.001" min="0"
+                       value="{{ report.get('query_params',{}).get('cost_per_sheet', 0.01) }}">
+              </div>
+              <div class="form-group" style="margin:0;">
+                <label style="font-weight:400;">{{ _('rpt_cost_mono') }}</label>
+                <input type="number" name="cost_per_mono" step="0.001" min="0"
+                       value="{{ report.get('query_params',{}).get('cost_per_mono', 0.02) }}">
+              </div>
+              <div class="form-group" style="margin:0;">
+                <label style="font-weight:400;">{{ _('rpt_cost_color') }}</label>
+                <input type="number" name="cost_per_color" step="0.001" min="0"
+                       value="{{ report.get('query_params',{}).get('cost_per_color', 0.08) }}">
+              </div>
+            </div>
+          </div>
+
+          <!-- top_users / top_printers: Limit -->
+          <div class="qp-group" id="qp-top_users">
+            <div class="form-group" style="margin-bottom:0;">
+              <label>{{ _('rpt_limit') }}</label>
+              <input type="number" name="limit" min="1" max="100"
+                     value="{{ report.get('query_params',{}).get('limit', 10) }}">
+            </div>
+          </div>
+
+          <!-- anomalies -->
+          <div class="qp-group" id="qp-anomalies">
+            <p style="color:#6b7280;font-size:.88em;margin:0;">
+              ℹ️ {{ _('rpt_anomaly_hint') }}
+            </p>
+          </div>
+
+          <!-- v6.3.0 — user_detail / user_copy_detail / user_scan_detail -->
+          <div class="qp-group" id="qp-user_detail">
+            <div class="form-group" style="margin-bottom:0;">
+              <label>{{ _('rpt_user_email') }}</label>
+              <input type="email" name="user_email" autocomplete="off"
+                     placeholder="max@firma.de"
+                     value="{{ report.get('query_params',{}).get('user_email','') }}">
+              <small class="hint">{{ _('rpt_user_email_hint') }}</small>
+            </div>
+          </div>
+
+          <!-- v3.8.0 — sensitive_documents: Keyword-Sets + Freitext -->
+          <div class="qp-group" id="qp-sensitive_documents">
+            {% set _sens_sets = report.get('query_params',{}).get('keyword_sets', []) %}
+            {% set _sens_custom = report.get('query_params',{}).get('custom_keywords', []) %}
+            {% set _sens_scans = report.get('query_params',{}).get('include_scans', True) %}
+            {% set _sens_keys = ['hr','finance','confidential','health','legal','pii'] %}
+
+            <div class="form-group">
+              <label>{{ _('rpt_sensitive_keyword_sets') }}</label>
+              <div style="display:flex;flex-wrap:wrap;gap:10px 18px;">
+                {% for k in _sens_keys %}
+                <label class="fmt-item" style="font-size:.9em;">
+                  <input type="checkbox" name="keyword_sets_cb" value="{{ k }}"
+                         {{ 'checked' if k in _sens_sets else '' }}>
+                  {{ _('sens_kw_set_' + k) }}
+                </label>
+                {% endfor %}
+              </div>
+              <!-- Hidden field vom JS bef\u00fcllt (CSV aus Checkboxen) -->
+              <input type="hidden" name="keyword_sets" id="sens_keyword_sets_hidden"
+                     value="{{ _sens_sets | join(',') }}">
+              <small class="hint">{{ _('rpt_sensitive_keyword_sets_hint') }}</small>
+            </div>
+
+            <div class="form-group">
+              <label>{{ _('rpt_sensitive_custom_keywords') }}</label>
+              <input type="text" name="custom_keywords"
+                     value="{{ _sens_custom | join(', ') }}"
+                     placeholder="{{ _('rpt_sensitive_custom_keywords_placeholder') }}">
+              <small class="hint">{{ _('rpt_sensitive_custom_keywords_hint') }}</small>
+            </div>
+
+            <div class="form-group" style="margin-bottom:0;">
+              <label class="fmt-item" style="font-size:.9em;">
+                <input type="checkbox" name="include_scans" value="1"
+                       {{ 'checked' if _sens_scans else '' }}>
+                {{ _('rpt_sensitive_include_scans') }}
+              </label>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- ── 3. Ausgabe & Empfänger ─────────────────────────────────────── -->
+      <div class="form-section">
+        <div class="form-section-header">{{ _('rpt_sect_output') }}</div>
+        <div class="form-section-body">
+
+          <div class="form-group">
+            <label>{{ _('rpt_formats') }}</label>
+            <div class="fmt-row">
+              <label class="fmt-item">
+                <input type="checkbox" name="fmt_html" value="1"
+                       {{ 'checked' if 'html' in report.get('output_formats', ['html']) else '' }}>
+                📧 {{ _('rpt_fmt_html') }}
+              </label>
+              <label class="fmt-item">
+                <input type="checkbox" name="fmt_csv" value="1"
+                       {{ 'checked' if 'csv' in report.get('output_formats', []) else '' }}>
+                📊 {{ _('rpt_fmt_csv') }}
+              </label>
+              <label class="fmt-item">
+                <input type="checkbox" name="fmt_json" value="1"
+                       {{ 'checked' if 'json' in report.get('output_formats', []) else '' }}>
+                {} {{ _('rpt_fmt_json') }}
+              </label>
+              <label class="fmt-item">
+                <input type="checkbox" name="fmt_pdf" value="1"
+                       {{ 'checked' if 'pdf' in report.get('output_formats', []) else '' }}>
+                📄 {{ _('rpt_fmt_pdf') }}
+              </label>
+              <label class="fmt-item">
+                <input type="checkbox" name="fmt_xlsx" value="1"
+                       {{ 'checked' if 'xlsx' in report.get('output_formats', []) else '' }}>
+                📗 {{ _('rpt_fmt_xlsx') }}
+              </label>
+            </div>
+            <small class="hint">{{ _('rpt_formats_hint') }}</small>
+          </div>
+
+          <div class="form-group">
+            <label>{{ _('rpt_recipients') }}</label>
+            <input type="text" name="recipients"
+                   value="{{ report.recipients | join(', ') if report.recipients else '' }}"
+                   placeholder='max@firma.de, "Max Mustermann" <max@firma.de>'>
+            <small class="hint">{{ _('rpt_recipients_hint') }}</small>
+          </div>
+
+          <div class="form-group">
+            <label>{{ _('rpt_company') }} <small class="hint" style="display:inline;">({{ _('rpt_company_hint') }})</small></label>
+            <input type="text" name="company_name"
+                   value="{{ report.get('layout',{}).get('company_name','') }}"
+                   placeholder="{{ _('rpt_company_placeholder') }}">
+          </div>
+
+          <div class="form-group">
+            <label>{{ _('rpt_logo') }}</label>
+            {% set _logo_b64 = report.get('layout',{}).get('logo_base64','') %}
+            {% set _logo_mime = report.get('layout',{}).get('logo_mime','image/png') %}
+            {% set _logo_url  = report.get('layout',{}).get('logo_url','') %}
+            {% if _logo_b64 %}
+              {% set _logo_src = 'data:' + _logo_mime + ';base64,' + _logo_b64 %}
+            {% else %}
+              {% set _logo_src = _logo_url %}
+            {% endif %}
+
+            <input type="file" id="logoFileInput" accept="image/png,image/jpeg,image/gif,image/svg+xml,image/webp"
+                   onchange="handleLogoSelect(this)">
+
+            <!-- Hidden Felder: werden vom JS bef\u00fcllt oder behalten den Bestand -->
+            <input type="hidden" name="logo_base64" id="logoBase64Field" value="{{ _logo_b64 }}">
+            <input type="hidden" name="logo_mime"   id="logoMimeField"   value="{{ _logo_mime }}">
+            <input type="hidden" name="logo_url"    id="logoUrlField"    value="{{ _logo_url }}">
+            <input type="hidden" name="logo_remove" id="logoRemoveField" value="">
+
+            <small class="hint">{{ _('rpt_logo_hint') }}</small>
+
+            <div id="logoPreviewWrap" style="margin-top:10px; {{ 'display:none;' if not _logo_src else '' }}">
+              <img id="logoPreview" class="logo-preview"
+                   src="{{ _logo_src }}"
+                   alt="{{ _('reports_logo_preview_alt') }}"
+                   style="display:{{ 'inline-block' if _logo_src else 'none' }}"
+                   onerror="this.style.display='none'">
+              <button type="button" class="btn btn-secondary btn-sm"
+                      style="margin-left:10px;vertical-align:middle;"
+                      onclick="removeLogo()">{{ _('rpt_logo_remove') }}</button>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>{{ _('rpt_color') }}</label>
+            <div class="color-row">
+              <input type="color" name="primary_color"
+                     value="{{ report.get('layout',{}).get('primary_color','#0078D4') }}"
+                     id="colorPicker"
+                     oninput="document.getElementById('colorHex').value=this.value">
+              <input type="text" id="colorHex"
+                     value="{{ report.get('layout',{}).get('primary_color','#0078D4') }}"
+                     style="width:100px;"
+                     oninput="document.getElementById('colorPicker').value=this.value">
+            </div>
+          </div>
+
+          <div class="form-group" style="margin-bottom:0;">
+            <label>{{ _('rpt_footer') }} <small class="hint" style="display:inline;">({{ _('rpt_footer_hint') }})</small></label>
+            <input type="text" name="footer_text"
+                   value="{{ report.get('layout',{}).get('footer_text','') }}"
+                   placeholder="{{ _('rpt_footer_placeholder') }}">
+          </div>
+
+        </div>
+      </div>
+
+      <!-- ── 4. Automatisierung / Schedule ──────────────────────────────── -->
+      <div class="form-section">
+        <div class="form-section-header">{{ _('rpt_sect_schedule') }}</div>
+        <div class="form-section-body">
+          <label class="fmt-item" style="font-size:.95em;">
+            <input type="checkbox" name="schedule_enabled" id="schedToggle" value="1"
+                   onchange="toggleSchedule(this.checked)"
+                   {{ 'checked' if report.schedule else '' }}>
+            {{ _('rpt_sched_enable') }}
+          </label>
+
+          <div class="schedule-body {{ 'open' if report.schedule else '' }}" id="schedBody">
+            <div class="sched-grid">
+              <div class="form-group" style="margin:0;">
+                <label>{{ _('rpt_sched_freq') }}</label>
+                <select name="freq" id="freqSelect" onchange="toggleSchedDay()">
+                  {% set sched = report.schedule or {} %}
+                  <option value="daily"   {{ 'selected' if sched.get('frequency')=='daily' }}>{{ _('rpt_sched_daily') }}</option>
+                  <option value="weekly"  {{ 'selected' if sched.get('frequency')=='weekly' }}>{{ _('rpt_sched_weekly') }}</option>
+                  <option value="monthly" {{ 'selected' if sched.get('frequency','monthly')=='monthly' }}>{{ _('rpt_sched_monthly') }}</option>
+                </select>
+              </div>
+              <div class="form-group" style="margin:0;" id="dayGroup">
+                <label id="dayLabel">{{ _('rpt_sched_day') }}</label>
+                <input type="number" name="sched_day" id="schedDay" min="0" max="28"
+                       value="{{ sched.get('day', 1) }}">
+              </div>
+              <div class="form-group" style="margin:0;">
+                <label>{{ _('rpt_sched_time') }}</label>
+                <input type="time" name="sched_time"
+                       value="{{ sched.get('time', '08:00') }}">
+              </div>
+            </div>
+            <small class="hint">{{ _('rpt_sched_hint') }}</small>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Buttons ───────────────────────────────────────────────────────── -->
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">
+          {{ _('rpt_save_edit') if is_edit else _('rpt_save_new') }}
+        </button>
+        <a href="/reports" class="btn btn-secondary">{{ _('cancel') }}</a>
+      </div>
+
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+const I18N = {
+  sched_day:     "{{ _('rpt_sched_day') }}",
+  sched_weekday: "{{ _('rpt_sched_weekday') }}",
+};
+
+const QP_GROUPS = {
+  // Stufe 1
+  "print_stats":          ["qp-print_stats"],
+  "trend":                ["qp-print_stats"],
+  "cost_report":          ["qp-cost_report"],
+  "top_users":            ["qp-top_users"],
+  "top_printers":         ["qp-top_users"],
+  "anomalies":            ["qp-anomalies"],
+  // Stufe 2 \u2014 nutzen Preset-qp \u00fcber preset_qp_json, daher keine Widgets
+  "printer_history":      [],
+  "device_readings":      [],
+  "job_history":          [],
+  "queue_stats":          [],
+  "user_detail":          ["qp-user_detail"],
+  "user_copy_detail":     ["qp-user_detail"],
+  "user_scan_detail":     ["qp-user_detail"],
+  "workstation_overview": [],
+  "workstation_detail":   [],
+  "tree_meter":           [],
+  "service_desk":         [],
+  // v3.8.0
+  "sensitive_documents":  ["qp-sensitive_documents"],
+  // v3.8.1+
+  "hour_dow_heatmap":     [],
+  // v3.9.0
+  "audit_log":            [],
+  "off_hours_print":      [],
+};
+
+function switchQueryType(val) {
+  document.querySelectorAll(".qp-group").forEach(el => el.classList.remove("active"));
+  (QP_GROUPS[val] || []).forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.classList.add("active");
+  });
+}
+
+function toggleSchedule(checked) {
+  document.getElementById("schedBody").classList.toggle("open", checked);
+}
+
+function toggleSchedDay() {
+  const freq = document.getElementById("freqSelect").value;
+  const dayLabel = document.getElementById("dayLabel");
+  const dayInput = document.getElementById("schedDay");
+  const dayGroup = document.getElementById("dayGroup");
+  if (freq === "weekly") {
+    dayLabel.textContent = I18N.sched_weekday;
+    dayInput.min = 0; dayInput.max = 6;
+    if (dayInput.value > 6) dayInput.value = 0;
+    dayGroup.style.display = "";
+  } else if (freq === "daily") {
+    dayGroup.style.display = "none";
+    return;
+  } else {
+    dayLabel.textContent = I18N.sched_day;
+    dayInput.min = 1; dayInput.max = 28;
+    if (dayInput.value < 1) dayInput.value = 1;
+    dayGroup.style.display = "";
+  }
+}
+
+function handleDatePreset(which) {
+  const preset = document.getElementById(which + "_preset").value;
+  const hiddenField = document.getElementById(which + "_date_hidden");
+  const customRow   = document.getElementById("customDateRow");
+  const startPreset = document.getElementById("start_preset").value;
+  const endPreset   = document.getElementById("end_preset").value;
+
+  if (preset === "__custom__") {
+    customRow.classList.remove("hidden");
+    const customVal = document.getElementById(which + "_custom").value;
+    hiddenField.value = customVal || "";
+  } else {
+    hiddenField.value = preset;
+    if (startPreset !== "__custom__" && endPreset !== "__custom__") {
+      customRow.classList.add("hidden");
+    }
+  }
+}
+
+function syncCustomDate(which) {
+  const val = document.getElementById(which + "_custom").value;
+  document.getElementById(which + "_date_hidden").value = val || "";
+}
+
+// ── Logo-Upload (Client-Side Base64) ─────────────────────────────────────
+// Maximale Dateigr\u00f6\u00dfe f\u00fcr das Logo (roh, vor Base64):
+// 512 KB reichen f\u00fcr jedes sinnvolle Report-Logo; base64 ~= 683 KB < 1 MB Form-Limit
+const LOGO_MAX_BYTES = 512 * 1024;
+
+function handleLogoSelect(input) {
+  const file = input.files && input.files[0];
+  if (!file) return;
+
+  if (!/^image\//.test(file.type)) {
+    alert((I18N && I18N.logo_err_type) || "{{ _('reports_logo_error_type') }}");
+    input.value = "";
+    return;
+  }
+  if (file.size > LOGO_MAX_BYTES) {
+    alert((I18N && I18N.logo_err_size) || "{{ _('reports_logo_error_size') }}");
+    input.value = "";
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = function(ev) {
+    // ev.target.result = "data:image/png;base64,iVBOR..."
+    const dataUri = String(ev.target.result || "");
+    const m = dataUri.match(/^data:([^;]+);base64,(.+)$/);
+    if (!m) return;
+    const mime = m[1];
+    const b64  = m[2];
+    document.getElementById("logoBase64Field").value = b64;
+    document.getElementById("logoMimeField").value   = mime;
+    // Neu hochgeladenes Logo ersetzt die alte URL
+    document.getElementById("logoUrlField").value    = "";
+    document.getElementById("logoRemoveField").value = "";
+
+    const img = document.getElementById("logoPreview");
+    const wrap = document.getElementById("logoPreviewWrap");
+    img.src = dataUri;
+    img.style.display = "inline-block";
+    wrap.style.display = "";
+  };
+  reader.readAsDataURL(file);
+}
+
+function removeLogo() {
+  document.getElementById("logoBase64Field").value = "";
+  document.getElementById("logoMimeField").value   = "image/png";
+  document.getElementById("logoUrlField").value    = "";
+  document.getElementById("logoRemoveField").value = "1";
+  document.getElementById("logoFileInput").value   = "";
+  document.getElementById("logoPreviewWrap").style.display = "none";
+  document.getElementById("logoPreview").style.display = "none";
+}
+
+function prepareLogoBeforeSubmit() {
+  // Defensiv: falls User weder File gew\u00e4hlt noch Remove geklickt hat,
+  // einfach die bestehenden Hidden-Werte \u00fcbernehmen (kein Handling n\u00f6tig).
+  return true;
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  const qt = document.getElementById("query_type_select");
+  if (qt) switchQueryType(qt.value);
+  toggleSchedDay();
+
+  ["start", "end"].forEach(w => {
+    const el = document.getElementById(w + "_custom");
+    if (el) el.addEventListener("input", () => syncCustomDate(w));
+  });
+
+  // Logo-Preview: Bestand wird schon beim Render gesetzt (siehe Template),
+  // hier nichts weiter zu tun — handleLogoSelect \u00fcbernimmt neue Uploads.
+
+  document.querySelector("form").addEventListener("submit", () => {
+    ["start", "end"].forEach(w => {
+      const preset = document.getElementById(w + "_preset").value;
+      if (preset === "__custom__") {
+        const customVal = document.getElementById(w + "_custom").value;
+        document.getElementById(w + "_date_hidden").value = customVal || "";
+      } else {
+        document.getElementById(w + "_date_hidden").value = preset;
+      }
+    });
+
+    // v3.8.0 — sensitive_documents: Checkbox-Auswahl in Hidden-CSV schreiben
+    const cbNodes = document.querySelectorAll('input[name="keyword_sets_cb"]:checked');
+    const hidden = document.getElementById("sens_keyword_sets_hidden");
+    if (hidden) {
+      hidden.value = Array.from(cbNodes).map(cb => cb.value).join(",");
+    }
+  });
+});
+</script>
+{% endblock %}

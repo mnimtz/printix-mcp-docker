@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+{% block title %}{{ _('logs_title') }} — {{ _('brand_console_name') }}{% endblock %}
+{% block content %}
+<div class="container">
+  <div class="card">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:16px;">
+      <h2 class="section-title" style="margin:0;">📋 {{ _('logs_title') }}</h2>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+
+        <!-- Auto-Refresh Toggle -->
+        <button id="btn-refresh" onclick="toggleAutoRefresh()"
+                class="btn btn-secondary" style="padding:4px 12px;font-size:.82em;">
+          ⟳ {{ _('logs_auto_refresh') }}
+        </button>
+
+        <!-- Clear -->
+        <button onclick="clearLogs()" class="btn"
+                style="background:#ef4444;color:#fff;padding:4px 12px;font-size:.82em;border:none;border-radius:6px;cursor:pointer;">
+          🗑 {{ _('logs_clear') }}
+        </button>
+      </div>
+    </div>
+
+    <!-- Level Filter -->
+    <div style="margin-bottom:10px;display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
+      <span style="font-size:.8em;color:#6b7280;font-weight:600;margin-right:4px;">Level:</span>
+      {% for lvl in levels %}
+      <a href="/logs?min_level={{ lvl }}&amp;category={{ category }}"
+         class="btn {% if min_level == lvl %}btn-primary{% else %}btn-secondary{% endif %}"
+         style="padding:3px 10px;font-size:.78em;">
+        {{ lvl }}
+      </a>
+      {% endfor %}
+    </div>
+
+    <!-- Category Filter -->
+    <div style="margin-bottom:14px;display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
+      <span style="font-size:.8em;color:#6b7280;font-weight:600;margin-right:4px;">{{ _('logs_category') }}:</span>
+      {% for cat in categories %}
+      <a href="/logs?min_level={{ min_level }}&amp;category={{ cat }}"
+         class="btn {% if category == cat %}btn-primary{% else %}btn-secondary{% endif %}"
+         style="padding:3px 10px;font-size:.78em;">
+        {% if cat == "" %}All{% elif cat == "PRINTIX_API" %}Printix API{% elif cat == "SQL" %}SQL{% elif cat == "AUTH" %}Auth{% else %}{{ cat }}{% endif %}
+      </a>
+      {% endfor %}
+    </div>
+
+    <!-- Stats row -->
+    <div style="font-size:.82em;color:#6b7280;margin-bottom:12px;">
+      {{ entries|length }} {{ _('logs_entries') }}
+      · {{ _('logs_filter_active') }}: <strong>{{ min_level }}+</strong>
+      {% if category %}· <strong>{{ category }}</strong>{% endif %}
+      <span id="refresh-indicator" style="display:none;margin-left:12px;color:#2563eb;">
+        ⟳ {{ _('logs_auto_refresh') }}…
+      </span>
+    </div>
+
+    {% if entries %}
+    <div style="overflow-x:auto;">
+      <table style="width:100%;border-collapse:collapse;font-size:.85em;">
+        <thead>
+          <tr style="background:#f1f5f9;text-align:left;">
+            <th style="padding:8px 10px;white-space:nowrap;">{{ _('logs_time') }}</th>
+            <th style="padding:8px 10px;">{{ _('logs_level') }}</th>
+            <th style="padding:8px 10px;">{{ _('logs_category') }}</th>
+            <th style="padding:8px 10px;width:100%;">{{ _('logs_message') }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for e in entries %}
+          <tr style="border-top:1px solid #e5e7eb;{% if e.level == 'ERROR' or e.level == 'CRITICAL' %}background:#fef2f2;{% elif e.level == 'WARNING' %}background:#fffbeb;{% endif %}">
+            <td style="padding:6px 10px;white-space:nowrap;color:#6b7280;font-family:monospace;font-size:.8em;">
+              {{ e.timestamp[:19] | replace('T',' ') }}
+            </td>
+            <td style="padding:6px 10px;white-space:nowrap;">
+              <span style="
+                display:inline-block;padding:1px 7px;border-radius:10px;font-size:.78em;font-weight:700;
+                {% if e.level == 'ERROR' or e.level == 'CRITICAL' %}background:#fee2e2;color:#b91c1c;
+                {% elif e.level == 'WARNING' %}background:#fef3c7;color:#92400e;
+                {% elif e.level == 'INFO' %}background:#dbeafe;color:#1d4ed8;
+                {% else %}background:#f3f4f6;color:#6b7280;{% endif %}
+              ">{{ e.level }}</span>
+            </td>
+            <td style="padding:6px 10px;white-space:nowrap;font-size:.8em;">
+              <a href="/logs?min_level={{ min_level }}&amp;category={{ e.category }}"
+                 style="color:#374151;text-decoration:none;border-bottom:1px dotted #94a3b8;"
+                 title="Filter by {{ e.category }}">{{ e.category }}</a>
+            </td>
+            <td style="padding:6px 10px;font-family:monospace;font-size:.8em;word-break:break-word;color:#111827;">
+              {{ e.message }}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="alert alert-info">
+      {{ _('logs_empty') }}
+    </div>
+    {% endif %}
+
+    <div style="margin-top:20px;">
+      <a href="/dashboard" class="btn btn-secondary">← {{ _('nav_dashboard') }}</a>
+    </div>
+  </div>
+</div>
+
+<script>
+let _refreshTimer = null;
+
+function toggleAutoRefresh() {
+  const btn = document.getElementById('btn-refresh');
+  const ind = document.getElementById('refresh-indicator');
+  if (_refreshTimer) {
+    clearInterval(_refreshTimer);
+    _refreshTimer = null;
+    btn.style.background = '';
+    btn.style.color = '';
+    ind.style.display = 'none';
+  } else {
+    _refreshTimer = setInterval(() => { location.reload(); }, 10000);
+    btn.style.background = '#2563eb';
+    btn.style.color = '#fff';
+    ind.style.display = 'inline';
+  }
+}
+
+async function clearLogs() {
+  if (!confirm('{{ _("logs_clear_confirm") }}')) return;
+  const r = await fetch('/logs/clear', { method: 'POST' });
+  const d = await r.json();
+  if (d.ok) { location.reload(); }
+  else { alert('Error: ' + d.error); }
+}
+</script>
+{% endblock %}

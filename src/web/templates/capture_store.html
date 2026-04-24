@@ -1,0 +1,280 @@
+{% extends "base.html" %}
+{% block title %}{{ _('cap_title') }} — {{ _('brand_console_name') }}{% endblock %}
+
+{% block extra_head %}
+<style>
+  .cap-hero {
+    background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #a78bfa 100%);
+    color: #fff; border-radius: 16px; padding: 32px 36px; margin-bottom: 28px;
+    position: relative; overflow: hidden;
+  }
+  .cap-hero::before {
+    content: ''; position: absolute; top: -40px; right: -40px;
+    width: 180px; height: 180px; border-radius: 50%;
+    background: rgba(255,255,255,.08);
+  }
+  .cap-hero h1 { font-size: 1.5em; font-weight: 800; margin-bottom: 6px; }
+  .cap-hero p { opacity: .85; font-size: .92em; max-width: 520px; }
+
+  /* KPI Bar */
+  .cap-kpi { display: flex; gap: 16px; margin-bottom: 28px; flex-wrap: wrap; }
+  .cap-kpi-tile {
+    flex: 1; min-width: 140px; background: #fff; border-radius: 12px;
+    padding: 18px 20px; box-shadow: 0 2px 10px rgba(0,0,0,.06);
+    text-align: center;
+  }
+  .cap-kpi-tile .num { font-size: 1.8em; font-weight: 800; color: #6366f1; }
+  .cap-kpi-tile .lbl { font-size: .82em; color: #6b7280; margin-top: 2px; }
+
+  /* Plugin Cards (Store) */
+  .cap-plugins { margin-bottom: 32px; }
+  .cap-plugins h2 { font-size: 1.1em; font-weight: 700; color: #1e3a5f; margin-bottom: 14px; }
+  .plugin-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
+  .plugin-card {
+    background: #fff; border-radius: 12px; padding: 22px 24px;
+    box-shadow: 0 2px 10px rgba(0,0,0,.06); border-left: 4px solid var(--pc);
+    transition: transform .15s, box-shadow .15s; cursor: pointer;
+    text-decoration: none; color: inherit; display: block;
+  }
+  .plugin-card:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,0,0,.1); }
+  .plugin-card .pc-icon { font-size: 1.6em; margin-bottom: 8px; }
+  .plugin-card .pc-name { font-size: 1em; font-weight: 700; color: #1e3a5f; }
+  .plugin-card .pc-desc { font-size: .82em; color: #6b7280; margin-top: 4px; line-height: 1.4; }
+  .plugin-card .pc-btn {
+    display: inline-block; margin-top: 12px; padding: 6px 16px;
+    background: var(--pc); color: #fff; border-radius: 6px;
+    font-size: .82em; font-weight: 600;
+  }
+
+  /* Profile List */
+  .cap-profiles h2 { font-size: 1.1em; font-weight: 700; color: #1e3a5f; margin-bottom: 14px; }
+  .profile-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; }
+  .profile-card {
+    background: #fff; border-radius: 12px; padding: 22px 24px;
+    box-shadow: 0 2px 10px rgba(0,0,0,.06); position: relative;
+  }
+  .profile-card.inactive { opacity: .6; }
+  .pc-header { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+  .pc-header .pc-dot {
+    width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
+  }
+  .pc-dot.active { background: #16a34a; }
+  .pc-dot.inactive { background: #9ca3af; }
+  .pc-header .pc-title { font-size: 1em; font-weight: 700; color: #1e3a5f; }
+  .pc-header .pc-type {
+    font-size: .72em; background: #f1f5f9; color: #6366f1;
+    padding: 2px 8px; border-radius: 4px; font-weight: 600;
+  }
+  .pc-info { font-size: .82em; color: #6b7280; margin-bottom: 4px; }
+  .pc-info code {
+    background: #f1f5f9; padding: 1px 6px; border-radius: 4px;
+    font-size: .9em; word-break: break-all;
+  }
+
+  /* Webhook URL box */
+  .webhook-url {
+    background: #1e293b; color: #e2e8f0; padding: 8px 12px;
+    border-radius: 6px; font-family: monospace; font-size: .78em;
+    margin: 10px 0; word-break: break-all; position: relative;
+  }
+  .webhook-url .copy-btn {
+    position: absolute; top: 4px; right: 4px;
+    background: rgba(255,255,255,.1); color: #e2e8f0;
+    border: none; border-radius: 4px; padding: 2px 8px;
+    font-size: .75em; cursor: pointer;
+  }
+
+  /* Action buttons */
+  .pc-actions { display: flex; gap: 6px; margin-top: 14px; flex-wrap: wrap; }
+  .pc-actions form { display: inline; }
+  .pc-actions .btn { padding: 5px 12px; font-size: .8em; }
+  .btn-test { background: #8b5cf6; color: #fff; }
+  .btn-test:hover { background: #7c3aed; }
+  .btn-toggle { background: #f1f5f9; color: #374151; }
+  .btn-toggle:hover { background: #e2e8f0; }
+
+  /* Test result toast */
+  .test-toast {
+    position: fixed; bottom: 20px; right: 20px; z-index: 1000;
+    padding: 14px 24px; border-radius: 10px; font-size: .9em;
+    box-shadow: 0 6px 24px rgba(0,0,0,.2); transition: opacity .3s;
+    max-width: 400px;
+  }
+  .test-toast.ok { background: #16a34a; color: #fff; }
+  .test-toast.err { background: #ef4444; color: #fff; }
+
+  /* Empty state */
+  .cap-empty {
+    text-align: center; padding: 48px 20px; color: #9ca3af;
+  }
+  .cap-empty .icon { font-size: 3em; margin-bottom: 12px; }
+  .cap-empty p { font-size: .95em; }
+
+  @media (max-width: 768px) {
+    .cap-hero { padding: 22px 18px; }
+    .cap-hero h1 { font-size: 1.2em; }
+    .plugin-grid, .profile-grid { grid-template-columns: 1fr; }
+    .cap-kpi { gap: 10px; }
+    .cap-kpi-tile { min-width: 100px; padding: 12px 10px; }
+    .cap-kpi-tile .num { font-size: 1.4em; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+
+  <!-- Hero -->
+  <div class="cap-hero">
+    <h1>📥 {{ _('cap_title') }}</h1>
+    <p>{{ _('cap_subtitle') }}</p>
+  </div>
+
+  {% if not webhook_base_configured %}
+  <!-- Warning: public_url not configured -->
+  <div style="background: #fef3c7; border: 1px solid #f59e0b; border-radius: 10px; padding: 16px 20px; margin-bottom: 20px; display: flex; align-items: flex-start; gap: 12px;">
+    <span style="font-size: 1.4em;">⚠️</span>
+    <div>
+      <strong style="color: #92400e;">{{ _('capture_webhook_missing_title') }}</strong>
+      <p style="color: #78350f; font-size: .88em; margin: 4px 0 0;">
+        {{ _('capture_webhook_missing_body') | safe }}
+      </p>
+    </div>
+  </div>
+  {% elif capture_separate %}
+  <!-- Info: Capture runs on separate endpoint -->
+  <div style="background: #ecfdf5; border: 1px solid #10b981; border-radius: 10px; padding: 16px 20px; margin-bottom: 20px; display: flex; align-items: flex-start; gap: 12px;">
+    <span style="font-size: 1.4em;">&#x2705;</span>
+    <div>
+      <strong style="color: #065f46;">{{ _('capture_webhook_separate_title') }}</strong>
+      <p style="color: #047857; font-size: .88em; margin: 4px 0 0;">
+        {{ _('capture_webhook_separate_body', value=webhook_base) | safe }}
+      </p>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- KPI Bar -->
+  <div class="cap-kpi">
+    <div class="cap-kpi-tile">
+      <div class="num">{{ profiles_count }}</div>
+      <div class="lbl">{{ _('cap_kpi_profiles') }}</div>
+    </div>
+    <div class="cap-kpi-tile">
+      <div class="num">{{ active_count }}</div>
+      <div class="lbl">{{ _('cap_kpi_active') }}</div>
+    </div>
+    <div class="cap-kpi-tile">
+      <div class="num">{{ plugins | length }}</div>
+      <div class="lbl">{{ _('cap_kpi_plugins') }}</div>
+    </div>
+  </div>
+
+  <!-- Available Plugins -->
+  <div class="cap-plugins">
+    <h2>{{ _('cap_available_plugins') }}</h2>
+    <div class="plugin-grid">
+      {% for p in plugins %}
+      <a href="/capture/new?plugin={{ p.id }}" class="plugin-card" style="--pc: {{ p.color }}">
+        <div class="pc-icon">{{ p.icon }}</div>
+        <div class="pc-name">{{ p.name }}</div>
+        <div class="pc-desc">{{ _('cap_plugin_desc_' + p.id) }}</div>
+        <span class="pc-btn">+ {{ _('cap_add_profile') }}</span>
+      </a>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- Profile List -->
+  <div class="cap-profiles">
+    <h2>{{ _('cap_my_profiles') }} ({{ profiles_count }})</h2>
+
+    {% if profiles %}
+    <div class="profile-grid">
+      {% for p in profiles %}
+      <div class="profile-card {% if not p.is_active %}inactive{% endif %}">
+        <div class="pc-header">
+          <span class="pc-dot {% if p.is_active %}active{% else %}inactive{% endif %}"></span>
+          <span class="pc-title">{{ p.name }}</span>
+          <span class="pc-type">{{ p.plugin_type | replace('_', '-') }}</span>
+        </div>
+
+        <!-- Plugin-specific info -->
+        {% if p._config.get('paperless_url') %}
+        <div class="pc-info">URL: <code>{{ p._config.paperless_url }}</code></div>
+        {% endif %}
+
+        <!-- Webhook URL -->
+        <div class="pc-info" style="margin-top: 8px; font-weight: 600;">{{ _('cap_webhook_url') }}:</div>
+        <div class="webhook-url" id="wh-{{ p.id[:8] }}">{{ webhook_base }}/capture/webhook/{{ p.id }}<button class="copy-btn" onclick="copyWh('wh-{{ p.id[:8] }}', this)">{{ _('capture_copy') }}</button></div>
+
+        <div class="pc-info">{{ _('cap_created') }}: {{ p.created_at[:10] }}</div>
+
+        <!-- Actions -->
+        <div class="pc-actions">
+          <a href="/capture/{{ p.id }}/edit" class="btn btn-secondary btn-sm">{{ _('cap_btn_edit') }}</a>
+          <form method="POST" action="/capture/{{ p.id }}/toggle">
+            <button type="submit" class="btn btn-toggle btn-sm">
+              {% if p.is_active %}{{ _('cap_btn_deactivate') }}{% else %}{{ _('cap_btn_activate') }}{% endif %}
+            </button>
+          </form>
+          <button class="btn btn-test btn-sm" onclick="testProfile('{{ p.id }}', this)">{{ _('cap_btn_test') }}</button>
+          <form method="POST" action="/capture/{{ p.id }}/delete"
+                onsubmit="return confirm('{{ _('cap_confirm_delete') }}')">
+            <button type="submit" class="btn btn-danger btn-sm">{{ _('cap_btn_delete') }}</button>
+          </form>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="cap-empty">
+      <div class="icon">📥</div>
+      <p>{{ _('cap_empty_state') }}</p>
+    </div>
+    {% endif %}
+  </div>
+
+</div>
+
+<!-- Test Toast -->
+<div class="test-toast" id="testToast" style="display:none;"></div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+function copyWh(id, btn) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const copyLabel = {{ _('capture_copy') | tojson }};
+  const copiedLabel = {{ _('capture_copied') | tojson }};
+  const text = el.textContent.replace(copyLabel, '').trim();
+  navigator.clipboard.writeText(text).then(() => {
+    btn.textContent = copiedLabel;
+    setTimeout(() => btn.textContent = copyLabel, 1500);
+  });
+}
+
+async function testProfile(profileId, btn) {
+  btn.disabled = true;
+  btn.textContent = '...';
+  try {
+    const resp = await fetch('/capture/' + profileId + '/test', {method: 'POST'});
+    const data = await resp.json();
+    showToast(data.ok, data.message);
+  } catch (e) {
+    showToast(false, 'Network error: ' + e.message);
+  }
+  btn.disabled = false;
+  btn.textContent = '{{ _("cap_btn_test") }}';
+}
+
+function showToast(ok, msg) {
+  const t = document.getElementById('testToast');
+  t.className = 'test-toast ' + (ok ? 'ok' : 'err');
+  t.textContent = (ok ? '✓ ' : '✗ ') + msg;
+  t.style.display = 'block';
+  setTimeout(() => { t.style.display = 'none'; }, 5000);
+}
+</script>
+{% endblock %}

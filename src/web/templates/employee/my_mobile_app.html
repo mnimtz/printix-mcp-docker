@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+{% block title %}{{ _('emp_mobile_app') }} — Printix MCP{% endblock %}
+{% block content %}
+<div class="container">
+  <!-- Sub-Navigation -->
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px;">
+    <a href="/my" class="btn btn-secondary" style="font-size:.85em;">{{ _('emp_my_dashboard') }}</a>
+    <a href="/my/jobs" class="btn btn-secondary" style="font-size:.85em;">{{ _('emp_my_jobs') }}</a>
+    <a href="/my/upload" class="btn btn-secondary" style="font-size:.85em;">📤 {{ _('emp_upload_tab') }}</a>
+    <a href="/my/delegation" class="btn btn-secondary" style="font-size:.85em;">{{ _('emp_delegation') }}</a>
+    {% if user.role_type != "employee" %}
+    <a href="/my/cloud-print" class="btn btn-secondary" style="font-size:.85em;">{{ _('emp_cloud_print') }}</a>
+    <a href="/my/send-to" class="btn btn-secondary" style="font-size:.85em;">💻 {{ _('emp_send_to') }}</a>
+    {% endif %}
+    <a href="/my/mobile-app" class="btn btn-primary" style="font-size:.85em;">📱 {{ _('emp_mobile_app') }}</a>
+    {% if user.role_type != 'employee' %}
+    <a href="/my/employees" class="btn btn-secondary" style="font-size:.85em;">{{ _('nav_employees') }}</a>
+    <a href="/my/setup-guide" class="btn btn-secondary" style="font-size:.85em;">{{ _('emp_setup_guide') }}</a>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <div class="section-title">📱 {{ _('emp_mobile_app_title') }}</div>
+    <div class="section-sub">{{ _('emp_mobile_app_intro') }}</div>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:24px;margin-top:20px;align-items:start;">
+
+      <!-- QR-Code-Kachel -->
+      <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;
+                  padding:20px;text-align:center;">
+        <div style="font-size:.95em;font-weight:600;margin-bottom:12px;color:#0f172a;">
+          {{ _('emp_mobile_app_qr_title') }}
+        </div>
+        <img src="/my/mobile-app/qr.png"
+             alt="QR Code"
+             style="width:240px;height:240px;max-width:100%;
+                    border-radius:8px;background:white;padding:8px;
+                    box-shadow:0 2px 6px rgba(0,0,0,.08);" />
+        <div style="font-size:.78em;color:#64748b;margin-top:10px;line-height:1.5;">
+          {{ _('emp_mobile_app_qr_desc') }}
+        </div>
+      </div>
+
+      <!-- Anleitung + manuelle URL -->
+      <div>
+        <div style="font-size:.95em;font-weight:600;margin-bottom:10px;color:#0f172a;">
+          {{ _('emp_mobile_app_how_title') }}
+        </div>
+        <ol style="margin:0 0 18px 20px;padding:0;font-size:.9em;color:#334155;line-height:1.7;">
+          <li>{{ _('emp_mobile_app_step_install') }}</li>
+          <li>{{ _('emp_mobile_app_step_scan') }}</li>
+          <li>{{ _('emp_mobile_app_step_login') }}</li>
+          <li>{{ _('emp_mobile_app_step_target') }}</li>
+        </ol>
+
+        <div style="font-size:.9em;font-weight:600;margin-bottom:6px;color:#0f172a;">
+          {{ _('emp_mobile_app_manual_title') }}
+        </div>
+        <div style="font-size:.85em;color:#334155;margin-bottom:8px;">
+          {{ _('emp_mobile_app_manual_desc') }}
+        </div>
+        <code style="display:block;padding:10px 12px;background:#0f172a;color:#e2e8f0;
+                    border-radius:6px;font-size:.82em;word-break:break-all;">
+          {{ mobile_base_url }}
+        </code>
+      </div>
+    </div>
+  </div>
+
+  <!-- Testflight / Download -->
+  <div class="card" style="margin-top:16px;">
+    <div class="section-title">{{ _('emp_mobile_app_download_title') }}</div>
+    <div class="section-sub">{{ _('emp_mobile_app_download_desc') }}</div>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));
+                gap:24px;margin-top:20px;align-items:start;">
+
+      <!-- TestFlight-Kachel: Button + Hinweis -->
+      <div>
+        <ol style="margin:0 0 14px 20px;padding:0;font-size:.9em;color:#334155;line-height:1.7;">
+          <li>{{ _('emp_mobile_app_tf_step1') | safe }}</li>
+          <li>{{ _('emp_mobile_app_tf_step2') }}</li>
+          <li>{{ _('emp_mobile_app_tf_step3') }}</li>
+        </ol>
+
+        <a href="{{ testflight_url }}"
+           target="_blank" rel="noopener"
+           style="display:inline-flex;align-items:center;gap:10px;
+                  background:#0066ff;color:white;text-decoration:none;
+                  padding:12px 20px;border-radius:10px;font-weight:600;
+                  font-size:.95em;box-shadow:0 2px 8px rgba(0,102,255,.25);">
+          <span style="font-size:1.2em;">📱</span>
+          {{ _('emp_mobile_app_tf_button') }}
+        </a>
+
+        <div style="margin-top:10px;font-size:.8em;color:#64748b;word-break:break-all;">
+          {{ testflight_url }}
+        </div>
+      </div>
+
+      <!-- QR-Kachel fuer den TestFlight-Link (vom Handy scannbar) -->
+      <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;
+                  padding:20px;text-align:center;">
+        <div style="font-size:.9em;font-weight:600;margin-bottom:10px;color:#0f172a;">
+          {{ _('emp_mobile_app_tf_qr_title') }}
+        </div>
+        <img src="/my/mobile-app/testflight-qr.png"
+             alt="TestFlight QR"
+             style="width:220px;height:220px;max-width:100%;
+                    border-radius:8px;background:white;padding:8px;
+                    box-shadow:0 2px 6px rgba(0,0,0,.08);" />
+        <div style="font-size:.78em;color:#64748b;margin-top:10px;line-height:1.5;">
+          {{ _('emp_mobile_app_tf_qr_desc') }}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

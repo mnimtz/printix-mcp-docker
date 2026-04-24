@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+{% block title %}{{ _('emp_delegation') }} — Printix MCP{% endblock %}
+{% block content %}
+<div class="container">
+  <!-- Sub-Navigation -->
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px;">
+    <a href="/my" class="btn btn-secondary" style="font-size:.85em;">{{ _('emp_my_dashboard') }}</a>
+    <a href="/my/jobs" class="btn btn-secondary" style="font-size:.85em;">{{ _('emp_my_jobs') }}</a>
+    <a href="/my/upload" class="btn btn-secondary" style="font-size:.85em;">📤 {{ _('emp_upload_tab') }}</a>
+    <a href="/my/delegation" class="btn btn-primary" style="font-size:.85em;">{{ _('emp_delegation') }}</a>
+    {% if user.role_type != "employee" %}
+    <a href="/my/cloud-print" class="btn btn-secondary" style="font-size:.85em;">{{ _('emp_cloud_print') }}</a>
+    <a href="/my/send-to" class="btn btn-secondary" style="font-size:.85em;">💻 {{ _('emp_send_to') }}</a>
+    {% endif %}
+    <a href="/my/mobile-app" class="btn btn-secondary" style="font-size:.85em;">📱 {{ _('emp_mobile_app') }}</a>
+    {% if user.role_type != 'employee' %}
+    <a href="/my/employees" class="btn btn-secondary" style="font-size:.85em;">{{ _('nav_employees') }}</a>
+    <a href="/my/setup-guide" class="btn btn-secondary" style="font-size:.85em;">{{ _('emp_setup_guide') }}</a>
+    {% endif %}
+  </div>
+
+  {% if flash == 'delegation_added' %}
+    <div class="alert alert-success">{{ _('emp_flash_delegation_added') }}</div>
+  {% elif flash == 'delegation_pending' %}
+    <div class="alert alert-info">{{ _('emp_flash_delegation_pending') }}</div>
+  {% elif flash == 'delegation_removed' %}
+    <div class="alert alert-success">{{ _('emp_flash_delegation_removed') }}</div>
+  {% endif %}
+
+  <!-- Delegate hinzufügen -->
+  {% if available_delegates %}
+  <div class="card">
+    <div class="section-title">{{ _('emp_add_delegate') }}</div>
+    <div class="section-sub">{{ _('emp_add_delegate_desc') }}</div>
+    <form method="post" action="/my/delegation/add"
+          style="display:flex;gap:12px;align-items:end;flex-wrap:wrap;margin-top:12px;">
+      <div style="flex:1;min-width:240px;">
+        <label for="printix_user_id" style="font-size:.85em;font-weight:600;display:block;margin-bottom:4px;">
+          {{ _('emp_select_delegate') }}
+        </label>
+        {# v6.7.14: Delegate-Picker zeigt alle Printix-User des Tenants
+           (cached_printix_users), nicht nur MCP-Employees. #}
+        <select name="printix_user_id" id="printix_user_id" required
+                style="width:100%;padding:8px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:.9em;background:#fff;">
+          <option value="">— {{ _('emp_select_delegate') }} —</option>
+          {% for d in available_delegates %}
+            <option value="{{ d.printix_user_id }}">
+              {{ d.full_name or d.username or d.email }}{% if d.email %} ({{ d.email }}){% endif %}
+              {% if d.role == 'GUEST_USER' %} · Gast{% endif %}
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+      <button type="submit" class="btn btn-primary" style="white-space:nowrap;">
+        ➕ {{ _('emp_add_delegate') }}
+      </button>
+    </form>
+  </div>
+  {% else %}
+  <div class="card">
+    <div class="section-title">{{ _('emp_add_delegate') }}</div>
+    <div class="alert alert-info" style="margin-top:12px;">
+      {{ _('emp_delegate_no_candidates') }}
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Meine Delegates (ausgehend) -->
+  <div class="card" style="margin-top:16px;">
+    <div class="section-title">{{ _('emp_my_delegates') }}</div>
+    <div class="section-sub">{{ _('emp_my_delegates_desc') }}</div>
+
+    {% if delegations_out %}
+    <table style="margin-top:12px;">
+      <thead>
+        <tr>
+          <th>{{ _('emp_delegate_name') }}</th>
+          <th>{{ _('emp_delegate_email') }}</th>
+          <th>{{ _('emp_status') }}</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for d in delegations_out %}
+        <tr>
+          <td>{{ d.delegate_full_name or d.delegate_username }}</td>
+          <td>{{ d.delegate_email }}</td>
+          <td>
+            {% if d.status == 'active' %}
+              <span style="color:#16a34a;font-weight:600;">{{ _('emp_active') }}</span>
+            {% elif d.status == 'pending' %}
+              <span style="color:#d97706;font-weight:600;">{{ _('emp_pending') }}</span>
+            {% endif %}
+          </td>
+          <td>
+            <form method="post" action="/my/delegation/{{ d.id }}/remove"
+                  onsubmit="return confirm('{{ _('emp_confirm_remove') }}');"
+                  style="margin:0;">
+              <button type="submit" class="btn btn-danger" style="font-size:.78em;padding:4px 10px;">
+                {{ _('emp_remove') }}
+              </button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="alert alert-info" style="margin-top:12px;">{{ _('emp_no_delegates') }}</div>
+    {% endif %}
+  </div>
+
+  <!-- Delegiert an mich (eingehend) -->
+  {% if delegations_in %}
+  <div class="card" style="margin-top:16px;">
+    <div class="section-title">{{ _('emp_delegated_to_me') }}</div>
+    <div class="section-sub">{{ _('emp_delegated_to_me_desc') }}</div>
+    <table style="margin-top:12px;">
+      <thead>
+        <tr>
+          <th>{{ _('emp_owner_name') }}</th>
+          <th>{{ _('emp_delegate_email') }}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for d in delegations_in %}
+        <tr>
+          <td>{{ d.owner_full_name or d.owner_username }}</td>
+          <td>{{ d.owner_email }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}

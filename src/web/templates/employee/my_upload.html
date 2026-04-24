@@ -1,0 +1,152 @@
+{% extends "base.html" %}
+{% block title %}{{ _('emp_upload_title') }} — Printix MCP{% endblock %}
+{% block content %}
+<div class="container">
+  <!-- Sub-Navigation -->
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px;">
+    <a href="/my" class="btn btn-secondary" style="font-size:.85em;">{{ _('emp_my_dashboard') }}</a>
+    <a href="/my/jobs" class="btn btn-secondary" style="font-size:.85em;">{{ _('emp_my_jobs') }}</a>
+    <a href="/my/upload" class="btn btn-primary" style="font-size:.85em;">{{ _('emp_upload_tab') }}</a>
+    <a href="/my/delegation" class="btn btn-secondary" style="font-size:.85em;">{{ _('emp_delegation') }}</a>
+    {% if user.role_type != 'employee' %}
+    <a href="/my/cloud-print" class="btn btn-secondary" style="font-size:.85em;">{{ _('emp_cloud_print') }}</a>
+    <a href="/my/send-to" class="btn btn-secondary" style="font-size:.85em;">💻 {{ _('emp_send_to') }}</a>
+    {% endif %}
+    <a href="/my/mobile-app" class="btn btn-secondary" style="font-size:.85em;">📱 {{ _('emp_mobile_app') }}</a>
+    {% if user.role_type != 'employee' %}
+    <a href="/my/employees" class="btn btn-secondary" style="font-size:.85em;">{{ _('nav_employees') }}</a>
+    <a href="/my/setup-guide" class="btn btn-secondary" style="font-size:.85em;">{{ _('emp_setup_guide') }}</a>
+    {% endif %}
+  </div>
+
+  {% if flash == 'upload_ok' %}
+  <div class="alert alert-success">✅ {{ _('emp_upload_flash_ok') | replace('{filename}', uploaded_filename|default('')) }}</div>
+  {% elif flash == 'upload_error' %}
+  <div class="alert alert-danger">❌ {{ _('emp_upload_flash_error') }}: {{ upload_error | default('?') }}</div>
+  {% elif flash == 'upload_no_config' %}
+  <div class="alert alert-warning">⚠ {{ _('emp_upload_no_config') }}</div>
+  {% elif flash == 'upload_no_file' %}
+  <div class="alert alert-warning">⚠ {{ _('emp_upload_no_file') }}</div>
+  {% elif flash == 'upload_too_big' %}
+  <div class="alert alert-danger">❌ {{ _('emp_upload_too_big') }}</div>
+  {% elif flash == 'upload_wrong_type' %}
+  <div class="alert alert-danger">❌ {{ _('emp_upload_wrong_type') }}</div>
+  {% endif %}
+
+  <div class="card">
+    <div class="section-title">📤 {{ _('emp_upload_title') }}</div>
+    <div class="section-sub">{{ _('emp_upload_desc') }}</div>
+
+    <form method="post" action="/my/upload" enctype="multipart/form-data" id="upload-form"
+          style="margin-top:20px;">
+
+      <!-- Drag & Drop Zone -->
+      <label for="file-input" id="drop-zone"
+             style="display:block;padding:40px 20px;border:2px dashed #9ca3af;
+                    border-radius:12px;background:#f9fafb;text-align:center;
+                    cursor:pointer;transition:all .2s ease;">
+        <div style="font-size:3em;line-height:1;margin-bottom:10px;">📄</div>
+        <div style="font-size:1.1em;font-weight:600;color:#374151;" id="drop-zone-label">
+          {{ _('emp_upload_dropzone_text') }}
+        </div>
+        <div style="color:#6b7280;font-size:.88em;margin-top:6px;">
+          {{ _('emp_upload_supported_formats') }}
+        </div>
+        <div id="file-chosen" style="margin-top:14px;color:#059669;font-weight:600;display:none;"></div>
+      </label>
+      <input type="file" id="file-input" name="document"
+             accept=".pdf,.docx,.doc,.xlsx,.xls,.pptx,.ppt,.odt,.ods,.odp,.rtf,.txt,.png,.jpg,.jpeg,.gif,.bmp,.tiff"
+             style="display:none;" required>
+
+      <div style="display:flex;gap:12px;align-items:center;margin-top:16px;flex-wrap:wrap;">
+        <label style="display:flex;align-items:center;gap:6px;">
+          <input type="checkbox" name="color" value="1">
+          <span style="font-size:.9em;">{{ _('emp_upload_color') }}</span>
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;">
+          <input type="checkbox" name="duplex" value="1" checked>
+          <span style="font-size:.9em;">{{ _('emp_upload_duplex') }}</span>
+        </label>
+
+        <div style="display:flex;align-items:center;gap:6px;margin-left:auto;">
+          <label style="font-size:.9em;">{{ _('emp_upload_copies') }}:</label>
+          <input type="number" name="copies" value="1" min="1" max="99"
+                 style="width:70px;padding:4px 8px;border:1px solid #d1d5db;border-radius:4px;">
+        </div>
+      </div>
+
+      <div style="margin-top:20px;display:flex;gap:12px;">
+        <button type="submit" class="btn btn-primary" id="upload-submit" disabled>
+          📨 {{ _('emp_upload_send') }}
+        </button>
+        <button type="button" class="btn btn-secondary" onclick="resetUpload()">
+          {{ _('emp_upload_reset') }}
+        </button>
+      </div>
+
+      {% if target_queue_name %}
+      <div style="margin-top:14px;padding:10px 14px;background:#eff6ff;border-left:3px solid #2563eb;border-radius:6px;font-size:.88em;color:#1e40af;">
+        📮 {{ _('emp_upload_target') }}: <strong>{{ target_queue_name }}</strong>
+      </div>
+      {% endif %}
+    </form>
+
+    <div class="alert alert-info" style="margin-top:20px;font-size:.85em;">
+      💡 <strong>{{ _('emp_upload_info_title') }}</strong>
+      <ul style="margin:6px 0 0 18px;padding:0;">
+        <li>{{ _('emp_upload_info_1') }}</li>
+        <li>{{ _('emp_upload_info_2') }}</li>
+        <li>{{ _('emp_upload_info_3') }}</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  const input = document.getElementById('file-input');
+  const dropZone = document.getElementById('drop-zone');
+  const chosen = document.getElementById('file-chosen');
+  const submit = document.getElementById('upload-submit');
+  const label  = document.getElementById('drop-zone-label');
+
+  function showFile(f){
+    if (!f) { chosen.style.display='none'; submit.disabled=true; return; }
+    chosen.textContent = '✓ ' + f.name + '  (' + (f.size/1024/1024).toFixed(2) + ' MB)';
+    chosen.style.display = 'block';
+    submit.disabled = false;
+  }
+  input.addEventListener('change', function(){
+    showFile(input.files && input.files[0]);
+  });
+
+  // Drag & Drop
+  ['dragenter','dragover'].forEach(function(ev){
+    dropZone.addEventListener(ev, function(e){
+      e.preventDefault(); e.stopPropagation();
+      dropZone.style.background = '#eff6ff';
+      dropZone.style.borderColor = '#2563eb';
+    });
+  });
+  ['dragleave','drop'].forEach(function(ev){
+    dropZone.addEventListener(ev, function(e){
+      e.preventDefault(); e.stopPropagation();
+      dropZone.style.background = '#f9fafb';
+      dropZone.style.borderColor = '#9ca3af';
+    });
+  });
+  dropZone.addEventListener('drop', function(e){
+    const dt = e.dataTransfer;
+    if (dt && dt.files && dt.files[0]) {
+      input.files = dt.files;
+      showFile(dt.files[0]);
+    }
+  });
+
+  window.resetUpload = function(){
+    input.value = '';
+    showFile(null);
+  };
+})();
+</script>
+{% endblock %}

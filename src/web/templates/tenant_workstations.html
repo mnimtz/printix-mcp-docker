@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+{% block title %}{{ _('tenant_tab_workstations') }} — {{ _('brand_console_name') }}{% endblock %}
+{% block extra_head %}
+<style>
+  .search-bar { display:flex; gap:8px; margin-bottom:16px; }
+  .search-bar input { flex:1; padding:8px 12px; border:1px solid #d1d5db; border-radius:8px; font-size:.9em; }
+  .search-bar button { padding:8px 16px; background:#2563eb; color:#fff; border:none; border-radius:8px; cursor:pointer; font-size:.9em; font-weight:600; }
+  .status-dot { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:6px; }
+  .dot-green { background:#16a34a; }
+  .dot-red { background:#ef4444; }
+  .dot-gray { background:#9ca3af; }
+  .time-ago { font-size:.78em; color:#9ca3af; }
+  .toggle-group { display:inline-flex; border:1px solid #d1d5db; border-radius:8px; overflow:hidden; font-size:.85em; }
+  .toggle-btn {
+    padding:6px 14px; text-decoration:none; color:#6b7280; font-weight:600;
+    border-right:1px solid #d1d5db; background:#fff; transition:background .15s;
+  }
+  .toggle-btn:last-child { border-right:none; }
+  .toggle-btn:hover { background:#f3f4f6; }
+  .toggle-btn.active-all { background:#2563eb; color:#fff; }
+  .toggle-btn.active-on { background:#dcfce7; color:#166534; }
+  .toggle-btn.active-off { background:#fee2e2; color:#991b1b; }
+</style>
+{% endblock %}
+{% block content %}
+<div class="container" style="max-width:1480px;">
+  <div class="tenant-shell">
+    {% include "_tenant_sidebar.html" %}
+    <section class="tenant-main">
+      <div class="card tenant-main-card">
+        <h2 class="section-title" style="margin-bottom:16px;">💻 {{ _('tenant_tab_workstations') }}</h2>
+
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:16px;">
+          <form class="search-bar" method="get" action="/tenant/workstations" style="flex:1;min-width:200px;margin:0;">
+            <input type="text" name="search" value="{{ search }}" placeholder="{{ _('tenant_search_workstations') }}">
+            {% if status_filter %}<input type="hidden" name="status" value="{{ status_filter }}">{% endif %}
+            <button type="submit">🔍</button>
+          </form>
+          <div class="toggle-group">
+            <a href="/tenant/workstations{% if search %}?search={{ search }}{% endif %}"
+               class="toggle-btn {% if not status_filter %}active-all{% endif %}">{{ _('ws_filter_all') }}</a>
+            <a href="/tenant/workstations?status=online{% if search %}&search={{ search }}{% endif %}"
+               class="toggle-btn {% if status_filter == 'online' %}active-on{% endif %}">🟢 {{ _('tenant_ws_online') }}</a>
+            <a href="/tenant/workstations?status=offline{% if search %}&search={{ search }}{% endif %}"
+               class="toggle-btn {% if status_filter == 'offline' %}active-off{% endif %}">🔴 {{ _('tenant_ws_offline') }}</a>
+          </div>
+          <a href="/tenant/workstations{%- if search %}?search={{ search }}{%- endif -%}" class="btn btn-secondary" title="{{ _('common_reload_printix') }}">
+            🔄 {{ _('common_refresh') }}
+          </a>
+        </div>
+
+        {% if error == "no_ws_creds" %}
+        <div class="alert alert-warning">⚠️ {{ _('tenant_no_ws_creds') }}</div>
+        {% elif error == "no_tenant" %}
+        <div class="alert alert-warning">⚠️ {{ _('common_no_tenant') }}</div>
+        {% elif error %}
+        <div class="alert alert-error">❌ {{ error }}</div>
+        {% elif workstations %}
+        <p style="font-size:.82em;color:#6b7280;margin-bottom:10px;">
+          {{ _('tenant_workstations_count', total=total_count, active=active_count, inactive=(total_count - active_count)) }}
+          {% if status_filter %}
+            — {{ _('ws_filter_showing') }}: <strong>{{ workstations|length }}</strong>
+          {% endif %}
+        </p>
+        <div style="overflow-x:auto;">
+          <table>
+            <thead>
+              <tr>
+                <th>{{ _('tenant_col_status') }}</th>
+                <th>{{ _('tenant_col_name') }}</th>
+                <th>{{ _('tenant_last_connected') }}</th>
+                <th>{{ _('tenant_last_disconnected') }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for ws in workstations %}
+              <tr>
+                <td style="width:90px;">
+                  {% if ws.get('active') %}
+                    <span class="status-dot dot-green"></span><span style="font-size:.82em;color:#166534;">{{ _('tenant_active') }}</span>
+                  {% else %}
+                    <span class="status-dot dot-red"></span><span style="font-size:.82em;color:#991b1b;">{{ _('tenant_inactive') }}</span>
+                  {% endif %}
+                </td>
+                <td style="font-weight:600;">{{ ws.get('name', '–') }}</td>
+                <td>
+                  {% set ct = ws.get('lastConnectTime', '') %}
+                  {% if ct %}
+                    <span class="time-ago" title="{{ ct }}">{{ ct[:16] | replace('T', ' ') }}</span>
+                  {% else %}
+                    <span style="color:#d1d5db;">–</span>
+                  {% endif %}
+                </td>
+                <td>
+                  {% set dt = ws.get('lastDisconnectTime', '') %}
+                  {% if dt %}
+                    <span class="time-ago" title="{{ dt }}">{{ dt[:16] | replace('T', ' ') }}</span>
+                  {% else %}
+                    <span style="color:#d1d5db;">–</span>
+                  {% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <div class="alert alert-info">{{ _('tenant_no_workstations') }}</div>
+        {% endif %}
+      </div>
+    </section>
+  </div>
+</div>
+{% endblock %}

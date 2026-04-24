@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% block title %}{{ _('tenant_tab_queues') }} — {{ _('brand_console_name') }}{% endblock %}
+{% block extra_head %}
+<style>
+  .search-bar { display:flex; gap:8px; margin-bottom:16px; }
+  .search-bar input { flex:1; padding:8px 12px; border:1px solid #d1d5db; border-radius:8px; font-size:.9em; }
+  .search-bar button { padding:8px 16px; background:#2563eb; color:#fff; border:none; border-radius:8px; cursor:pointer; font-size:.9em; font-weight:600; }
+  .status-dot { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:5px; }
+  .dot-green  { background:#16a34a; }
+  .dot-orange { background:#f59e0b; }
+  .dot-red    { background:#ef4444; }
+  .dot-gray   { background:#9ca3af; }
+</style>
+{% endblock %}
+{% block content %}
+<div class="container" style="max-width:1480px;">
+  <div class="tenant-shell">
+    {% include "_tenant_sidebar.html" %}
+    <section class="tenant-main">
+      <div class="card tenant-main-card">
+        <h2 class="section-title" style="margin-bottom:16px;">📋 {{ _('tenant_tab_queues') }}</h2>
+
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:16px;">
+          <form class="search-bar" method="get" action="/tenant/queues" style="flex:1;min-width:200px;margin:0;">
+            <input type="text" name="search" value="{{ search }}" placeholder="{{ _('tenant_search_queues') }}">
+            <button type="submit">🔍</button>
+          </form>
+          <a href="/tenant/queues{%- if search %}?search={{ search }}{%- endif -%}" class="btn btn-secondary" title="{{ _('common_reload_printix') }}">
+            🔄 {{ _('common_refresh') }}
+          </a>
+        </div>
+
+        {% if error == "no_print_creds" %}
+        <div class="alert alert-warning">⚠️ {{ _('tenant_no_print_creds') }}</div>
+        {% elif error == "no_tenant" %}
+        <div class="alert alert-warning">⚠️ {{ _('common_no_tenant') }}</div>
+        {% elif error %}
+        <div class="alert alert-error">❌ {{ error }}</div>
+        {% elif queues %}
+        <p style="font-size:.82em;color:#6b7280;margin-bottom:10px;">{{ _('tenant_queues_count', count=queues|length) }}</p>
+        <div style="overflow-x:auto;">
+          <table>
+            <thead>
+              <tr>
+                <th>{{ _('tenant_col_status') }}</th>
+                <th>{{ _('tenant_col_name') }}</th>
+                <th>{{ _('tenant_queue_printer_model') }}</th>
+                <th>{{ _('tenant_col_site') }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for q in queues %}
+              {% set status = q.get('status', '') | string | upper %}
+              <tr>
+                <td style="width:80px;">
+                  {% if 'ONLINE' in status or 'ACTIVE' in status %}
+                    <span class="status-dot dot-green"></span><span style="font-size:.82em;color:#166534;">{{ _('tenant_online') }}</span>
+                  {% elif 'WARNING' in status %}
+                    <span class="status-dot dot-orange"></span><span style="font-size:.82em;color:#92400e;">{{ _('tenant_warning') }}</span>
+                  {% elif 'OFFLINE' in status or 'INACTIVE' in status %}
+                    <span class="status-dot dot-red"></span><span style="font-size:.82em;color:#991b1b;">{{ _('tenant_offline') }}</span>
+                  {% else %}
+                    <span class="status-dot dot-gray"></span><span style="font-size:.82em;color:#9ca3af;">{{ status or '?' }}</span>
+                  {% endif %}
+                </td>
+                <td style="font-weight:600;"><a href="/tenant/queues/{{ q.get('printer_id') }}/{{ q.get('queue_id') }}" style="color:#1d4ed8;text-decoration:none;">{{ q.get('queue_name') or q.get('queue_id') or '–' }}</a></td>
+                <td style="color:#6b7280;font-size:.88em;"><a href="/tenant/printers/{{ q.get('printer_id') }}?queue_id={{ q.get('queue_id') }}" style="color:inherit;text-decoration:none;">{{ q.get('printer_name') or '–' }}</a></td>
+                <td style="color:#6b7280;font-size:.88em;">{{ q.get('location') or '–' }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <div class="alert alert-info">{{ _('tenant_no_queues') }}</div>
+        {% endif %}
+      </div>
+    </section>
+  </div>
+</div>
+{% endblock %}

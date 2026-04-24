@@ -1,0 +1,1 @@
+# Printix MCP Web-Verwaltungsmodul

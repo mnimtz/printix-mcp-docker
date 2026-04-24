@@ -1,0 +1,92 @@
+# =============================================================================
+# Printix MCP — Docker Multi-Arch Build & Publish to GHCR
+# =============================================================================
+# Triggers:
+#   - Push to main       → ghcr.io/mnimtz/printix-mcp-docker:main
+#   - Tag vX.Y.Z         → ghcr.io/mnimtz/printix-mcp-docker:X.Y.Z + :X.Y + :latest
+#   - Manual (workflow_dispatch) → nur :main (zum Testen)
+#
+# Plattformen: linux/amd64, linux/arm64, linux/arm/v7
+# =============================================================================
+
+name: Build & Publish Docker Image
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*.*.*']
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository_owner }}/printix-mcp-docker
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      # Für attestations (Provenance/SBOM)
+      id-token: write
+      attestations: write
+
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU (Multi-Arch-Emulation)
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract Metadata (Tags + Labels)
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          # Tag-Strategie:
+          #   - v6.7.118  → 6.7.118, 6.7, latest
+          #   - main      → main
+          tags: |
+            type=ref,event=branch
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest,enable={{is_default_branch}}
+          labels: |
+            org.opencontainers.image.title=Printix MCP Server
+            org.opencontainers.image.description=Multi-Tenant MCP Server for Printix Cloud Print
+            org.opencontainers.image.vendor=Marcus Nimtz
+            org.opencontainers.image.licenses=MIT
+
+      - name: Build & Push Multi-Arch Image
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64,linux/arm/v7
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          # Layer-Cache aus GHA-Cache reduziert Build-Zeit von ~25min auf ~5min
+          # bei unveränderten Deps (Slow-Path ist apt + pip wheel)
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          # SBOM + Provenance-Attestation (standard in buildx v0.13+)
+          provenance: true
+          sbom: true
+
+      - name: Attest Image Provenance
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-name: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          subject-digest: ${{ steps.build.outputs.digest }}
+          push-to-registry: true

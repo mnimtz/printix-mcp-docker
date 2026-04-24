@@ -1,0 +1,744 @@
+{% extends "base.html" %}
+{% block title %}{{ _('admin_settings') }} — {{ _('brand_console_name') }}{% endblock %}
+{% block content %}
+<div class="container">
+  <div class="card" style="max-width:680px;margin:40px auto;">
+    <h2 class="section-title">{{ _('admin_settings') }}</h2>
+    <p class="section-sub" style="margin-bottom:24px;">
+      {{ _('admin_settings_sub') }}
+    </p>
+
+    {% if auto_setup_success | default(false) %}
+    <div class="alert alert-success" style="font-size:.92em;">
+      ✓ <strong>{{ _('entra_auto_success') }}</strong><br>
+      {{ _('entra_auto_success_sub') }}
+    </div>
+    {% endif %}
+    {% if saved and not auto_setup_success | default(false) %}
+    <div class="alert alert-success">✓ {{ _('admin_saved') }}</div>
+    {% endif %}
+    {% if error %}
+    <div class="alert alert-error">{{ error }}</div>
+    {% endif %}
+
+    <form method="post" action="/admin/settings">
+
+      <!-- ── Server-URL ──────────────────────────────────────────────────── -->
+      <div class="form-group">
+        <label>{{ _('admin_base_url') }}</label>
+        <input type="url" name="public_url" value="{{ public_url | default('') }}"
+               placeholder="https://mcp.firma.de">
+        <small class="hint">{{ _('admin_base_url_hint') }}</small>
+      </div>
+
+      <div class="alert alert-info" style="margin-bottom:20px;font-size:.88em;">
+        <strong>{{ _('admin_current_url') }}</strong><br>
+        MCP: <code>{{ public_url or 'http://&lt;HA-IP&gt;:8765' }}/mcp</code><br>
+        SSE: <code>{{ public_url or 'http://&lt;HA-IP&gt;:8765' }}/sse</code><br>
+        OAuth: <code>{{ public_url or 'http://&lt;HA-IP&gt;:8765' }}/oauth/authorize</code>
+      </div>
+
+      <!-- ── Capture Webhook URL (v4.5.0) ─────────────────────────────────── -->
+      <div class="form-group">
+        <label>{{ _('admin_capture_public_url') }}</label>
+        <input type="url" name="capture_public_url" value="{{ capture_public_url | default('') }}"
+               placeholder="https://capture.firma.de">
+        <small class="hint">{{ _('admin_capture_public_url_hint') }}</small>
+      </div>
+
+      <div class="alert alert-info" style="margin-bottom:20px;font-size:.88em;">
+        <strong>{{ _('admin_capture_webhook') }}:</strong><br>
+        {% if capture_public_url %}
+        <code>{{ capture_public_url }}/capture/webhook/&lt;profile_id&gt;</code>
+        <span style="color:#059669;font-weight:600;"> {{ _('admin_capture_mode_separate') }}</span>
+        {% else %}
+        <code>{{ public_url or 'http://&lt;HA-IP&gt;:8765' }}/capture/webhook/&lt;profile_id&gt;</code>
+        <span style="color:#6b7280;"> {{ _('admin_capture_mode_shared') }}</span>
+        {% endif %}
+      </div>
+
+      <!-- v6.6.0: LPR-Section entfernt — IPPS ist der einzige Cloud-Print-Eingang. -->
+
+      <!-- ── Cloud Print / IPPS (v6.5.0) ─────────────────────────────────── -->
+      <div style="padding:12px;background:#ecfdf5;border:1px solid #a7f3d0;border-radius:10px;margin-bottom:20px;">
+        <div style="font-weight:700;color:#065f46;margin-bottom:10px;">
+          🔐 {{ _('admin_ipps_section') }}
+          <span style="font-size:.72em;padding:2px 8px;border-radius:999px;background:#10b981;color:#fff;font-weight:700;margin-left:6px;">{{ _('emp_ipps_recommended') }}</span>
+        </div>
+        <div style="font-size:.85em;color:#065f46;margin-bottom:12px;">{{ _('admin_ipps_desc') }}</div>
+
+        <div class="form-group">
+          <label>{{ _('admin_ipps_url') }}</label>
+          <input type="text" name="ipps_public_url" value="{{ ipps_public_url | default('') }}"
+                 placeholder="https://ipps.printix.cloud">
+          <small class="hint">{{ _('admin_ipps_url_hint') }}</small>
+        </div>
+
+        <div class="form-group">
+          <label>{{ _('admin_ipps_port') }}</label>
+          <input type="number" name="ipps_port" value="{{ ipps_port | default('') }}"
+                 placeholder="8080" min="1" max="65535" style="max-width:200px;">
+          <small class="hint">{{ _('admin_ipps_port_hint') }}</small>
+        </div>
+
+        <div class="alert alert-info" style="font-size:.85em;">
+          <strong>{{ _('admin_ipps_printix_hint') }}</strong><br>
+          {{ _('admin_ipps_printix_setup') }}:<br>
+          <code>{{ _('admin_lpr_protocol_label') }}: IPPS</code><br>
+          <code>{{ _('admin_lpr_host_label') }}: {{ ipps_public_host or 'ipps.printix.cloud' }} $$ipps</code><br>
+          <div style="margin-top:6px;color:#6b7280;font-size:.85em;">
+            {{ _('admin_ipps_cloudflare_hint') }}
+          </div>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <!-- ── Global Mail Fallback (v6.7.25) ─────────────────────────────────
+           Tenant-User können ihre eigene Resend-API hinterlegen (/settings).
+           Wenn nicht, fällt das System auf diese globalen Credentials zurück.
+           Nutzung: Willkommens-Mails, Reports, Event-Benachrichtigungen. -->
+      <div style="margin-bottom:24px;">
+        <div class="section-title" style="margin-bottom:4px;">
+          ✉️ {{ _('admin_global_mail_title') }}
+        </div>
+        <div class="section-sub" style="margin-bottom:12px;">
+          {{ _('admin_global_mail_desc') }}
+        </div>
+
+        <div class="form-group">
+          <label>{{ _('admin_global_mail_api_key') }}
+            {% if has_global_mail_key %}
+              <span style="color:#16a34a;font-size:.82em;font-weight:600;">✓ {{ _('admin_global_mail_key_set') }}</span>
+            {% endif %}
+          </label>
+          <input type="password" name="global_mail_api_key" value=""
+                 placeholder="{% if has_global_mail_key %}•••••••• ({{ _('admin_global_mail_leave_empty_to_keep') }}){% else %}re_...{% endif %}"
+                 autocomplete="off">
+          <small class="hint">{{ _('admin_global_mail_api_key_hint') }}</small>
+        </div>
+
+        <div class="form-group">
+          <label>{{ _('admin_global_mail_from') }}</label>
+          <input type="email" name="global_mail_from"
+                 value="{{ global_mail_from | default('') }}"
+                 placeholder="noreply@deinedomain.de">
+          <small class="hint">{{ _('admin_global_mail_from_hint') }}</small>
+        </div>
+
+        <div class="form-group">
+          <label>{{ _('admin_global_mail_from_name') }}</label>
+          <input type="text" name="global_mail_from_name"
+                 value="{{ global_mail_from_name | default('') }}"
+                 placeholder="Printix MCP">
+          <small class="hint">{{ _('admin_global_mail_from_name_hint') }}</small>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <!-- ── Entra ID (Azure AD) SSO ─────────────────────────────────────── -->
+      <div style="margin-bottom:24px;">
+        <div class="section-title" style="margin-bottom:4px;">
+          <img src="https://learn.microsoft.com/favicon.ico" alt="" style="width:18px;height:18px;vertical-align:text-bottom;margin-right:4px;">
+          {{ _('entra_title') }}
+        </div>
+        <div class="section-sub" style="margin-bottom:16px;">
+          {{ _('entra_subtitle') }}
+        </div>
+
+        <!-- Toggle -->
+        <div class="form-group">
+          <label class="fmt-item" style="font-size:.95em;cursor:pointer;">
+            <input type="checkbox" name="entra_enabled" value="1"
+                   {{ 'checked' if entra.enabled else '' }}
+                   onchange="document.getElementById('entra-fields').style.display=this.checked?'block':'none'">
+            {{ _('entra_toggle') }}
+          </label>
+        </div>
+
+        <div id="entra-fields" style="{{ '' if entra.enabled else 'display:none;' }}">
+
+          <!-- Auto-Setup immer sichtbar (auch fuer Neu-Einrichtung) -->
+          {% if entra.client_id and entra.has_secret %}
+          <details style="margin-bottom:16px;">
+            <summary style="cursor:pointer;font-size:.9em;color:#2563eb;font-weight:600;padding:8px 0;">
+              {{ _('entra_reconfigure_btn') }}
+            </summary>
+          {% endif %}
+
+          <!-- ── Ein-Klick Auto-Setup (Device Code Flow) ───────────── -->
+          <div id="entra-auto-setup-box"
+               style="background:linear-gradient(135deg,#eff6ff 0%,#f0fdf4 100%);
+                      border:1px solid #bfdbfe;border-radius:12px;padding:20px;margin-bottom:20px;">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
+              <div style="width:36px;height:36px;background:#2563eb;border-radius:8px;
+                          display:flex;align-items:center;justify-content:center;">
+                <svg width="20" height="20" viewBox="0 0 21 21">
+                  <rect x="1" y="1" width="9" height="9" fill="#fff" opacity=".9"/>
+                  <rect x="11" y="1" width="9" height="9" fill="#fff" opacity=".7"/>
+                  <rect x="1" y="11" width="9" height="9" fill="#fff" opacity=".7"/>
+                  <rect x="11" y="11" width="9" height="9" fill="#fff" opacity=".5"/>
+                </svg>
+              </div>
+              <div>
+                <strong style="font-size:1em;color:#1e3a5f;">{{ _('entra_auto_setup_title') }}</strong>
+                <div style="font-size:.82em;color:#4b5563;">
+                  {{ _('entra_auto_setup_sub') }}
+                </div>
+              </div>
+            </div>
+
+            <p style="font-size:.85em;color:#374151;margin-bottom:14px;line-height:1.6;">
+              {{ _('entra_auto_setup_desc') }}
+            </p>
+
+            <!-- Start-Button -->
+            <div id="entra-dc-start">
+              <button type="button" id="entra-dc-btn"
+                      onclick="entraStartDeviceCode()"
+                      style="display:flex;align-items:center;justify-content:center;gap:10px;
+                             width:100%;padding:12px 16px;border-radius:8px;cursor:pointer;
+                             background:#2563eb;color:#fff;font-size:.95em;font-weight:600;
+                             border:none;transition:background .15s,box-shadow .15s;
+                             box-shadow:0 2px 8px rgba(37,99,235,.25);"
+                      onmouseover="this.style.background='#1d4ed8';this.style.boxShadow='0 4px 12px rgba(37,99,235,.35)'"
+                      onmouseout="this.style.background='#2563eb';this.style.boxShadow='0 2px 8px rgba(37,99,235,.25)'">
+                <svg width="20" height="20" viewBox="0 0 21 21">
+                  <rect x="1" y="1" width="9" height="9" fill="#f25022"/>
+                  <rect x="11" y="1" width="9" height="9" fill="#7fba00"/>
+                  <rect x="1" y="11" width="9" height="9" fill="#00a4ef"/>
+                  <rect x="11" y="11" width="9" height="9" fill="#ffb900"/>
+                </svg>
+                {{ _('entra_auto_setup_btn') }}
+              </button>
+              <div style="font-size:.78em;color:#6b7280;text-align:center;margin-top:8px;">
+                {{ _('entra_auto_setup_hint') }}
+              </div>
+            </div>
+
+            <!-- Device Code anzeigen (wird per JS eingeblendet) -->
+            <div id="entra-dc-code" style="display:none;">
+              <div style="text-align:center;padding:8px 0;">
+                <div style="font-size:.88em;color:#374151;margin-bottom:10px;">
+                  {{ _('entra_dc_step1') }}
+                </div>
+                <div id="entra-dc-user-code"
+                     style="font-size:2em;font-weight:800;letter-spacing:4px;color:#1e3a5f;
+                            background:#fff;border:2px solid #2563eb;border-radius:10px;
+                            padding:12px 24px;display:inline-block;margin-bottom:14px;
+                            user-select:all;cursor:pointer;"
+                     onclick="navigator.clipboard.writeText(this.textContent.trim())">
+                </div>
+                <div style="font-size:.88em;color:#374151;margin-bottom:8px;">
+                  {{ _('entra_dc_step2') }}
+                </div>
+                <a id="entra-dc-link" href="#" target="_blank"
+                   style="display:inline-flex;align-items:center;gap:6px;
+                          font-size:1em;font-weight:600;color:#2563eb;">
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <path d="M6 3H3a1 1 0 00-1 1v9a1 1 0 001 1h9a1 1 0 001-1v-3M9 1h6m0 0v6m0-6L8 8"/>
+                  </svg>
+                  <span id="entra-dc-link-text"></span>
+                </a>
+              </div>
+              <div id="entra-dc-status"
+                   style="display:flex;align-items:center;justify-content:center;gap:8px;
+                          margin-top:14px;font-size:.88em;color:#6b7280;">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2.5"
+                     style="animation:spin 1s linear infinite;">
+                  <path d="M12 2a10 10 0 0110 10" stroke-linecap="round"/>
+                </svg>
+                <span>{{ _('entra_dc_waiting') }}</span>
+              </div>
+            </div>
+
+            <!-- Erfolg -->
+            <div id="entra-dc-success" style="display:none;">
+              <div class="alert alert-success" style="font-size:.92em;margin:0;">
+                &#10003; <strong>{{ _('entra_dc_success') }}</strong><br>
+                {{ _('entra_dc_success_sub') }}
+              </div>
+            </div>
+
+            <!-- Fehler -->
+            <div id="entra-dc-error" style="display:none;">
+              <div class="alert alert-error" style="font-size:.92em;margin-bottom:12px;">
+                <span id="entra-dc-error-msg"></span>
+              </div>
+              <button type="button" class="btn btn-secondary" style="width:100%;"
+                      onclick="entraResetDeviceCode()">
+                {{ _('entra_dc_retry') }}
+              </button>
+            </div>
+          </div>
+
+          <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
+            <div style="flex:1;height:1px;background:#e5e7eb;"></div>
+            <span style="font-size:.82em;color:#9ca3af;white-space:nowrap;">{{ _('entra_or_manual') }}</span>
+            <div style="flex:1;height:1px;background:#e5e7eb;"></div>
+          </div>
+
+          <!-- ── Setup-Tabs: CLI-Script / Manuelle Anleitung ─────────── -->
+          <div style="display:flex;gap:8px;margin-bottom:16px;">
+            <button type="button" class="btn btn-sm" id="entra-tab-auto"
+                    onclick="entraShowTab('auto')"
+                    style="flex:1;font-size:.85em;padding:8px 12px;border-radius:8px;
+                           background:#eff6ff;color:#2563eb;border:1px solid #bfdbfe;font-weight:600;">
+              {{ _('entra_tab_cli') }}
+            </button>
+            <button type="button" class="btn btn-sm" id="entra-tab-manual"
+                    onclick="entraShowTab('manual')"
+                    style="flex:1;font-size:.85em;padding:8px 12px;border-radius:8px;
+                           background:#f9fafb;color:#6b7280;border:1px solid #e5e7eb;font-weight:500;">
+              {{ _('entra_tab_manual') }}
+            </button>
+          </div>
+
+          <!-- ── CLI Script Panel ─────────────────────────────────────── -->
+          <div id="entra-panel-auto">
+            <div class="alert alert-info" style="font-size:.85em;margin-bottom:16px;">
+              <strong>{{ _('entra_cli_title') }}</strong><br>
+              <span style="color:#4b5563;">
+                {{ _('entra_cli_desc') }}
+                <em>{{ _('entra_cli_prereq') }}</em>
+                <a href="https://aka.ms/installazurecli" target="_blank" style="font-weight:600;">Azure CLI</a>
+              </span>
+            </div>
+
+            <div style="display:flex;gap:4px;margin-bottom:0;">
+              <button type="button" id="script-tab-ps" class="btn btn-sm"
+                      onclick="entraShowScript('ps')"
+                      style="font-size:.78em;padding:4px 10px;border-radius:6px 6px 0 0;
+                             background:#1e3a5f;color:#fff;border:1px solid #1e3a5f;border-bottom:none;">
+                PowerShell
+              </button>
+              <button type="button" id="script-tab-bash" class="btn btn-sm"
+                      onclick="entraShowScript('bash')"
+                      style="font-size:.78em;padding:4px 10px;border-radius:6px 6px 0 0;
+                             background:#f3f4f6;color:#6b7280;border:1px solid #e5e7eb;border-bottom:none;">
+                Bash / Linux
+              </button>
+            </div>
+
+            <div id="script-ps" style="position:relative;">
+              <pre style="background:#1e293b;color:#e2e8f0;padding:14px 40px 14px 14px;border-radius:0 8px 8px 8px;
+                          font-size:.78em;line-height:1.6;overflow-x:auto;margin:0 0 12px 0;white-space:pre-wrap;word-break:break-all;"
+              ><code id="entra-script-ps"># Printix Management Console — Entra App (PowerShell)
+az login
+$app = az ad app create `
+  --display-name "Printix Management Console" `
+  --sign-in-audience AzureADMultipleOrgs `
+  --web-redirect-uris "{{ entra_redirect_uri }}" | ConvertFrom-Json
+$secret = az ad app credential reset `
+  --id $app.appId --display-name "Printix Management Console" `
+  --years 2 | ConvertFrom-Json
+@{tenant_id=(az account show --query tenantId -o tsv)
+  client_id=$app.appId
+  client_secret=$secret.password} | ConvertTo-Json</code></pre>
+              <button type="button" class="copy-btn"
+                      style="position:absolute;top:6px;right:6px;"
+                      onclick="copyScript('entra-script-ps', this)">&#x29C9;</button>
+            </div>
+
+            <div id="script-bash" style="position:relative;display:none;">
+              <pre style="background:#1e293b;color:#e2e8f0;padding:14px 40px 14px 14px;border-radius:0 8px 8px 8px;
+                          font-size:.78em;line-height:1.6;overflow-x:auto;margin:0 0 12px 0;white-space:pre-wrap;word-break:break-all;"
+              ><code id="entra-script-bash"># Printix Management Console — Entra App (Bash)
+az login
+APP=$(az ad app create \
+  --display-name "Printix Management Console" \
+  --sign-in-audience AzureADMultipleOrgs \
+  --web-redirect-uris "{{ entra_redirect_uri }}" -o json)
+APP_ID=$(echo "$APP" | jq -r '.appId')
+SECRET=$(az ad app credential reset \
+  --id "$APP_ID" --display-name "Printix Management Console" \
+  --years 2 -o json)
+echo "{\"tenant_id\":\"$(az account show --query tenantId -o tsv)\",\"client_id\":\"$APP_ID\",\"client_secret\":\"$(echo "$SECRET" | jq -r '.password')\"}"</code></pre>
+              <button type="button" class="copy-btn"
+                      style="position:absolute;top:6px;right:6px;"
+                      onclick="copyScript('entra-script-bash', this)">&#x29C9;</button>
+            </div>
+
+            <div class="form-group" style="margin-top:4px;">
+              <label style="font-weight:600;font-size:.9em;">{{ _('entra_json_label') }}</label>
+              <textarea id="entra-auto-json" rows="4"
+                        placeholder='{"tenant_id":"...","client_id":"...","client_secret":"..."}'
+                        style="font-family:monospace;font-size:.82em;width:100%;resize:vertical;
+                               border:2px dashed #d1d5db;border-radius:8px;padding:10px;
+                               background:#fafbfc;transition:border-color .2s;"
+                        onfocus="this.style.borderColor='#2563eb'"
+                        onblur="this.style.borderColor='#d1d5db'"></textarea>
+            </div>
+
+            <button type="button" class="btn btn-primary" style="width:100%;margin-bottom:16px;"
+                    onclick="entraImportJson()">
+              {{ _('entra_json_import') }}
+            </button>
+            <div id="entra-import-status" style="display:none;margin-bottom:12px;"></div>
+          </div>
+
+          <!-- ── Manuelle Anleitung Panel ─────────────────────────────── -->
+          <div id="entra-panel-manual">
+            <div class="alert alert-info" style="font-size:.85em;margin-bottom:16px;">
+              <strong>{{ _('entra_manual_title') }}</strong>
+              <ol style="margin:8px 0 0 16px;line-height:1.8;">
+                <li>{{ _('entra_manual_step1') }} <a href="https://portal.azure.com/#view/Microsoft_AAD_RegisteredApps/CreateApplicationBlade/quickStartType~/null/isMSAApp~/false" target="_blank" style="font-weight:700;">{{ _('entra_manual_step1_link') }}</a></li>
+                <li>{{ _('entra_manual_step2') }}</li>
+                <li>{{ _('entra_manual_step3') }} <code style="user-select:all;">{{ entra_redirect_uri }}</code></li>
+              </ol>
+              <div style="margin-top:8px;">
+                {{ _('entra_manual_after') }}
+              </div>
+            </div>
+          </div>
+
+          {% if entra.client_id and entra.has_secret %}
+          </details>
+          {% endif %}
+
+          <!-- ── Credential-Felder (immer sichtbar) ──────────────────── -->
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+            <div class="form-group">
+              <label>{{ _('entra_tenant_id') }} <small style="color:#6b7280;">(Directory-ID)</small></label>
+              <input type="text" name="entra_tenant_id" id="entra-f-tenant"
+                     value="{{ entra.tenant_id }}"
+                     placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx">
+              <small class="hint">{{ _('entra_tenant_hint') }}</small>
+            </div>
+            <div class="form-group">
+              <label>{{ _('entra_client_id') }}</label>
+              <input type="text" name="entra_client_id" id="entra-f-client"
+                     value="{{ entra.client_id }}"
+                     placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx">
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>{{ _('entra_client_secret') }}</label>
+            <input type="password" name="entra_client_secret" id="entra-f-secret" value=""
+                   placeholder="{{ _('entra_secret_placeholder_set') if entra.has_secret else _('entra_secret_placeholder_empty') }}">
+            <small class="hint">{{ _('entra_secret_hint') }}</small>
+          </div>
+
+          <div class="form-group">
+            <label>{{ _('entra_redirect_uri') }} <small style="color:#6b7280;">({{ _('entra_redirect_hint') }})</small></label>
+            <input type="url" name="entra_redirect_uri" id="entra-redirect-val"
+                   value="{{ entra_redirect_uri }}" class="input"
+                   placeholder="https://example.com/auth/entra/callback">
+            <small class="hint">{{ _('entra_redirect_uri_hint') }}</small>
+          </div>
+
+          <div class="divider" style="margin:16px 0;"></div>
+
+          <!-- Optionen -->
+          <div class="form-group">
+            <label class="fmt-item" style="font-size:.9em;cursor:pointer;">
+              <input type="checkbox" name="entra_auto_approve" value="1"
+                     {{ 'checked' if entra.auto_approve else '' }}>
+              {{ _('entra_auto_approve') }}
+            </label>
+            <small class="hint" style="display:block;margin-top:4px;">
+              {{ _('entra_auto_approve_hint') }}
+            </small>
+          </div>
+
+          <!-- Status -->
+          {% if entra.enabled and entra.client_id and entra.has_secret %}
+          <div class="alert alert-success" style="font-size:.88em;">
+            ✓ <strong>{{ _('entra_status_active') }}</strong>
+            {{ _('entra_status_active_sub') }}
+          </div>
+          {% elif entra.enabled %}
+          <div class="alert alert-warning" style="font-size:.88em;">
+            {{ _('entra_status_incomplete') }}
+          </div>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <div style="display:flex;gap:12px;flex-wrap:wrap;">
+        <button type="submit" class="btn btn-primary">{{ _('admin_save') }}</button>
+        <a href="/admin" class="btn btn-secondary">{{ _('cancel') }}</a>
+      </div>
+    </form>
+
+    <div class="divider"></div>
+
+    <div style="margin-top:28px;">
+      <div class="section-title" style="margin-bottom:6px;">{{ _('backup_title') }}</div>
+      <div class="section-sub" style="margin-bottom:18px;">{{ _('backup_sub') }}</div>
+
+      {% if backup_success %}
+      <div class="alert alert-success">
+        ✓ {{ _('backup_create_success') }}
+        <br><strong>{{ backup_success.filename }}</strong>
+      </div>
+      {% endif %}
+      {% if restore_success %}
+      <div class="alert alert-success">
+        ✓ {{ _('backup_restore_success') }}
+        <br>{{ _('backup_restore_restart_required') }}
+      </div>
+      {% endif %}
+      {% if backup_error %}
+      <div class="alert alert-error">{{ backup_error }}</div>
+      {% endif %}
+
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:18px;">
+        <div style="border:1px solid #e5e7eb;border-radius:16px;padding:18px;background:#f8fafc;">
+          <div style="font-weight:700;color:#172033;margin-bottom:8px;">{{ _('backup_create_title') }}</div>
+          <p style="margin:0 0 14px;font-size:.92em;line-height:1.6;color:#4b5563;">
+            {{ _('backup_create_desc') }}
+          </p>
+          <form method="post" action="/admin/settings/backup/create">
+            <button type="submit" class="btn btn-primary">{{ _('backup_create_btn') }}</button>
+          </form>
+        </div>
+
+        <div style="border:1px solid #e5e7eb;border-radius:16px;padding:18px;background:#fff7ed;">
+          <div style="font-weight:700;color:#172033;margin-bottom:8px;">{{ _('backup_restore_title') }}</div>
+          <p style="margin:0 0 14px;font-size:.92em;line-height:1.6;color:#4b5563;">
+            {{ _('backup_restore_desc') }}
+          </p>
+          <form method="post" action="/admin/settings/backup/restore" enctype="multipart/form-data"
+                onsubmit="return confirm('{{ _('backup_restore_confirm')|e }}');">
+            <div class="form-group" style="margin-bottom:12px;">
+              <label>{{ _('backup_restore_file') }}</label>
+              <input type="file" name="backup_zip" accept=".zip" required>
+            </div>
+            <button type="submit" class="btn btn-danger">{{ _('backup_restore_btn') }}</button>
+          </form>
+        </div>
+      </div>
+
+      <div class="alert alert-info" style="margin-top:16px;font-size:.9em;">
+        <strong>{{ _('backup_contains_title') }}</strong><br>
+        {{ _('backup_contains_desc') }}
+      </div>
+
+      <div style="margin-top:18px;">
+        <div style="font-weight:700;color:#172033;margin-bottom:10px;">{{ _('backup_available') }}</div>
+        {% if backups %}
+        <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
+          <table>
+            <thead>
+              <tr>
+                <th>{{ _('common_created') }}</th>
+                <th>{{ _('backup_file') }}</th>
+                <th>{{ _('backup_size') }}</th>
+                <th>{{ _('common_actions') }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for item in backups %}
+              <tr>
+                <td style="font-size:.88em;color:#6b7280;">{{ item.modified_at[:19].replace('T', ' ') if item.modified_at else '—' }}</td>
+                <td><strong>{{ item.filename }}</strong></td>
+                <td>{{ ((item.size or 0) / 1024 / 1024) | round(2) }} MB</td>
+                <td>
+                  <a href="/admin/settings/backups/{{ item.filename }}" class="btn btn-secondary btn-sm">
+                    {{ _('backup_download') }}
+                  </a>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <div class="alert alert-info">{{ _('backup_none') }}</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- i18n strings for JavaScript -->
+<div id="entra-i18n" style="display:none;"
+     data-err-empty="{{ _('entra_json_err_empty') }}"
+     data-err-invalid="{{ _('entra_json_err_invalid') }}"
+     data-err-no-client="{{ _('entra_json_err_no_client') }}"
+     data-ok="{{ _('entra_json_ok') }}"
+     data-dc-waiting="{{ _('entra_dc_waiting') }}"
+     data-dc-success="{{ _('entra_dc_success') }}"
+     data-dc-expired="{{ _('entra_dc_expired') }}"
+     data-dc-error="{{ _('entra_dc_error') }}"
+     data-dc-error-declined="{{ _('entra_dc_error_declined') }}"
+     data-dc-error-app="{{ _('entra_dc_error_app') }}"
+     data-dc-starting="{{ _('entra_dc_starting') }}"></div>
+
+<style>
+@keyframes spin { to { transform: rotate(360deg); } }
+</style>
+
+<script>
+/* ── Entra Setup Tab Switching ──────────────────────────────────── */
+function entraShowTab(tab) {
+  var auto = document.getElementById('entra-panel-auto');
+  var manual = document.getElementById('entra-panel-manual');
+  var tabAuto = document.getElementById('entra-tab-auto');
+  var tabManual = document.getElementById('entra-tab-manual');
+  if (!auto || !manual) return;
+  if (tab === 'auto') {
+    auto.style.display = '';
+    manual.style.display = 'none';
+    tabAuto.style.background = '#eff6ff'; tabAuto.style.color = '#2563eb';
+    tabAuto.style.borderColor = '#bfdbfe'; tabAuto.style.fontWeight = '600';
+    tabManual.style.background = '#f9fafb'; tabManual.style.color = '#6b7280';
+    tabManual.style.borderColor = '#e5e7eb'; tabManual.style.fontWeight = '500';
+  } else {
+    auto.style.display = 'none';
+    manual.style.display = '';
+    tabManual.style.background = '#eff6ff'; tabManual.style.color = '#2563eb';
+    tabManual.style.borderColor = '#bfdbfe'; tabManual.style.fontWeight = '600';
+    tabAuto.style.background = '#f9fafb'; tabAuto.style.color = '#6b7280';
+    tabAuto.style.borderColor = '#e5e7eb'; tabAuto.style.fontWeight = '500';
+  }
+}
+
+/* ── Script Tab (PowerShell / Bash) ─────────────────────────────── */
+function entraShowScript(lang) {
+  var ps = document.getElementById('script-ps');
+  var bash = document.getElementById('script-bash');
+  var tPs = document.getElementById('script-tab-ps');
+  var tBash = document.getElementById('script-tab-bash');
+  if (!ps || !bash) return;
+  if (lang === 'ps') {
+    ps.style.display = ''; bash.style.display = 'none';
+    tPs.style.background = '#1e3a5f'; tPs.style.color = '#fff'; tPs.style.borderColor = '#1e3a5f';
+    tBash.style.background = '#f3f4f6'; tBash.style.color = '#6b7280'; tBash.style.borderColor = '#e5e7eb';
+  } else {
+    ps.style.display = 'none'; bash.style.display = '';
+    tBash.style.background = '#1e3a5f'; tBash.style.color = '#fff'; tBash.style.borderColor = '#1e3a5f';
+    tPs.style.background = '#f3f4f6'; tPs.style.color = '#6b7280'; tPs.style.borderColor = '#e5e7eb';
+  }
+}
+
+/* ── Copy Script ────────────────────────────────────────────────── */
+function copyScript(id, btn) {
+  var el = document.getElementById(id);
+  if (!el) return;
+  navigator.clipboard.writeText(el.textContent || el.innerText).then(function() {
+    btn.textContent = '\u2713'; setTimeout(function(){ btn.textContent = '\u29C9'; }, 2000);
+  });
+}
+
+/* ── Device Code Flow ──────────────────────────────────────────── */
+var _dcPollTimer = null;
+
+function entraStartDeviceCode() {
+  var i18n = document.getElementById('entra-i18n').dataset;
+  var btn = document.getElementById('entra-dc-btn');
+  btn.disabled = true;
+  btn.style.opacity = '0.6';
+  btn.textContent = i18n.dcStarting || '...';
+
+  fetch('/admin/entra/device-code', {method:'POST'})
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (data.error) {
+        entraShowDcError(i18n.dcError + ': ' + data.error);
+        return;
+      }
+      document.getElementById('entra-dc-start').style.display = 'none';
+      document.getElementById('entra-dc-code').style.display = '';
+      document.getElementById('entra-dc-user-code').textContent = data.user_code;
+      var link = document.getElementById('entra-dc-link');
+      link.href = data.verification_uri;
+      document.getElementById('entra-dc-link-text').textContent = data.verification_uri;
+      window.open(data.verification_uri, '_blank');
+      var interval = (data.interval || 5) * 1000;
+      _dcPollTimer = setInterval(function() { entraPollDeviceCode(); }, interval);
+    })
+    .catch(function(e) {
+      entraShowDcError(i18n.dcError + ': ' + e.message);
+    });
+}
+
+function entraPollDeviceCode() {
+  var i18n = document.getElementById('entra-i18n').dataset;
+  fetch('/admin/entra/device-poll')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (data.status === 'pending') return;
+      clearInterval(_dcPollTimer);
+      _dcPollTimer = null;
+      if (data.status === 'success') {
+        document.getElementById('entra-dc-code').style.display = 'none';
+        document.getElementById('entra-dc-success').style.display = '';
+        setTimeout(function() { location.reload(); }, 2000);
+      } else if (data.status === 'expired') {
+        entraShowDcError(i18n.dcExpired);
+      } else {
+        var msg = i18n.dcError;
+        if (data.error === 'authorization_declined') msg = i18n.dcErrorDeclined;
+        else if (data.error === 'app_creation_failed') msg = i18n.dcErrorApp;
+        else if (data.error) msg = data.error;
+        entraShowDcError(msg);
+      }
+    })
+    .catch(function() { /* ignore network glitch, retry next interval */ });
+}
+
+function entraShowDcError(msg) {
+  document.getElementById('entra-dc-start').style.display = 'none';
+  document.getElementById('entra-dc-code').style.display = 'none';
+  document.getElementById('entra-dc-success').style.display = 'none';
+  document.getElementById('entra-dc-error').style.display = '';
+  document.getElementById('entra-dc-error-msg').textContent = msg;
+}
+
+function entraResetDeviceCode() {
+  if (_dcPollTimer) { clearInterval(_dcPollTimer); _dcPollTimer = null; }
+  document.getElementById('entra-dc-start').style.display = '';
+  document.getElementById('entra-dc-code').style.display = 'none';
+  document.getElementById('entra-dc-success').style.display = 'none';
+  document.getElementById('entra-dc-error').style.display = 'none';
+  var btn = document.getElementById('entra-dc-btn');
+  btn.disabled = false;
+  btn.style.opacity = '';
+}
+
+/* ── JSON Import (CLI Script Output) ──��─────────────────────────── */
+function entraImportJson() {
+  var i18n = document.getElementById('entra-i18n').dataset;
+  var raw = document.getElementById('entra-auto-json').value.trim();
+  var status = document.getElementById('entra-import-status');
+  if (!raw) {
+    status.style.display = 'block';
+    status.className = 'alert alert-error';
+    status.textContent = i18n.errEmpty;
+    return;
+  }
+  try {
+    var data = JSON.parse(raw);
+  } catch (e) {
+    status.style.display = 'block';
+    status.className = 'alert alert-error';
+    status.textContent = i18n.errInvalid;
+    return;
+  }
+  if (!data.client_id) {
+    status.style.display = 'block';
+    status.className = 'alert alert-error';
+    status.textContent = i18n.errNoClient;
+    return;
+  }
+  if (data.tenant_id) document.getElementById('entra-f-tenant').value = data.tenant_id;
+  if (data.client_id)  document.getElementById('entra-f-client').value = data.client_id;
+  if (data.client_secret) {
+    var secretField = document.getElementById('entra-f-secret');
+    secretField.value = data.client_secret;
+    secretField.type = 'text';
+    setTimeout(function(){ secretField.type = 'password'; }, 3000);
+  }
+  status.style.display = 'block';
+  status.className = 'alert alert-success';
+  status.innerHTML = '\u2713 <strong>' + i18n.ok + '</strong>';
+  document.getElementById('entra-f-tenant').scrollIntoView({behavior:'smooth', block:'center'});
+}
+</script>
+{% endblock %}

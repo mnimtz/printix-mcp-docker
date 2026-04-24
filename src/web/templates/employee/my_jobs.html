@@ -1,0 +1,289 @@
+{% extends "base.html" %}
+{% block title %}{{ _('emp_my_jobs') }} — Printix MCP{% endblock %}
+{% block extra_head %}
+<style>
+  .job-stats {
+    display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
+    gap:10px; margin-bottom:16px;
+  }
+  .job-stat {
+    background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px;
+    padding:10px 14px; text-align:center;
+  }
+  .job-stat .num {
+    font-size:1.6em; font-weight:700; color:#1e3a5f; line-height:1;
+  }
+  .job-stat .lbl {
+    font-size:.72em; color:#64748b; text-transform:uppercase;
+    letter-spacing:.04em; margin-top:4px;
+  }
+  .job-stat.forwarded .num { color:#16a34a; }
+  .job-stat.received .num  { color:#2563eb; }
+  .job-stat.error .num     { color:#dc2626; }
+
+  .cp-job {
+    display:grid;
+    grid-template-columns: 42px 1fr auto auto;
+    gap:12px; align-items:center;
+    background:#fff; border:1px solid #e5e7eb; border-radius:10px;
+    padding:10px 14px; margin-bottom:8px;
+    transition:.12s;
+  }
+  .cp-job:hover { border-color:#c7d2fe; box-shadow:0 2px 6px rgba(0,0,0,.04); }
+  .cp-job.error { border-left:3px solid #dc2626; }
+  .cp-job.forwarded { border-left:3px solid #16a34a; }
+  .cp-job.received { border-left:3px solid #2563eb; }
+  .cp-job.forwarding { border-left:3px solid #d97706; }
+  .cp-icon {
+    width:38px; height:38px; border-radius:8px;
+    background:#eef2ff; color:#4338ca;
+    display:flex; align-items:center; justify-content:center;
+    font-size:1.2em;
+  }
+  .cp-main { min-width:0; }
+  .cp-title {
+    font-weight:600; font-size:.95em; color:#1e3a5f;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  .cp-meta {
+    font-size:.78em; color:#64748b; margin-top:2px;
+    display:flex; gap:10px; flex-wrap:wrap;
+  }
+  .cp-meta .id-source {
+    background:#eef2ff; color:#4338ca;
+    padding:1px 6px; border-radius:4px; font-size:.92em;
+  }
+  .cp-right { font-size:.8em; color:#64748b; text-align:right; }
+  .cp-status-pill {
+    display:inline-block; padding:3px 10px; border-radius:999px;
+    font-size:.75em; font-weight:700; white-space:nowrap;
+  }
+  .cp-status-pill.received   { background:#dbeafe; color:#1d4ed8; }
+  .cp-status-pill.forwarding { background:#fef3c7; color:#92400e; }
+  .cp-status-pill.forwarded  { background:#d1fae5; color:#065f46; }
+  .cp-status-pill.error      { background:#fee2e2; color:#991b1b; }
+  .cp-error-box {
+    grid-column: 2 / -1;
+    font-size:.75em; color:#991b1b; background:#fef2f2;
+    border:1px solid #fecaca; border-radius:6px;
+    padding:6px 10px; margin-top:6px;
+  }
+  .delegation-badge {
+    display:inline-block;
+    font-size:.72em; font-weight:600;
+    padding:2px 8px; margin-left:8px;
+    border-radius:999px;
+    background:#fef3c7; color:#92400e;
+    vertical-align:middle;
+  }
+</style>
+{% endblock %}
+{% block content %}
+<div class="container">
+  <!-- Sub-Navigation -->
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px;">
+    <a href="/my" class="btn btn-secondary" style="font-size:.85em;">{{ _('emp_my_dashboard') }}</a>
+    <a href="/my/jobs" class="btn btn-primary" style="font-size:.85em;">{{ _('emp_my_jobs') }}</a>
+    <a href="/my/upload" class="btn btn-secondary" style="font-size:.85em;">📤 {{ _('emp_upload_tab') }}</a>
+    <a href="/my/delegation" class="btn btn-secondary" style="font-size:.85em;">{{ _('emp_delegation') }}</a>
+    {% if user.role_type != "employee" %}
+    <a href="/my/cloud-print" class="btn btn-secondary" style="font-size:.85em;">{{ _('emp_cloud_print') }}</a>
+    <a href="/my/send-to" class="btn btn-secondary" style="font-size:.85em;">💻 {{ _('emp_send_to') }}</a>
+    {% endif %}
+    <a href="/my/mobile-app" class="btn btn-secondary" style="font-size:.85em;">📱 {{ _('emp_mobile_app') }}</a>
+    {% if user.role_type != 'employee' %}
+    <a href="/my/employees" class="btn btn-secondary" style="font-size:.85em;">{{ _('nav_employees') }}</a>
+    <a href="/my/setup-guide" class="btn btn-secondary" style="font-size:.85em;">{{ _('emp_setup_guide') }}</a>
+    {% endif %}
+  </div>
+
+  <!-- ── CLOUD PRINT JOBS (LPR-Tracking, Haupt-Abschnitt) ────────────────── -->
+  <div class="card" style="margin-bottom:16px;">
+    <div class="section-title">🖨 {{ _('emp_my_cloud_jobs_title') }}</div>
+    <div class="section-sub">{{ _('emp_my_cloud_jobs_sub') }}</div>
+
+    {% if cloud_stats and cloud_stats.total > 0 %}
+    <div class="job-stats" style="margin-top:14px;">
+      <div class="job-stat">
+        <div class="num">{{ cloud_stats.total }}</div>
+        <div class="lbl">{{ _('emp_cp_stat_total') }}</div>
+      </div>
+      <div class="job-stat forwarded">
+        <div class="num">{{ cloud_stats.forwarded }}</div>
+        <div class="lbl">{{ _('emp_cloud_status_forwarded') }}</div>
+      </div>
+      <div class="job-stat received">
+        <div class="num">{{ cloud_stats.received }}</div>
+        <div class="lbl">{{ _('emp_cloud_status_received') }}</div>
+      </div>
+      {% if cloud_stats.error > 0 %}
+      <div class="job-stat error">
+        <div class="num">{{ cloud_stats.error }}</div>
+        <div class="lbl">{{ _('emp_cloud_status_error') }}</div>
+      </div>
+      {% endif %}
+    </div>
+    {% endif %}
+
+    {% if cloud_jobs %}
+    <div style="margin-top:10px;">
+      {% for cj in cloud_jobs %}
+      {% set st = (cj.status or 'received') | lower %}
+      {% set ts = cj.forwarded_at or cj.received_at or cj.created_at or '' %}
+      <div class="cp-job {{ st }}">
+        <div class="cp-icon">
+          {% if 'pdf' in (cj.data_format or '') %}📄
+          {% elif 'postscript' in (cj.data_format or '') %}📃
+          {% elif 'pcl' in (cj.data_format or '') %}📑
+          {% else %}🖨{% endif %}
+        </div>
+        <div class="cp-main">
+          <div class="cp-title">
+            {{ cj.job_name or cj.job_id or '—' }}
+            {% if cj.delegated_from %}
+              <span class="delegation-badge"
+                    title="{{ _('emp_cloud_job_delegated_tooltip') }}">
+                🤝 {{ _('emp_cloud_job_delegated_from') }} {{ cj.delegated_from }}
+              </span>
+            {% endif %}
+          </div>
+          <div class="cp-meta">
+            {% if cj.data_size %}
+              <span>📦 {{ ((cj.data_size or 0) / 1024) | round(1) }} KB</span>
+            {% endif %}
+            {% if cj.data_format %}
+              {% if 'pdf' in cj.data_format %}
+                <span>PDF</span>
+              {% elif 'postscript' in cj.data_format %}
+                <span>PS</span>
+              {% elif 'pcl' in cj.data_format %}
+                <span>PCL</span>
+              {% else %}
+                <span>{{ cj.data_format }}</span>
+              {% endif %}
+            {% endif %}
+            {% if cj.hostname %}<span>💻 {{ cj.hostname }}</span>{% endif %}
+            {% if cj.printix_job_id %}
+              <span>🔗 <code style="font-size:.92em;">{{ cj.printix_job_id[:8] }}…</code></span>
+            {% endif %}
+            {% if cj.identity_source %}
+              <span class="id-source" title="{{ cj.detected_identity }}">🎯 {{ cj.identity_source }}</span>
+            {% endif %}
+          </div>
+        </div>
+        <div class="cp-right">
+          <div>{{ (ts or '')[:16] | replace('T', ' ') }}</div>
+        </div>
+        <div>
+          {% if st == 'received' %}
+            <span class="cp-status-pill received">{{ _('emp_cloud_status_received') }}</span>
+          {% elif st == 'forwarding' %}
+            <span class="cp-status-pill forwarding">{{ _('emp_cloud_status_forwarding') }}</span>
+          {% elif st == 'forwarded' %}
+            <span class="cp-status-pill forwarded">{{ _('emp_cloud_status_forwarded') }}</span>
+          {% elif st == 'error' %}
+            <span class="cp-status-pill error" title="{{ cj.error_message }}">{{ _('emp_cloud_status_error') }}</span>
+          {% else %}
+            <span class="cp-status-pill">{{ cj.status }}</span>
+          {% endif %}
+        </div>
+        {% if st == 'error' and cj.error_message %}
+        <div class="cp-error-box">⚠ {{ cj.error_message }}</div>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="alert alert-info" style="margin-top:12px;">
+      {{ _('emp_no_cloud_jobs') }}
+    </div>
+
+    {# v6.4.2: Debug-Hilfe wenn trotz Jobs im Tenant keine dir zugeordnet werden #}
+    {% if unmatched_recent %}
+    <div class="alert alert-warning" style="margin-top:12px;">
+      <strong>⚠ {{ _('emp_unmatched_recent_title') }}</strong>
+      <div style="font-size:.85em;margin-top:6px;">{{ _('emp_unmatched_recent_hint') }}</div>
+      <table style="margin-top:10px;font-size:.82em;">
+        <thead>
+          <tr>
+            <th>{{ _('emp_job_name') }}</th>
+            <th>{{ _('emp_cloud_job_received') }}</th>
+            <th>Username</th>
+            <th>detected_identity</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for u in unmatched_recent %}
+          <tr>
+            <td style="font-family:ui-monospace,monospace;font-size:.9em;">{{ (u.job_name or u.job_id or '—')[:40] }}</td>
+            <td>{{ (u.received_at or '')[:16] }}</td>
+            <td>{{ u.username or '—' }}</td>
+            <td><code style="font-size:.85em;">{{ (u.detected_identity or '—')[:50] }}</code></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+    {% endif %}
+  </div>
+
+  <!-- ── PRINTIX JOBS (API, live aus der Printix-Queue) ────────────────── -->
+  {% if jobs %}
+  <div class="card">
+    <div class="section-title">{{ _('emp_printix_jobs') }}</div>
+    <div class="section-sub">{{ _('emp_printix_jobs_sub') }}</div>
+
+    <div style="overflow-x:auto;margin-top:12px;">
+      <table>
+        <thead>
+          <tr>
+            <th>{{ _('emp_job_name') }}</th>
+            <th>{{ _('emp_job_status') }}</th>
+            <th>{{ _('emp_job_pages') }}</th>
+            <th>{{ _('emp_job_copies') }}</th>
+            <th>{{ _('emp_job_color') }}</th>
+            <th>{{ _('emp_job_printer') }}</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for job in jobs %}
+          <tr>
+            <td>{{ job.get('documentName', '-') }}</td>
+            <td>
+              {% set st = job.get('status', 'unknown') %}
+              {% if st == 'Pending' %}
+                <span style="color:#d97706;">{{ _('emp_pending') }}</span>
+              {% elif st == 'Processing' %}
+                <span style="color:#2563eb;">{{ _('emp_processing') }}</span>
+              {% elif st == 'Completed' %}
+                <span style="color:#16a34a;">{{ _('emp_completed') }}</span>
+              {% else %}
+                {{ st }}
+              {% endif %}
+            </td>
+            <td>{{ job.get('pageCount', '-') }}</td>
+            <td>{{ job.get('copies', 1) }}</td>
+            <td>{{ job.get('colorMode', '-') }}</td>
+            <td>{{ job.get('printerName', '-') }}</td>
+            <td>
+              {% if st in ('Pending', 'Processing') %}
+              <form method="post" action="/my/jobs/{{ job.get('id', '') }}/delete"
+                    onsubmit="return confirm('{{ _('emp_confirm_delete') }}');"
+                    style="margin:0;">
+                <button type="submit" class="btn btn-danger" style="font-size:.78em;padding:4px 10px;">
+                  {{ _('emp_delete') }}
+                </button>
+              </form>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+{% block title %}{{ _('tenant_tab_printers') }} — {{ _('brand_console_name') }}{% endblock %}
+{% block extra_head %}
+<style>
+  .search-bar { display:flex; gap:8px; margin-bottom:16px; }
+  .search-bar input { flex:1; padding:8px 12px; border:1px solid #d1d5db; border-radius:8px; font-size:.9em; }
+  .search-bar button { padding:8px 16px; background:#2563eb; color:#fff; border:none; border-radius:8px; cursor:pointer; font-size:.9em; font-weight:600; }
+  .status-dot { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:6px; }
+  .dot-green { background:#16a34a; }
+  .dot-orange { background:#f59e0b; }
+  .dot-red { background:#ef4444; }
+  .dot-gray { background:#9ca3af; }
+  .queue-chip {
+    display:inline-block; background:#dbeafe; color:#1d4ed8;
+    font-size:.74em; padding:1px 7px; border-radius:10px; margin:1px 2px 1px 0;
+  }
+  .sign-badge {
+    display:inline-block; background:#f3f4f6; color:#6b7280;
+    font-size:.74em; font-weight:600; padding:1px 7px; border-radius:6px;
+    font-family: monospace; letter-spacing:.05em;
+  }
+</style>
+{% endblock %}
+{% block content %}
+<div class="container" style="max-width:1480px;">
+  <div class="tenant-shell">
+    {% include "_tenant_sidebar.html" %}
+    <section class="tenant-main">
+      <div class="card tenant-main-card">
+        <h2 class="section-title" style="margin-bottom:16px;">🖨️ {{ _('tenant_tab_printers') }}</h2>
+
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:16px;">
+          <form class="search-bar" method="get" action="/tenant/printers" style="flex:1;min-width:200px;margin:0;">
+            <input type="text" name="search" value="{{ search }}" placeholder="{{ _('tenant_search_printers') }}">
+            <button type="submit">🔍</button>
+          </form>
+          <a href="/tenant/printers{%- if search %}?search={{ search }}{%- endif -%}" class="btn btn-secondary" title="{{ _('common_reload_printix') }}">
+            🔄 {{ _('common_refresh') }}
+          </a>
+        </div>
+
+        {% if error == "no_print_creds" %}
+        <div class="alert alert-warning">⚠️ {{ _('tenant_no_print_creds') }}</div>
+        {% elif error == "no_tenant" %}
+        <div class="alert alert-warning">⚠️ {{ _('common_no_tenant') }}</div>
+        {% elif error %}
+        <div class="alert alert-error">❌ {{ error }}</div>
+        {% elif printers %}
+        <p style="font-size:.82em;color:#6b7280;margin-bottom:10px;">{{ _('tenant_printers_count', count=printers|length) }}</p>
+        <div style="overflow-x:auto;">
+          <table>
+            <thead>
+              <tr>
+                <th>{{ _('tenant_col_name') }}</th>
+                <th>{{ _('tenant_printers_sign') }}</th>
+                <th>{{ _('tenant_col_site') }}</th>
+                <th>{{ _('tenant_col_status') }}</th>
+                <th>{{ _('tenant_col_queues') }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for p in printers %}
+              {% set status = p.get('status', '') | string | upper %}
+              <tr>
+                <td>
+                  <a href="/tenant/printers/{{ p.get('printer_id') }}" style="font-weight:600;color:#1d4ed8;text-decoration:none;">{{ p.get('name', '–') }}</a>
+                  {% if p.get('vendor') %}<br><span style="font-size:.8em;color:#9ca3af;">{{ p.get('vendor') }}</span>{% endif %}
+                </td>
+                <td>
+                  {% if p.get('printerSignId') %}
+                    <span class="sign-badge">{{ p.get('printerSignId') }}</span>
+                  {% else %}–{% endif %}
+                </td>
+                <td style="color:#6b7280;font-size:.88em;">
+                  {{ p.get('location', '–') or '–' }}
+                </td>
+                <td>
+                  {% if 'ONLINE' in status or 'ACTIVE' in status %}
+                    <span class="status-dot dot-green"></span><span style="font-size:.85em;color:#166534;">{{ _('tenant_online') }}</span>
+                  {% elif 'WARNING' in status %}
+                    <span class="status-dot dot-orange"></span><span style="font-size:.85em;color:#92400e;">{{ _('tenant_warning') }}</span>
+                  {% elif 'OFFLINE' in status or 'INACTIVE' in status %}
+                    <span class="status-dot dot-red"></span><span style="font-size:.85em;color:#991b1b;">{{ _('tenant_offline') }}</span>
+                  {% else %}
+                    <span class="status-dot dot-gray"></span><span style="font-size:.85em;color:#6b7280;">{{ status or _('common_not_available') }}</span>
+                  {% endif %}
+                </td>
+                <td>
+                  {% for q in p.get('queues', []) %}
+                    <a href="{{ q.get('detail_url') or '#' }}" class="queue-chip" style="text-decoration:none;">{{ q.get('name', q.get('queue_id', '?')) }}</a>
+                  {% else %}
+                    <span style="color:#9ca3af;font-size:.85em;">–</span>
+                  {% endfor %}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <div class="alert alert-info">{{ _('tenant_no_printers') }}</div>
+        {% endif %}
+      </div>
+    </section>
+  </div>
+</div>
+{% endblock %}

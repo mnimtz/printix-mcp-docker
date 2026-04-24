@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+{% block title %}{{ employee.full_name or employee.username }} — Printix MCP{% endblock %}
+{% block content %}
+<div class="container">
+  <div style="margin-bottom:16px;">
+    <a href="/my/employees" style="color:#2563eb;font-size:.9em;">&larr; {{ _('emp_back_to_list') }}</a>
+  </div>
+
+  <div class="card">
+    <div class="section-title">{{ employee.full_name or employee.username }}</div>
+    <div class="section-sub">{{ _('emp_employee_detail') }}</div>
+
+    <table style="margin-top:12px;">
+      <tr><th style="width:160px;">{{ _('emp_username') }}</th><td>{{ employee.username }}</td></tr>
+      <tr><th>{{ _('emp_delegate_email') }}</th><td>{{ employee.email or '-' }}</td></tr>
+      <tr><th>{{ _('emp_name') }}</th><td>{{ employee.full_name or '-' }}</td></tr>
+      {% if employee.printix_user_id %}
+      <tr><th>{{ _('cards_label_user_id') }}</th><td><code>{{ employee.printix_user_id }}</code></td></tr>
+      {% endif %}
+      {% if employee.must_change_password %}
+      <tr><th>{{ _('emp_status') }}</th><td>{{ _('emp_password_reset_pending') }}</td></tr>
+      {% endif %}
+      <tr><th>{{ _('emp_status') }}</th>
+        <td>
+          {% if employee.status == 'approved' %}
+            <span style="color:#16a34a;font-weight:600;">{{ _('emp_active') }}</span>
+          {% else %}
+            {{ employee.status }}
+          {% endif %}
+        </td>
+      </tr>
+      <tr><th>{{ _('emp_created_at') }}</th><td>{{ employee.created_at[:16] }}</td></tr>
+    </table>
+  </div>
+
+  <!-- Delegationen dieses Mitarbeiters -->
+  {% if delegations_out %}
+  <div class="card" style="margin-top:16px;">
+    <div class="section-title">{{ _('emp_my_delegates') }}</div>
+    <table style="margin-top:8px;">
+      <thead>
+        <tr>
+          <th>{{ _('emp_delegate_name') }}</th>
+          <th>{{ _('emp_delegate_email') }}</th>
+          <th>{{ _('emp_status') }}</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for d in delegations_out %}
+        <tr>
+          <td>{{ d.delegate_full_name or d.delegate_username }}</td>
+          <td>{{ d.delegate_email }}</td>
+          <td>
+            {% if d.status == 'active' %}
+              <span style="color:#16a34a;">{{ _('emp_active') }}</span>
+            {% elif d.status == 'pending' %}
+              <span style="color:#d97706;">{{ _('emp_pending') }}</span>
+              <form method="post" action="/my/employees/delegation/{{ d.id }}/approve"
+                    style="display:inline;margin-left:8px;">
+                <button type="submit" class="btn btn-primary" style="font-size:.75em;padding:3px 8px;">
+                  {{ _('emp_approve') }}
+                </button>
+              </form>
+              <form method="post" action="/my/employees/delegation/{{ d.id }}/reject"
+                    style="display:inline;margin-left:4px;">
+                <button type="submit" class="btn btn-danger" style="font-size:.75em;padding:3px 8px;">
+                  {{ _('emp_reject') }}
+                </button>
+              </form>
+            {% endif %}
+          </td>
+          <td></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+
+  {% if delegations_in %}
+  <div class="card" style="margin-top:16px;">
+    <div class="section-title">{{ _('emp_delegated_to_me') }}</div>
+    <table style="margin-top:8px;">
+      <thead>
+        <tr>
+          <th>{{ _('emp_owner_name') }}</th>
+          <th>{{ _('emp_delegate_email') }}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for d in delegations_in %}
+        <tr>
+          <td>{{ d.owner_full_name or d.owner_username }}</td>
+          <td>{{ d.owner_email }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+
+  <div style="margin-top:20px;">
+    <form method="post" action="/my/employees/{{ employee.id }}/delete"
+          onsubmit="return confirm('{{ _('emp_confirm_delete_employee') }}');">
+      <button type="submit" class="btn btn-danger">{{ _('emp_delete_employee') }}</button>
+    </form>
+  </div>
+
+</div>
+{% endblock %}

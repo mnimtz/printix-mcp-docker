@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}{{ _('invite_activate_title') }} — {{ _('brand_console_name') }}{% endblock %}
+{% block content %}
+<div class="container">
+  <div class="card" style="max-width:520px;margin:40px auto;">
+    <h2 class="section-title">{{ _('invite_activate_title') }}</h2>
+    <p class="section-sub" style="margin-bottom:24px;">
+      {{ _('invite_activate_sub') }}
+    </p>
+
+    {% if saved %}
+    <div class="alert alert-success">
+      ✓ {{ _('invite_activate_success') }}
+    </div>
+    <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:18px;">
+      <a href="{{ redirect_target | default('/dashboard') }}" class="btn btn-primary">{{ _('invite_activate_continue') }}</a>
+    </div>
+    {% else %}
+      {% if error %}
+      <div class="alert alert-error">{{ error }}</div>
+      {% endif %}
+      <form method="post" action="/account/activate">
+        <div class="form-group">
+          <label>{{ _('settings_pw_new') }}</label>
+          <input type="password" name="new_password" minlength="8" required autofocus>
+        </div>
+        <div class="form-group">
+          <label>{{ _('settings_pw_new2') }}</label>
+          <input type="password" name="new_password2" minlength="8" required>
+        </div>
+        <div style="display:flex;gap:12px;flex-wrap:wrap;">
+          <button type="submit" class="btn btn-primary">{{ _('invite_activate_save') }}</button>
+          <a href="/logout" class="btn btn-secondary">{{ _('nav_logout') }}</a>
+        </div>
+      </form>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
