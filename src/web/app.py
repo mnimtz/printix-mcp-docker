@@ -2335,7 +2335,7 @@ def create_app(session_secret: str) -> FastAPI:
             rows: list[dict] = []
             for role in ("USER", "GUEST_USER"):
                 try:
-                    raw = client.list_users(role=role, page=0, page_size=500)
+                    raw = client.list_users(role=role, page=0, page_size=200)
                 except Exception as e:
                     logger.warning("Printix list_users(%s) fehlgeschlagen: %s", role, e)
                     continue
@@ -2419,7 +2419,7 @@ def create_app(session_secret: str) -> FastAPI:
             except Exception:
                 tenant_full = {}
 
-        from db import create_invited_user, username_exists, update_user, audit
+        from db import create_invited_user, username_exists, audit
 
         def _mk_username(full_name: str, email: str, pxid: str) -> str:
             base = ""
@@ -2485,6 +2485,7 @@ def create_app(session_secret: str) -> FastAPI:
                 summary["failed"] += 1
                 continue
 
+            mail_sent_ok = False
             if want_invite:
                 if not mail_ready:
                     notes.append("Mail übersprungen (nicht konfiguriert)")
@@ -2508,16 +2509,20 @@ def create_app(session_secret: str) -> FastAPI:
                             mail_from=tenant_full.get("mail_from", ""),
                             mail_from_name=tenant_full.get("mail_from_name", "") or "Printix Management Console",
                         )
+                        mail_sent_ok = True
                         summary["mail_sent"] += 1
                         notes.append("Einladung gesendet")
                     except Exception as e:
                         logger.error("Printix-Import Mail-Fehler für %s: %s", email, e)
                         notes.append(f"Mail-Fehler: {e}")
 
+            # temp_password im UI anzeigen, wenn die Mail NICHT erfolgreich
+            # zugestellt wurde (kein Invite gewünscht, Mail nicht konfiguriert,
+            # oder Mail-Fehler) — sonst kennt der Admin das Passwort nicht.
             results.append({"pxid": pxid, "email": email, "username": username,
                             "status": "ok",
                             "detail": "; ".join(notes) if notes else "angelegt",
-                            "temp_password": temp_password if not want_invite else ""})
+                            "temp_password": temp_password if not mail_sent_ok else ""})
             summary["ok"] += 1
 
         try:
