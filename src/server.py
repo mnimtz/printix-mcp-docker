@@ -2855,8 +2855,16 @@ def printix_list_capture_profiles() -> str:
         import db
         tid = _get_card_tenant_id()
         profiles = db.get_capture_profiles_by_tenant(tid)
-        # Webhook-Base-URL ergänzen
-        base_url = os.environ.get("CAPTURE_PUBLIC_URL", "").rstrip("/")
+        # Webhook-Base-URL ergänzen (v7.0.0: DB > Env)
+        try:
+            base_url = (db.get_setting("capture_public_url", "") or "").strip().rstrip("/")
+        except Exception:
+            base_url = ""
+        if not base_url:
+            try:
+                base_url = (db.get_setting("public_url", "") or "").strip().rstrip("/")
+            except Exception:
+                base_url = ""
         if not base_url:
             base_url = os.environ.get("MCP_PUBLIC_URL", "").rstrip("/") or "http://localhost:8765"
         result = []
@@ -2879,9 +2887,16 @@ def printix_capture_status() -> str:
     und Anzahl konfigurierter Profile.
     """
     try:
-        capture_enabled = os.environ.get("CAPTURE_ENABLED", "false").lower() == "true"
-        cap_url = os.environ.get("CAPTURE_PUBLIC_URL", "").rstrip("/")
-        mcp_url = os.environ.get("MCP_PUBLIC_URL", "").rstrip("/")
+        capture_enabled = os.environ.get("CAPTURE_ENABLED", "false").strip().lower() == "true"
+        try:
+            import db as _db
+            cap_url = (_db.get_setting("capture_public_url", "") or "").strip().rstrip("/")
+            mcp_url = (_db.get_setting("public_url", "") or "").strip().rstrip("/")
+        except Exception:
+            cap_url = ""
+            mcp_url = ""
+        if not mcp_url:
+            mcp_url = os.environ.get("MCP_PUBLIC_URL", "").rstrip("/")
 
         # Plugins ermitteln — v6.7.113: zwei Bugs hier:
         # 1) Import von `capture.base_plugin` alleine triggert die
@@ -5010,20 +5025,14 @@ if __name__ == "__main__":
     logger.info("║  OAuth Token:      %s/oauth/token", base)
     logger.info("║  Health-Check:     %s/health", base)
     logger.info("╠══════════════════════════════════════════════════════════════╣")
-    # Host-Port aus /data/options.json lesen (= externer Port wie in HA-Netzwerk-Tab konfiguriert)
-    try:
-        import json as _json
-        with open("/data/options.json") as _f:
-            _opts = _json.load(_f)
-        _host_web_port = int(_opts.get("web_port", os.environ.get("WEB_PORT", "8080")))
-    except Exception:
-        _host_web_port = int(os.environ.get("WEB_PORT", "8080"))
-    logger.info("║  Benutzer registrieren:  http://<HA-IP>:%d", _host_web_port)
-    # v4.6.7: Capture-Status (bool statt Port)
-    _capture_enabled = os.environ.get("CAPTURE_ENABLED", "false").lower() == "true"
+    _web_port = int(os.environ.get("WEB_PORT", "8080"))
+    _web_base = base if base else f"http://<host>:{_web_port}"
+    logger.info("║  Benutzer registrieren:  %s", _web_base)
+    # v4.6.7/v7.0.0: Capture-Status — Base-URL aus DB > MCP_PUBLIC_URL
+    _capture_enabled = os.environ.get("CAPTURE_ENABLED", "false").strip().lower() == "true"
     if _capture_enabled:
-        _cap_url = os.environ.get("CAPTURE_PUBLIC_URL", "").rstrip("/") or "http://<HA-IP>:8775"
-        logger.info("║  Capture (separat): %s/capture/webhook/<id>", _cap_url)
+        logger.info("║  Capture (separat, Port 8775): %s/capture/webhook/<id>",
+                    base if base else "http://<host>:8775")
     else:
         logger.info("║  Capture (via MCP): %s/capture/webhook/<id>", base)
     logger.info("╚══════════════════════════════════════════════════════════════╝")

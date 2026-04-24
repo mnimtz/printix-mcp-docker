@@ -85,14 +85,23 @@ Der Container läuft als non-root User `printix` (UID 1000, GID 1000).
 
 ## Konfiguration
 
-Alle Einstellungen laufen über Environment-Variablen in der [`.env`](.env.example)-Datei. Die wichtigsten:
+Zwei Orte, zwei Verantwortlichkeiten (seit v7.0.0):
+
+1. **Ports** → ausschließlich in [`docker-compose.yml`](docker-compose.yml) unter `ports:`.
+   Zum Umziehen auf einen anderen Host-Port nur die linke Zahl ändern:
+   ```yaml
+   ports:
+     - "9000:8080"   # Web-UI jetzt auf Host-Port 9000
+   ```
+2. **Laufzeit-Einstellungen** → [`.env`](.env.example) (Env-Defaults) **oder** Admin-UI
+   unter `/admin/settings` (überschreibt `.env`).
+
+Die wichtigsten Env-Variablen:
 
 | Variable | Default | Zweck |
 |---|---|---|
-| `MCP_PUBLIC_URL` | *(leer)* | Öffentliche URL wenn hinter Tunnel/Proxy (z.B. `https://mcp.example.com`) |
+| `MCP_PUBLIC_URL` | *(leer)* | Öffentliche URL (Tunnel/Proxy, z.B. `https://mcp.example.com`). Kann zur Laufzeit in `/admin/settings` überschrieben werden — DB-Setting hat Vorrang. |
 | `MCP_LOG_LEVEL` | `info` | `debug` \| `info` \| `warning` \| `error` \| `critical` |
-| `HOST_WEB_PORT` | `8080` | Host-Port-Mapping für die Web-UI |
-| `HOST_MCP_PORT` | `8765` | Host-Port-Mapping für den MCP-Endpoint |
 | `CAPTURE_ENABLED` | `false` | Separater Capture-Server auf Port 8775 statt via MCP-Port |
 | `IPP_PORT` | `0` | IPP-Listener-Port *(0 = deaktiviert, 631 = Standard)* |
 | `IPPS_CERTFILE` / `IPPS_KEYFILE` | *(leer)* | TLS-Zertifikat für IPPS *(wenn IPP_PORT gesetzt)* |

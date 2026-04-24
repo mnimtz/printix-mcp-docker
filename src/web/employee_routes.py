@@ -1170,10 +1170,12 @@ def register_employee_routes(
         importable, import_error = _load_importable_printix_users(user)
         tenant = get_tenant_full_by_user_id(parent_id)
 
-        # Login-URL für die Einladungsmail
+        # Login-URL für die Einladungsmail (DB > MCP_PUBLIC_URL > tenant_url > request-host)
+        import os as _os
         login_url = (get_setting("public_url", "")
+                     or _os.environ.get("MCP_PUBLIC_URL", "")
                      or tenant.get("tenant_url", "")
-                     or "http://<HA-IP>:8080").rstrip("/")
+                     or f"{request.url.scheme}://{request.url.netloc}").rstrip("/")
         if not login_url.endswith("/login"):
             login_url = f"{login_url}/login"
 

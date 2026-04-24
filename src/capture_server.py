@@ -150,7 +150,17 @@ if __name__ == "__main__":
         logger.error("FATAL: CAPTURE_PORT=%d liegt ausserhalb des gueltigen Bereichs (1-65535)!", port)
         sys.exit(1)
 
-    capture_public_url = os.environ.get("CAPTURE_PUBLIC_URL", "").rstrip("/")
+    # v7.0.0: Capture-URL aus DB-Setting, Fallback: MCP_PUBLIC_URL, dann Host+Port
+    capture_public_url = ""
+    try:
+        import db as _db
+        capture_public_url = (_db.get_setting("capture_public_url", "") or "").strip().rstrip("/")
+        if not capture_public_url:
+            capture_public_url = (_db.get_setting("public_url", "") or "").strip().rstrip("/")
+    except Exception:
+        pass
+    if not capture_public_url:
+        capture_public_url = os.environ.get("MCP_PUBLIC_URL", "").rstrip("/")
     base = capture_public_url or f"http://{host}:{port}"
 
     logger.info("Erstelle Capture-App...")

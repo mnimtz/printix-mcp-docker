@@ -30,10 +30,18 @@ DB_PATH = os.environ.get("DB_PATH", "/data/printix_multi.db")
 
 
 def _normalize_role_type(role_type: str | None, is_admin: bool = False) -> str:
+    """Zwei Rollen: admin (Verwalter) und employee (Mitarbeiter / Endbenutzer).
+
+    Die Alt-Rolle "user" aus dem Multi-Tenant-Modell (vor v7.0.0) wird auf
+    "employee" gemappt — ein "user" war de facto ein Mitarbeiter ohne
+    Admin-Rechte, nur mit eigenem Tenant (den wir nicht mehr anlegen).
+    """
     value = (role_type or "").strip().lower()
-    if value in ("admin", "employee", "user"):
-        return value
-    return "admin" if is_admin else "user"
+    if value == "admin":
+        return "admin"
+    if value in ("employee", "user"):
+        return "employee"
+    return "admin" if is_admin else "employee"
 
 
 # ─── Datenbankverbindung ──────────────────────────────────────────────────────
@@ -276,6 +284,57 @@ def init_db() -> None:
                 )
         except Exception as e:
             logger.warning("Migration audit_log.tenant_id fehlgeschlagen: %s", e)
+    # v7.0.0: Single-Tenant-Refactor — alte Rolle 'user' (Multi-Tenant-Legacy)
+    # wird auf 'employee' gemappt und alle Non-Owner-User werden in den
+    # einzigen Tenant gehängt (parent_user_id → erster Admin-Tenant-Owner).
+    # Orphan-Tenants (Tenants ohne Printix-Credentials, die aus der alten
+    # "pro User ein leerer Tenant"-Logik stammen) werden entfernt, damit
+    # die DB konsistent wird und Bearer/OAuth-Lookups eindeutig bleiben.
+    with _conn() as conn:
+        try:
+            conn.execute(
+                "UPDATE users SET role_type='employee' WHERE role_type='user'"
+            )
+            owner_row = conn.execute(
+                "SELECT t.user_id FROM tenants t JOIN users u ON u.id = t.user_id "
+                "WHERE u.is_admin = 1 AND t.printix_tenant_id != '' "
+                "ORDER BY t.created_at ASC LIMIT 1"
+            ).fetchone()
+            if not owner_row:
+                owner_row = conn.execute(
+                    "SELECT t.user_id FROM tenants t JOIN users u ON u.id = t.user_id "
+                    "WHERE u.is_admin = 1 ORDER BY t.created_at ASC LIMIT 1"
+                ).fetchone()
+            if owner_row:
+                owner_uid = owner_row["user_id"]
+                updated = conn.execute(
+                    "UPDATE users SET parent_user_id = ? "
+                    "WHERE id != ? "
+                    "  AND (parent_user_id IS NULL OR parent_user_id = '')",
+                    (owner_uid, owner_uid),
+                ).rowcount
+                if updated and updated > 0:
+                    logger.info(
+                        "Migration v7.0.0 Single-Tenant: %d User an Tenant-Owner "
+                        "%s gehaengt (parent_user_id gesetzt)",
+                        updated, owner_uid,
+                    )
+                # Orphan-Tenants aufraeumen: alle Tenants, die NICHT dem Owner
+                # gehoeren UND keine Printix-Credentials haben (leere
+                # Alt-Tenants aus _create_empty_tenant pro User).
+                deleted = conn.execute(
+                    "DELETE FROM tenants "
+                    "WHERE user_id != ? "
+                    "  AND (printix_tenant_id IS NULL OR printix_tenant_id = '')",
+                    (owner_uid,),
+                ).rowcount
+                if deleted and deleted > 0:
+                    logger.info(
+                        "Migration v7.0.0 Single-Tenant: %d Orphan-Tenant(s) "
+                        "ohne Printix-Credentials entfernt", deleted,
+                    )
+        except Exception as e:
+            logger.warning("Migration v7.0.0 Single-Tenant fehlgeschlagen: %s", e)
     # Feature-Requests / Ticketsystem (v3.9.0+)
     with _conn() as conn:
         conn.execute("""
@@ -464,24 +523,74 @@ def username_exists(username: str, exclude_id: str = "") -> bool:
         return row is not None
 
 
+def _find_tenant_owner_user_id() -> str:
+    """Liefert die user_id des (einzigen) Tenant-Owners im Single-Tenant-Modell.
+
+    Bei mehreren Tenants (Legacy-Daten aus der Multi-Tenant-Zeit) wird der
+    älteste Tenant-Eintrag genommen, der zusätzlich einen Admin-User hat.
+    Leerer String wenn noch kein Tenant existiert (First-Boot).
+    """
+    with _conn() as conn:
+        row = conn.execute(
+            "SELECT t.user_id FROM tenants t "
+            "JOIN users u ON u.id = t.user_id "
+            "WHERE u.is_admin = 1 "
+            "ORDER BY t.created_at ASC LIMIT 1"
+        ).fetchone()
+        if row:
+            return row["user_id"]
+        # Fallback: irgendein Tenant (falls kein Admin-Join matched)
+        row = conn.execute(
+            "SELECT user_id FROM tenants ORDER BY created_at ASC LIMIT 1"
+        ).fetchone()
+    return row["user_id"] if row else ""
+
+
+def _resolve_tenant_owner_for(user_id: str) -> str:
+    """Gibt die user_id des Tenant-Owners zurück, zu dem `user_id` gehört.
+
+    - Wenn user_id selbst ein Tenant-Eintrag besitzt → user_id
+    - Sonst: parent_user_id folgen (eine Ebene reicht im Single-Tenant-Modell)
+    - Fallback: ältester Tenant-Owner
+    """
+    uid = (user_id or "").strip()
+    if not uid:
+        return _find_tenant_owner_user_id()
+    with _conn() as conn:
+        row = conn.execute(
+            "SELECT u.parent_user_id, t.id AS tenant_id "
+            "FROM users u LEFT JOIN tenants t ON t.user_id = u.id "
+            "WHERE u.id = ?",
+            (uid,),
+        ).fetchone()
+    if not row:
+        return _find_tenant_owner_user_id()
+    if row["tenant_id"]:
+        return uid
+    parent = (row["parent_user_id"] or "").strip() if row["parent_user_id"] else ""
+    return parent or _find_tenant_owner_user_id()
+
+
 def create_user(username: str, password: str, email: str = "", is_first: bool = False, full_name: str = "", company: str = "") -> dict:
     """
     Legt einen neuen Benutzer via Registrierungs-Wizard an.
-    Erster Benutzer (is_first=True): Admin + automatisch genehmigt.
-    Alle weiteren: pending (warten auf Admin-Freischaltung).
+    Erster Benutzer (is_first=True): Admin + automatisch genehmigt + Tenant-Owner.
+    Alle weiteren: pending (warten auf Admin-Freischaltung) und werden in den
+    bestehenden Tenant gehängt (parent_user_id zeigt auf den Tenant-Owner).
     """
     from crypto import hash_password
     uid = str(uuid.uuid4())
     now = _now()
     status = "approved" if is_first else "pending"
     is_admin = 1 if is_first else 0
-    role_type = _normalize_role_type("admin" if is_first else "user", bool(is_admin))
+    role_type = _normalize_role_type("admin" if is_first else "employee", bool(is_admin))
+    parent_user_id = "" if is_first else _find_tenant_owner_user_id()
     pw_hash = hash_password(password)
     with _conn() as conn:
         conn.execute(
-            "INSERT INTO users (id, username, email, full_name, company, password_hash, is_admin, role_type, status, created_at)"
-            " VALUES (?,?,?,?,?,?,?,?,?,?)",
-            (uid, username.strip(), email.strip(), full_name.strip(), company.strip(), pw_hash, is_admin, role_type, status, now),
+            "INSERT INTO users (id, username, email, full_name, company, password_hash, is_admin, role_type, parent_user_id, status, created_at)"
+            " VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+            (uid, username.strip(), email.strip(), full_name.strip(), company.strip(), pw_hash, is_admin, role_type, parent_user_id, status, now),
         )
     return get_user_by_id(uid)
 
@@ -495,25 +604,28 @@ def create_user_admin(
     status: str = "approved",
     full_name: str = "",
     company: str = "",
+    parent_user_id: str = "",
 ) -> dict:
     """
     Legt einen Benutzer direkt durch einen Admin an (ohne Wizard-Flow).
     Status und Adminrechte werden explizit gesetzt.
-    Erstellt auch einen leeren Tenant-Datensatz für den Benutzer.
+
+    Seit v7.0.0 (Single-Tenant-Modell): Ein neuer User wird in den bestehenden
+    Tenant gehängt — `parent_user_id` zeigt auf den Owner des Tenants. Es
+    wird KEIN eigener Tenant mehr für den neuen User angelegt.
     """
     from crypto import hash_password
     uid = str(uuid.uuid4())
     now = _now()
     normalized_role = _normalize_role_type(role_type, is_admin)
+    effective_parent = (parent_user_id or "").strip() or _find_tenant_owner_user_id()
     pw_hash = hash_password(password)
     with _conn() as conn:
         conn.execute(
-            "INSERT INTO users (id, username, email, full_name, company, password_hash, is_admin, role_type, status, created_at)"
-            " VALUES (?,?,?,?,?,?,?,?,?,?)",
-            (uid, username.strip(), email.strip(), full_name.strip(), company.strip(), pw_hash, 1 if normalized_role == 'admin' else 0, normalized_role, status, now),
+            "INSERT INTO users (id, username, email, full_name, company, password_hash, is_admin, role_type, parent_user_id, status, created_at)"
+            " VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+            (uid, username.strip(), email.strip(), full_name.strip(), company.strip(), pw_hash, 1 if normalized_role == 'admin' else 0, normalized_role, effective_parent, status, now),
         )
-    # Leeren Tenant anlegen damit OAuth/Bearer sofort verfügbar sind
-    _create_empty_tenant(uid, username)
     return get_user_by_id(uid)
 
 
@@ -533,18 +645,29 @@ def create_invited_user(
     """
     Legt einen Benutzer per Einladungs-Flow an.
     Der Benutzer ist freigeschaltet, muss aber beim ersten Login sein Passwort ändern.
+
+    Seit v7.0.0 (Single-Tenant-Modell): Eingeladene User werden in den
+    bestehenden Tenant gehängt — `parent_user_id` zeigt auf den Tenant-Owner.
+    Fehlt `parent_user_id`, wird er aus `invited_by_user_id` abgeleitet, sonst
+    aus dem Tenant-Owner (erster Admin).
     """
     from crypto import hash_password
     uid = str(uuid.uuid4())
     now = _now()
     normalized_role = _normalize_role_type(role_type, is_admin)
+    # Parent-Resolution: übergebene parent_user_id > inviter > tenant-owner
+    effective_parent = (parent_user_id or "").strip()
+    if not effective_parent and invited_by_user_id.strip():
+        effective_parent = _resolve_tenant_owner_for(invited_by_user_id.strip())
+    if not effective_parent:
+        effective_parent = _find_tenant_owner_user_id()
     pw_hash = hash_password(password)
     with _conn() as conn:
         conn.execute(
             "INSERT INTO users ("
-            "id, username, email, full_name, company, password_hash, is_admin, role_type, printix_user_id, status, "
+            "id, username, email, full_name, company, password_hash, is_admin, role_type, parent_user_id, printix_user_id, status, "
             "must_change_password, invited_by_user_id, invitation_language, invitation_sent_at, created_at"
-            ") VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            ") VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (
                 uid,
                 username.strip(),
@@ -554,6 +677,7 @@ def create_invited_user(
                 pw_hash,
                 1 if normalized_role == 'admin' else 0,
                 normalized_role,
+                effective_parent,
                 (printix_user_id or "").strip(),
                 "approved",
                 1,
@@ -563,12 +687,6 @@ def create_invited_user(
                 now,
             ),
         )
-        if parent_user_id.strip():
-            try:
-                conn.execute("UPDATE users SET parent_user_id=? WHERE id=?", (parent_user_id.strip(), uid))
-            except Exception:
-                pass
-    _create_empty_tenant(uid, full_name.strip() or company.strip() or username.strip())
     return get_user_by_id(uid)
 
 
@@ -647,9 +765,45 @@ def set_user_status(user_id: str, status: str) -> None:
         conn.execute("UPDATE users SET status=? WHERE id=?", (status, user_id))
 
 
-def set_user_admin(user_id: str, is_admin: bool) -> None:
+class LastAdminError(Exception):
+    """Wird geworfen, wenn die Aktion den letzten Admin entfernen wuerde."""
+
+
+def _count_other_admins(user_id: str) -> int:
+    """Zaehlt Admins mit status='approved' abgesehen vom gegebenen User."""
     with _conn() as conn:
-        conn.execute("UPDATE users SET is_admin=? WHERE id=?", (1 if is_admin else 0, user_id))
+        row = conn.execute(
+            "SELECT COUNT(*) FROM users "
+            "WHERE is_admin = 1 AND status = 'approved' AND id != ?",
+            (user_id,),
+        ).fetchone()
+    return int(row[0]) if row else 0
+
+
+def _is_tenant_owner(user_id: str) -> bool:
+    """Prueft, ob der User Owner (user_id in tenants) des bestehenden Tenants ist."""
+    with _conn() as conn:
+        row = conn.execute(
+            "SELECT 1 FROM tenants WHERE user_id = ? LIMIT 1",
+            (user_id,),
+        ).fetchone()
+    return row is not None
+
+
+def set_user_admin(user_id: str, is_admin: bool) -> None:
+    """Setzt das Admin-Flag. Verhindert das Entfernen des letzten Admins."""
+    if not is_admin and _count_other_admins(user_id) == 0:
+        raise LastAdminError(
+            "Dieser Admin kann nicht degradiert werden — es ist der letzte "
+            "aktive Admin. Ernenne zuerst einen anderen User zum Admin."
+        )
+    with _conn() as conn:
+        # is_admin und role_type synchron halten
+        new_role = "admin" if is_admin else "employee"
+        conn.execute(
+            "UPDATE users SET is_admin=?, role_type=? WHERE id=?",
+            (1 if is_admin else 0, new_role, user_id),
+        )
 
 
 def update_user(
@@ -678,10 +832,27 @@ def update_user(
     normalized_role = None
     if role_type is not None or is_admin is not None:
         normalized_role = _normalize_role_type(role_type, bool(is_admin))
+    # Last-Admin-Safeguard: verhindert Runterstufen des letzten Admins.
+    if normalized_role is not None and normalized_role != "admin":
+        current = get_user_by_id(user_id)
+        if current and current.get("is_admin") and _count_other_admins(user_id) == 0:
+            raise LastAdminError(
+                "Rolle kann nicht geaendert werden — dieser User ist der "
+                "letzte Admin. Ernenne zuerst einen anderen User zum Admin."
+            )
+    if is_admin is False and normalized_role != "admin":
+        current = get_user_by_id(user_id)
+        if current and current.get("is_admin") and _count_other_admins(user_id) == 0:
+            raise LastAdminError(
+                "Admin-Rechte koennen nicht entzogen werden — dies ist der "
+                "letzte Admin."
+            )
     if normalized_role is not None:
         parts.append("role_type=?"); params.append(normalized_role)
-    if is_admin is not None:
+        # is_admin IMMER mitpflegen, damit die zwei Felder konsistent bleiben
         parts.append("is_admin=?"); params.append(1 if normalized_role == "admin" else 0)
+    elif is_admin is not None:
+        parts.append("is_admin=?"); params.append(1 if is_admin else 0)
     if status is not None:
         parts.append("status=?"); params.append(status)
     if not parts:
@@ -715,11 +886,32 @@ def complete_invitation_password_change(user_id: str, new_password: str) -> bool
 
 def delete_user(user_id: str) -> bool:
     """
-    Löscht einen Benutzer und seinen zugehörigen Tenant.
+    Löscht einen Benutzer.
     Gibt False zurück wenn der Benutzer nicht existiert.
+
+    Seit v7.0.0 (Single-Tenant-Modell):
+      - Der Tenant-Owner darf nicht geloescht werden — sonst waere der
+        eine Tenant verwaist. Erst via Tenant-Transfer einen neuen Owner
+        setzen, dann kann der alte User geloescht werden.
+      - Letzter Admin darf nicht geloescht werden (Last-Admin-Safeguard).
+      - Fuer alle anderen User: nur den User-Eintrag loeschen, der Tenant
+        bleibt unberuehrt.
     """
+    current = get_user_by_id(user_id)
+    if not current:
+        return False
+    if current.get("is_admin") and _count_other_admins(user_id) == 0:
+        raise LastAdminError(
+            "Dieser User ist der letzte Admin und kann nicht geloescht werden. "
+            "Ernenne zuerst einen anderen User zum Admin."
+        )
+    if _is_tenant_owner(user_id):
+        raise LastAdminError(
+            "Dieser User ist der Tenant-Owner. Das Loeschen wuerde den "
+            "Tenant verwaisen. Uebertrage zuerst die Tenant-Ownership "
+            "auf einen anderen Admin."
+        )
     with _conn() as conn:
-        conn.execute("DELETE FROM tenants WHERE user_id=?", (user_id,))
         cur = conn.execute("DELETE FROM users WHERE id=?", (user_id,))
     return cur.rowcount > 0
 
@@ -812,20 +1004,21 @@ def get_or_create_entra_user(
     # Auto-Approve prüfen
     auto_approve = get_setting("entra_auto_approve", "0") == "1"
     status = "approved" if auto_approve else "pending"
+    # Entra-SSO-User wird Mitarbeiter im bestehenden (einzigen) Tenant
+    parent_uid = _find_tenant_owner_user_id()
 
     with _conn() as conn:
         conn.execute(
             "INSERT INTO users "
             "(id, username, email, full_name, company, password_hash, "
-            " is_admin, role_type, status, created_at, entra_oid) "
-            "VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+            " is_admin, role_type, parent_user_id, status, created_at, entra_oid) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
             (uid, username, email.strip(), display_name, "",
-             pw_hash, 0, "user", status, now, entra_oid),
+             pw_hash, 0, "employee", parent_uid, status, now, entra_oid),
         )
 
-    # Leeren Tenant anlegen
-    _create_empty_tenant(uid, display_name or username)
-    logger.info("Entra-User angelegt: %s (%s) → status=%s", username, email, status)
+    logger.info("Entra-User angelegt: %s (%s) → status=%s, parent=%s",
+                username, email, status, parent_uid or "-")
     return get_user_by_id(uid)
 
 

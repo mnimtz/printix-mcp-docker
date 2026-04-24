@@ -11,9 +11,14 @@
       <div style="display:flex;gap:8px;flex-wrap:wrap;">
         <a href="/admin/users/invite" class="btn btn-success btn-sm">✉️ {{ _('admin_invite_user') }}</a>
         <a href="/admin/users/create" class="btn btn-primary btn-sm">+ {{ _('admin_create_user') }}</a>
+        <a href="/admin/users/bulk-import" class="btn btn-secondary btn-sm">📥 Bulk-Import (CSV)</a>
         <a href="/admin" class="btn btn-secondary btn-sm">← {{ _('admin_title') }}</a>
       </div>
     </div>
+
+    {% if error %}
+    <div class="alert alert-error" style="margin-bottom:16px;">⚠ {{ error }}</div>
+    {% endif %}
 
     {% if users %}
     <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
@@ -38,10 +43,8 @@
           <td>
             {% if u.role_type == 'admin' %}
               <span class="badge badge-blue">{{ _('role_admin') }}</span>
-            {% elif u.role_type == 'employee' %}
-              <span class="badge badge-yellow">{{ _('role_employee') }}</span>
             {% else %}
-              <span style="color:#6b7280; font-size:.85em;">{{ _('role_user') }}</span>
+              <span class="badge badge-yellow">{{ _('role_employee') }}</span>
             {% endif %}
           </td>
           <td>

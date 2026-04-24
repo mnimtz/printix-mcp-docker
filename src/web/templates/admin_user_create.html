@@ -63,8 +63,7 @@
       <div class="form-group">
         <label>{{ _('admin_role') }}</label>
         <select name="role_type">
-          <option value="user" {% if f_role_type | default('user') == 'user' %}selected{% endif %}>{{ _('role_user') }}</option>
-          <option value="employee" {% if f_role_type | default('') == 'employee' %}selected{% endif %}>{{ _('role_employee') }}</option>
+          <option value="employee" {% if f_role_type | default('employee') == 'employee' %}selected{% endif %}>{{ _('role_employee') }}</option>
           <option value="admin" {% if f_role_type | default('') == 'admin' %}selected{% endif %}>{{ _('role_admin') }}</option>
         </select>
         <small class="hint">{{ _('admin_role_hint') }}</small>

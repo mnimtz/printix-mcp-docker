@@ -31,11 +31,16 @@
         <small class="hint">{{ _('admin_base_url_hint') }}</small>
       </div>
 
+      {% set effective_url = public_url or base_url or '(nicht gesetzt)' %}
       <div class="alert alert-info" style="margin-bottom:20px;font-size:.88em;">
         <strong>{{ _('admin_current_url') }}</strong><br>
-        MCP: <code>{{ public_url or 'http://&lt;HA-IP&gt;:8765' }}/mcp</code><br>
-        SSE: <code>{{ public_url or 'http://&lt;HA-IP&gt;:8765' }}/sse</code><br>
-        OAuth: <code>{{ public_url or 'http://&lt;HA-IP&gt;:8765' }}/oauth/authorize</code>
+        MCP: <code>{{ effective_url }}/mcp</code><br>
+        SSE: <code>{{ effective_url }}/sse</code><br>
+        OAuth: <code>{{ effective_url }}/oauth/authorize</code><br>
+        <small style="color:#6b7280;">
+          Quelle: {% if public_url %}DB-Setting{% elif base_url %}Env/Request-Host{% else %}—{% endif %}
+          (DB überschreibt <code>MCP_PUBLIC_URL</code>)
+        </small>
       </div>
 
       <!-- ── Capture Webhook URL (v4.5.0) ─────────────────────────────────── -->
@@ -52,7 +57,7 @@
         <code>{{ capture_public_url }}/capture/webhook/&lt;profile_id&gt;</code>
         <span style="color:#059669;font-weight:600;"> {{ _('admin_capture_mode_separate') }}</span>
         {% else %}
-        <code>{{ public_url or 'http://&lt;HA-IP&gt;:8765' }}/capture/webhook/&lt;profile_id&gt;</code>
+        <code>{{ public_url or base_url or '(URL nicht gesetzt)' }}/capture/webhook/&lt;profile_id&gt;</code>
         <span style="color:#6b7280;"> {{ _('admin_capture_mode_shared') }}</span>
         {% endif %}
       </div>

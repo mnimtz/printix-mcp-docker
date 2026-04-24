@@ -2,9 +2,12 @@
 # Printix MCP — Docker Compose (Referenz-Setup)
 # =============================================================================
 # Erst-Installation:
-#   1.  cp .env.example .env      # Defaults anpassen (PUBLIC_URL, Ports etc.)
+#   1.  cp .env.example .env      # MCP_PUBLIC_URL & Co. anpassen
 #   2.  docker compose up -d
 #   3.  Browser: http://localhost:8080   → Erstkonfiguration im Web-UI
+#
+# Ports ändern: Passe die Einträge unter `ports:` unten an (z.B. "9000:8080").
+# Die linke Seite ist der Host-Port, rechts der Container-Port (nicht ändern).
 #
 # Update auf neue Version:
 #   docker compose pull && docker compose up -d
@@ -25,34 +28,38 @@ services:
     environment:
       # --- Basis ---------------------------------------------------------------
       # Öffentliche URL (z.B. via Cloudflare Tunnel / Reverse Proxy).
-      # Wenn leer: Endpunkte werden mit <host> im Log angezeigt.
+      # Wenn leer: Web-UI funktioniert über den Request-Host (LAN).
+      # Kann auch zur Laufzeit in der Admin-UI (/admin/settings) gesetzt werden —
+      # DB-Setting überschreibt diese Env-Variable.
       MCP_PUBLIC_URL: ${MCP_PUBLIC_URL:-}
       MCP_LOG_LEVEL: ${MCP_LOG_LEVEL:-info}
 
-      # --- Ports (im Container — Host-Seite wird unten in ports: gemapped) ----
+      # --- Ports im CONTAINER (nicht ändern; Mapping erfolgt unter `ports:`) --
       WEB_PORT: 8080
       MCP_PORT: 8765
       CAPTURE_PORT: 8775
 
-      # --- Capture-Server (optional, separater Port) ---------------------------
-      # true = eigener Server auf CAPTURE_PORT, false = Webhooks laufen über MCP_PORT
+      # --- Capture-Server (optional) -------------------------------------------
+      # true  = eigener Server auf CAPTURE_PORT (8775) — nur nötig, wenn
+      #         Webhooks von außen auf einem separaten Port ankommen sollen.
+      # false = Webhooks laufen über MCP_PORT (8765). [Default]
       CAPTURE_ENABLED: ${CAPTURE_ENABLED:-false}
-      CAPTURE_PUBLIC_URL: ${CAPTURE_PUBLIC_URL:-}
 
       # --- IPP/IPPS Listener (Cloud Print) -------------------------------------
       # 0 = deaktiviert (IPP läuft nur auf WEB_PORT). 631 = Standard-IPP-Port.
       IPP_PORT: ${IPP_PORT:-0}
-      # TLS-Zertifikat für IPPS (wenn IPP_PORT gesetzt):
+      # TLS-Zertifikat für IPPS (wenn IPP_PORT > 0):
       IPPS_CERTFILE: ${IPPS_CERTFILE:-}
       IPPS_KEYFILE: ${IPPS_KEYFILE:-}
 
     ports:
-      # Host-Port : Container-Port
-      - "${HOST_WEB_PORT:-8080}:8080"       # Web-UI
-      - "${HOST_MCP_PORT:-8765}:8765"       # MCP Endpoint
-      - "${HOST_CAPTURE_PORT:-8775}:8775"   # Capture-Webhook (nur relevant wenn CAPTURE_ENABLED=true)
-      # IPP optional — auskommentieren und IPP_PORT in .env setzen, wenn Cloud-Print genutzt wird:
-      # - "${HOST_IPP_PORT:-631}:631"
+      # Format:  "HOST-PORT:CONTAINER-PORT"
+      # Zum Umziehen auf einen anderen Host-Port NUR die linke Zahl ändern.
+      - "8080:8080"       # Web-UI (Admin, Login, Dashboard)
+      - "8765:8765"       # MCP-Endpoint (Claude, OAuth, SSE)
+      - "8775:8775"       # Capture-Webhook — nur relevant wenn CAPTURE_ENABLED=true
+      # IPP/IPPS nur aktivieren, wenn IPP_PORT gesetzt ist:
+      # - "631:631"
 
     volumes:
       # Persistente Daten: SQLite-DB, Fernet-Key, Session-Key, Report-Templates

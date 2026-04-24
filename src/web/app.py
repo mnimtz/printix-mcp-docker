@@ -217,18 +217,33 @@ def create_app(session_secret: str) -> FastAPI:
     app.add_middleware(SessionMiddleware, secret_key=session_secret, max_age=3600 * 8)
 
     def mcp_base_url() -> str:
-        """Gibt die öffentliche MCP-Basis-URL zurück (DB-Setting > ENV > Fallback)."""
+        """Gibt die öffentliche MCP-Basis-URL zurück.
+
+        Auflösung (2-stufig, v7.0.0):
+          1. DB-Setting ``public_url`` (Admin-UI, Laufzeit)
+          2. Env ``MCP_PUBLIC_URL`` (Deploy-Default)
+
+        Ist nichts gesetzt, wird ein Leerstring zurückgegeben — Aufrufer
+        müssen das behandeln (oder ``mcp_base_url_or(request)`` verwenden).
+        """
         try:
             from db import get_setting
-            db_url = get_setting("public_url", "")
+            db_url = (get_setting("public_url", "") or "").strip().rstrip("/")
             if db_url:
-                return db_url.rstrip("/")
+                return db_url
         except Exception:
             pass
-        env_url = os.environ.get("MCP_PUBLIC_URL", "").rstrip("/")
-        if env_url:
-            return env_url
-        return "http://<HA-IP>:8765"
+        return os.environ.get("MCP_PUBLIC_URL", "").strip().rstrip("/")
+
+    def mcp_base_url_or(request: Request) -> str:
+        """Wie ``mcp_base_url()``, fällt aber auf den Request-abgeleiteten
+        Host zurück wenn nichts konfiguriert ist. Damit funktioniert die
+        Admin-UI auch ohne explizite ``public_url``-Konfiguration im
+        ersten Boot."""
+        url = mcp_base_url()
+        if url:
+            return url
+        return _get_base_url(request)
 
     # ── Sprach-Route ──────────────────────────────────────────────────────────
 
@@ -411,7 +426,7 @@ def create_app(session_secret: str) -> FastAPI:
         if "reg_tenant_id" not in request.session:
             return RedirectResponse("/register", status_code=302)
 
-        base = mcp_base_url()
+        base = mcp_base_url_or(request)
         return templates.TemplateResponse("register_step4.html", {
             "request": request, "step": 4,
             "username":       request.session.get("reg_username", ""),
@@ -429,7 +444,7 @@ def create_app(session_secret: str) -> FastAPI:
         if "reg_tenant_id" not in request.session:
             return RedirectResponse("/register", status_code=302)
 
-        base = mcp_base_url()
+        base = mcp_base_url_or(request)
         tc   = t_ctx(request)
 
         try:
@@ -952,7 +967,7 @@ def create_app(session_secret: str) -> FastAPI:
         if user.get("status") == "pending":
             return RedirectResponse("/pending", status_code=302)
 
-        base   = mcp_base_url()
+        base   = mcp_base_url_or(request)
         tenant = None
         try:
             from db import get_tenant_full_by_user_id
@@ -1867,7 +1882,7 @@ def create_app(session_secret: str) -> FastAPI:
         if not user:
             return RedirectResponse("/login", status_code=302)
 
-        base   = mcp_base_url()
+        base   = mcp_base_url_or(request)
         tenant = None
         try:
             from db import get_tenant_by_user_id
@@ -1901,7 +1916,7 @@ def create_app(session_secret: str) -> FastAPI:
         return templates.TemplateResponse("admin_dashboard.html", {
             "request": request, "user": user,
             "users": users, "tenant_count": tenant_count,
-            "base_url": mcp_base_url(), **t_ctx(request),
+            "base_url": mcp_base_url_or(request), **t_ctx(request),
         })
 
     @app.get("/admin/users", response_class=HTMLResponse)
@@ -1930,8 +1945,10 @@ def create_app(session_secret: str) -> FastAPI:
                     entry["relationship_email"] = entry.get("email") or ""
         except Exception:
             users = []
+        err_msg = (request.query_params.get("err") or "").strip() or None
         return templates.TemplateResponse("admin_users.html", {
-            "request": request, "user": user, "users": users, **t_ctx(request)
+            "request": request, "user": user, "users": users,
+            "error": err_msg, **t_ctx(request)
         })
 
     @app.post("/admin/users/{user_id}/approve")
@@ -1968,7 +1985,7 @@ def create_app(session_secret: str) -> FastAPI:
         full_name: str = Form(default=""),
         company: str = Form(default=""),
         invite_lang: str = Form(default="de"),
-        role_type: str = Form(default="user"),
+        role_type: str = Form(default="employee"),
     ):
         admin = get_session_user(request)
         if not admin or not admin.get("is_admin"):
@@ -2078,6 +2095,226 @@ def create_app(session_secret: str) -> FastAPI:
             **tc,
         })
 
+    @app.get("/admin/users/bulk-import", response_class=HTMLResponse)
+    async def admin_bulk_import_get(request: Request):
+        admin = get_session_user(request)
+        if not admin or not admin.get("is_admin"):
+            return RedirectResponse("/login", status_code=302)
+        return templates.TemplateResponse("admin_user_bulk.html", {
+            "request": request, "user": admin,
+            "error": None, "results": None, "summary": None,
+            **t_ctx(request),
+        })
+
+    @app.post("/admin/users/bulk-import", response_class=HTMLResponse)
+    async def admin_bulk_import_post(
+        request:              Request,
+        csv_file:             Optional[UploadFile] = File(default=None),
+        csv_text:             str  = Form(default=""),
+        default_local_role:   str  = Form(default="employee"),
+        default_printix_role: str  = Form(default="GUEST_USER"),
+        send_invitation:      str  = Form(default=""),
+        create_printix:       str  = Form(default=""),
+        invite_lang:          str  = Form(default="de"),
+    ):
+        admin = get_session_user(request)
+        if not admin or not admin.get("is_admin"):
+            return RedirectResponse("/login", status_code=302)
+        tc = t_ctx(request)
+
+        want_invite  = bool(send_invitation)
+        want_printix = bool(create_printix)
+
+        # 1) CSV-Rohdaten einsammeln (Upload hat Vorrang)
+        raw_bytes: bytes = b""
+        if csv_file is not None:
+            try:
+                raw_bytes = await csv_file.read()
+            except Exception:
+                raw_bytes = b""
+        raw_text = raw_bytes.decode("utf-8-sig", errors="replace") if raw_bytes else (csv_text or "")
+        raw_text = raw_text.strip()
+        if not raw_text:
+            return templates.TemplateResponse("admin_user_bulk.html", {
+                "request": request, "user": admin,
+                "error": "Keine CSV-Daten übermittelt (Datei oder Text).",
+                "results": None, "summary": None, **tc,
+            })
+
+        import csv as _csv
+        import io as _io
+        # Delimiter autodetect (fallback Komma)
+        try:
+            dialect = _csv.Sniffer().sniff(raw_text.splitlines()[0] + "\n", delimiters=",;\t")
+        except Exception:
+            dialect = _csv.excel
+        reader = _csv.DictReader(_io.StringIO(raw_text), dialect=dialect)
+        if not reader.fieldnames or "email" not in [(f or "").strip().lower() for f in reader.fieldnames]:
+            return templates.TemplateResponse("admin_user_bulk.html", {
+                "request": request, "user": admin,
+                "error": "CSV-Header fehlt oder enthält keine Spalte 'email'.",
+                "results": None, "summary": None, **tc,
+            })
+
+        # Header normalisieren (lowercase)
+        def _norm(row: dict) -> dict:
+            return {(k or "").strip().lower(): (v or "").strip() for k, v in row.items()}
+
+        # 2) Tenant + Printix-Vorbereitung (nur einmal laden)
+        tenant_full = None
+        px_client = None
+        mail_ready = False
+        if want_invite or want_printix:
+            try:
+                from db import get_tenant_full_by_user_id
+                tenant_full = get_tenant_full_by_user_id(admin["id"]) or {}
+            except Exception:
+                tenant_full = {}
+            if want_invite:
+                mail_ready = bool(tenant_full.get("mail_api_key") and tenant_full.get("mail_from"))
+            if want_printix:
+                try:
+                    px_client = _make_printix_client(tenant_full)
+                except Exception as e:
+                    logger.error("Bulk-Import: Printix-Client init failed: %s", e)
+                    px_client = None
+
+        from db import (
+            create_invited_user, username_exists, audit,
+            LastAdminError,  # noqa: F401
+        )
+        results: list[dict] = []
+        summary = {"ok": 0, "skipped": 0, "failed": 0, "mail_sent": 0, "printix_ok": 0}
+
+        for idx, raw_row in enumerate(reader, start=2):  # Zeile 1 = Header
+            row = _norm(raw_row)
+            email = row.get("email", "")
+            if not email or "@" not in email:
+                results.append({"row": idx, "email": email, "username": "",
+                                "status": "failed", "detail": "Ungültige E-Mail"})
+                summary["failed"] += 1
+                continue
+
+            username = row.get("username", "") or email.split("@", 1)[0]
+            full_name = row.get("full_name", "")
+            company   = row.get("company", "")
+            local_role = (row.get("local_role", "") or default_local_role).lower().strip()
+            if local_role not in ("admin", "employee", "user"):
+                local_role = default_local_role
+            if local_role == "user":
+                local_role = "employee"
+            px_role = (row.get("printix_role", "") or default_printix_role).upper().strip()
+            if px_role not in ("USER", "GUEST_USER"):
+                px_role = default_printix_role
+
+            # Duplikat-Check
+            try:
+                if username_exists(username):
+                    results.append({"row": idx, "email": email, "username": username,
+                                    "status": "skipped", "detail": "Benutzername existiert bereits"})
+                    summary["skipped"] += 1
+                    continue
+            except Exception as e:
+                results.append({"row": idx, "email": email, "username": username,
+                                "status": "failed", "detail": f"DB-Check: {e}"})
+                summary["failed"] += 1
+                continue
+
+            temp_password = _generate_temp_password()
+            created_user = None
+            row_notes: list[str] = []
+            try:
+                created_user = create_invited_user(
+                    username=username,
+                    password=temp_password,
+                    email=email,
+                    full_name=full_name,
+                    company=company,
+                    invited_by_user_id=admin["id"],
+                    invitation_language=invite_lang.strip(),
+                    role_type=local_role,
+                )
+            except Exception as e:
+                results.append({"row": idx, "email": email, "username": username,
+                                "status": "failed", "detail": f"Anlage fehlgeschlagen: {e}"})
+                summary["failed"] += 1
+                continue
+
+            # Einladungs-Mail (best-effort)
+            if want_invite:
+                if not mail_ready:
+                    row_notes.append("Mail übersprungen (nicht konfiguriert)")
+                else:
+                    try:
+                        from invite_mail import render_invitation_email
+                        from reporting.mail_client import send_report
+                        login_url = f"{_get_base_url(request)}/login"
+                        subject, html_body = render_invitation_email(
+                            lang=invite_lang.strip(),
+                            full_name=full_name,
+                            username=username,
+                            password=temp_password,
+                            login_url=login_url,
+                        )
+                        send_report(
+                            recipients=[email],
+                            subject=subject,
+                            html_body=html_body,
+                            api_key=tenant_full.get("mail_api_key", ""),
+                            mail_from=tenant_full.get("mail_from", ""),
+                            mail_from_name=tenant_full.get("mail_from_name", "") or "Printix Management Console",
+                        )
+                        summary["mail_sent"] += 1
+                        row_notes.append("Mail gesendet")
+                    except Exception as e:
+                        logger.error("Bulk-Import Mail-Fehler für %s: %s", email, e)
+                        row_notes.append(f"Mail-Fehler: {e}")
+
+            # Printix-User anlegen (best-effort)
+            if want_printix:
+                if px_client is None:
+                    row_notes.append("Printix übersprungen (kein Client)")
+                else:
+                    try:
+                        resp = px_client.create_user(
+                            email=email,
+                            display_name=full_name or username,
+                            role=px_role,
+                        )
+                        px_id = ""
+                        users_block = (resp or {}).get("users") or []
+                        if users_block:
+                            px_id = (users_block[0] or {}).get("id", "") or ""
+                        if px_id:
+                            try:
+                                from db import update_user
+                                update_user(user_id=created_user["id"], printix_user_id=px_id)
+                            except Exception as e:
+                                logger.warning("Printix-ID Update fehlgeschlagen für %s: %s", email, e)
+                        summary["printix_ok"] += 1
+                        row_notes.append(f"Printix: {px_role}{' #' + px_id if px_id else ''}")
+                    except Exception as e:
+                        logger.error("Bulk-Import Printix-Fehler für %s: %s", email, e)
+                        row_notes.append(f"Printix-Fehler: {e}")
+
+            results.append({"row": idx, "email": email, "username": username,
+                            "status": "ok",
+                            "detail": "; ".join(row_notes) if row_notes else "angelegt"})
+            summary["ok"] += 1
+
+        try:
+            audit(admin["id"], "bulk_import_users",
+                  f"CSV-Import: {summary['ok']} ok, {summary['skipped']} skipped, {summary['failed']} failed",
+                  object_type="user", object_id="")
+        except Exception:
+            pass
+
+        return templates.TemplateResponse("admin_user_bulk.html", {
+            "request": request, "user": admin,
+            "error": None, "results": results, "summary": summary,
+            **tc,
+        })
+
     @app.post("/admin/users/{user_id}/disable")
     async def admin_disable(user_id: str, request: Request):
         admin = get_session_user(request)
@@ -2085,10 +2322,14 @@ def create_app(session_secret: str) -> FastAPI:
             return RedirectResponse("/login", status_code=302)
         if user_id == admin["id"]:
             return RedirectResponse("/admin/users", status_code=302)
+        from db import LastAdminError
+        from urllib.parse import quote_plus as _qp
         try:
             from db import set_user_status, audit
             set_user_status(user_id, "disabled")
             audit(admin["id"], "disable_user", f"User {user_id} deaktiviert", object_type="user", object_id=user_id)
+        except LastAdminError as e:
+            return RedirectResponse(f"/admin/users?err={_qp(str(e))}", status_code=302)
         except Exception as e:
             logger.error("Disable-Fehler: %s", e)
         return RedirectResponse("/admin/users", status_code=302)
@@ -2100,10 +2341,14 @@ def create_app(session_secret: str) -> FastAPI:
             return RedirectResponse("/login", status_code=302)
         if user_id == admin["id"]:
             return RedirectResponse("/admin/users", status_code=302)
+        from db import LastAdminError
+        from urllib.parse import quote_plus as _qp
         try:
             from db import delete_user, audit
             delete_user(user_id)
             audit(admin["id"], "delete_user", f"User {user_id} gelöscht", object_type="user", object_id=user_id)
+        except LastAdminError as e:
+            return RedirectResponse(f"/admin/users?err={_qp(str(e))}", status_code=302)
         except Exception as e:
             logger.error("Delete-Fehler: %s", e)
         return RedirectResponse("/admin/users", status_code=302)
@@ -2127,7 +2372,7 @@ def create_app(session_secret: str) -> FastAPI:
         email:     str = Form(default=""),
         full_name: str = Form(default=""),
         company:   str = Form(default=""),
-        role_type: str = Form(default="user"),
+        role_type: str = Form(default="employee"),
         status:    str = Form(default="approved"),
     ):
         admin = get_session_user(request)
@@ -2210,7 +2455,7 @@ def create_app(session_secret: str) -> FastAPI:
         email:           str = Form(default=""),
         full_name:       str = Form(default=""),
         company:         str = Form(default=""),
-        role_type:       str = Form(default="user"),
+        role_type:       str = Form(default="employee"),
         status:          str = Form(default="approved"),
         printix_user_id: str = Form(default=""),
     ):
@@ -2219,6 +2464,7 @@ def create_app(session_secret: str) -> FastAPI:
             return RedirectResponse("/login", status_code=302)
         tc = t_ctx(request)
 
+        from db import LastAdminError
         try:
             from db import update_user, username_exists, get_user_by_id, audit
             if username_exists(username, exclude_id=user_id):
@@ -2239,6 +2485,13 @@ def create_app(session_secret: str) -> FastAPI:
             )
             audit(admin["id"], "edit_user", f"User {user_id} bearbeitet", object_type="user", object_id=user_id)
             target = get_user_by_id(user_id)
+        except LastAdminError as e:
+            from db import get_user_by_id
+            target = get_user_by_id(user_id)
+            return templates.TemplateResponse("admin_user_edit.html", {
+                "request": request, "user": admin, "target": target,
+                "saved": False, "error": str(e), **tc,
+            })
         except Exception as e:
             logger.error("Edit-Fehler: %s", e)
             return templates.TemplateResponse("admin_user_edit.html", {
@@ -2574,13 +2827,15 @@ def create_app(session_secret: str) -> FastAPI:
             from db import get_setting
             public_url = get_setting("public_url", "")
         except Exception:
+            public_url = ""
+        if not public_url:
             public_url = os.environ.get("MCP_PUBLIC_URL", "")
-        # v4.5.0: Capture-spezifische URL
+        # v4.5.0: Capture-spezifische URL (optional — nur wenn eigene Domain)
         try:
             from db import get_setting as _gs
             capture_public_url = _gs("capture_public_url", "")
         except Exception:
-            capture_public_url = os.environ.get("CAPTURE_PUBLIC_URL", "")
+            capture_public_url = ""
         # v6.5.0: IPPS (Cloud Print über HTTPS/IPP-Protokoll)
         # v6.6.0: LPR komplett entfernt — IPPS ist der einzige Cloud-Print-Eingang.
         try:
@@ -2627,6 +2882,7 @@ def create_app(session_secret: str) -> FastAPI:
         return {
             "request": request, "user": user,
             "public_url": public_url,
+            "base_url": _get_base_url(request),
             "capture_public_url": capture_public_url,
             "ipps_public_url": ipps_public_url,
             "ipps_public_host": ipps_public_host,
@@ -4337,10 +4593,11 @@ def create_app(session_secret: str) -> FastAPI:
                     from reporting.notify_helper import send_employee_invitation
                     from db import get_setting
                     # Login-URL: admin public_url (aus /admin/settings) bevorzugt,
-                    # sonst der tenant-spezifische public_url, sonst Fallback.
+                    # sonst der tenant-spezifische public_url, sonst Request-Host.
                     login_url = (get_setting("public_url", "")
+                                 or os.environ.get("MCP_PUBLIC_URL", "")
                                  or tenant.get("tenant_url", "")
-                                 or "http://<HA-IP>:8080").rstrip("/")
+                                 or _get_base_url(request)).rstrip("/")
                     if not login_url.endswith("/login"):
                         login_url = f"{login_url}/login"
                     invitation_sent = send_employee_invitation(

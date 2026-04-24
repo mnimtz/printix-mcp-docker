@@ -49,50 +49,45 @@ def register_capture_routes(
 
     def _get_webhook_base(request: Request) -> tuple:
         """
-        Webhook Base-URL Prioritaet (v4.5.0):
-          1. CAPTURE_PUBLIC_URL (env) — eigene Capture-Domain
-          2. capture_public_url (DB Setting)
-          3. MCP_PUBLIC_URL (env) — Fallback auf MCP-Domain
-          4. public_url (DB Setting)
-          5. Fallback: request URL (wahrscheinlich FALSCH)
+        Webhook Base-URL Auflösung (v7.0.0 — vereinfacht auf 3 Stufen):
+          1. ``capture_public_url`` (DB) — optional, wenn Capture eine
+             andere Domain als das MCP-Web-UI verwenden soll.
+          2. Haupt-Public-URL (``public_url`` DB > ``MCP_PUBLIC_URL`` Env).
+          3. Fallback: request URL — für lokale Dev-Setups, für echte
+             Webhooks von externen Services aber vermutlich falsch.
         Returns (base_url, is_configured, is_separate_capture)
         """
-        import os
-        # v4.5.0: Eigene Capture-URL hat hoechste Prioritaet
-        capture_url = os.environ.get("CAPTURE_PUBLIC_URL", "").strip().rstrip("/")
-        if capture_url:
-            return capture_url, True, True
         try:
             from db import get_setting
-            capture_url = get_setting("capture_public_url", "").strip().rstrip("/")
+            capture_url = (get_setting("capture_public_url", "") or "").strip().rstrip("/")
         except Exception:
-            pass
+            capture_url = ""
         if capture_url:
             return capture_url, True, True
-        # Kein separater Capture-Endpunkt — Fallback auf MCP-URL
-        wb = os.environ.get("MCP_PUBLIC_URL", "").strip().rstrip("/")
-        if wb:
-            return wb, True, False
+
         try:
             from db import get_setting
-            wb = get_setting("public_url", "").strip().rstrip("/")
+            wb = (get_setting("public_url", "") or "").strip().rstrip("/")
         except Exception:
-            pass
+            wb = ""
+        if not wb:
+            import os
+            wb = os.environ.get("MCP_PUBLIC_URL", "").strip().rstrip("/")
         if wb:
             return wb, True, False
+
         # Fallback: request URL — wahrscheinlich FALSCH fuer Webhooks
         return f"{request.url.scheme}://{request.url.netloc}", False, False
 
     def _is_capture_separate() -> bool:
-        """Prueft ob separater Capture-Server aktiv (v4.6.0: bool statt Port)."""
+        """Prueft ob separater Capture-Server aktiv (v7.0.0: DB-Setting oder
+        ``CAPTURE_ENABLED=true`` als Deploy-Default)."""
         import os
-        if os.environ.get("CAPTURE_ENABLED", "false").lower() == "true":
-            return True
-        if os.environ.get("CAPTURE_PUBLIC_URL", "").strip():
+        if os.environ.get("CAPTURE_ENABLED", "false").strip().lower() == "true":
             return True
         try:
             from db import get_setting
-            if get_setting("capture_public_url", "").strip():
+            if (get_setting("capture_public_url", "") or "").strip():
                 return True
         except Exception:
             pass

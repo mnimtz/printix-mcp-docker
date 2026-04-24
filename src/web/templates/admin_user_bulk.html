@@ -1,0 +1,139 @@
+{% extends "base.html" %}
+{% block title %}Bulk-Import — {{ _('brand_console_name') }}{% endblock %}
+{% block content %}
+<div class="container">
+  <div class="card" style="max-width:780px;margin:40px auto;">
+    <h2 class="section-title">📥 Benutzer Bulk-Import (CSV)</h2>
+    <p class="section-sub" style="margin-bottom:20px;">
+      Legt mehrere Benutzer auf einmal an. Optional: Einladungs-Mail mit
+      temporärem Passwort und/oder Anlage in Printix (Voraussetzung:
+      User-Management-Credentials).
+    </p>
+
+    {% if error %}
+    <div class="alert alert-error">⚠ {{ error }}</div>
+    {% endif %}
+
+    {% if results %}
+    <div class="alert alert-info" style="margin-bottom:18px;">
+      <strong>Ergebnis:</strong>
+      {{ summary.ok }} angelegt ·
+      {{ summary.skipped }} übersprungen ·
+      {{ summary.failed }} fehlgeschlagen
+      {% if summary.mail_sent %} · {{ summary.mail_sent }} Mails verschickt{% endif %}
+      {% if summary.printix_ok %} · {{ summary.printix_ok }} Printix-User angelegt{% endif %}
+    </div>
+    <div style="overflow-x:auto;margin-bottom:18px;">
+    <table>
+      <thead>
+        <tr>
+          <th>Zeile</th>
+          <th>E-Mail</th>
+          <th>Benutzername</th>
+          <th>Status</th>
+          <th>Details</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in results %}
+        <tr>
+          <td>{{ r.row }}</td>
+          <td>{{ r.email or '—' }}</td>
+          <td>{{ r.username or '—' }}</td>
+          <td>
+            {% if r.status == 'ok' %}
+              <span class="badge badge-green">✓ OK</span>
+            {% elif r.status == 'skipped' %}
+              <span class="badge badge-yellow">⏭ skipped</span>
+            {% else %}
+              <span class="badge badge-red">✗ Fehler</span>
+            {% endif %}
+          </td>
+          <td style="font-size:.88em;">{{ r.detail or '' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    {% endif %}
+
+    <form method="post" action="/admin/users/bulk-import" enctype="multipart/form-data">
+      <div class="form-group">
+        <label>CSV-Datei</label>
+        <input type="file" name="csv_file" accept=".csv,text/csv">
+        <small class="hint">
+          UTF-8, erste Zeile = Header. Erlaubte Spalten:
+          <code>email</code> (Pflicht), <code>full_name</code>,
+          <code>username</code>, <code>company</code>,
+          <code>printix_role</code> (USER|GUEST_USER),
+          <code>local_role</code> (admin|employee).
+        </small>
+      </div>
+
+      <div class="form-group">
+        <label>... oder CSV direkt einfügen</label>
+        <textarea name="csv_text" rows="6"
+                  style="font-family:ui-monospace,monospace;font-size:.88em;"
+                  placeholder="email,full_name,username,local_role&#10;max@acme.com,Max Mustermann,max,employee"></textarea>
+      </div>
+
+      <div class="form-group">
+        <label>Standard lokale Rolle</label>
+        <select name="default_local_role">
+          <option value="employee">{{ _('role_employee') }}</option>
+          <option value="admin">{{ _('role_admin') }}</option>
+        </select>
+        <small class="hint">Wird pro Zeile durch <code>local_role</code> überschrieben.</small>
+      </div>
+
+      <div class="form-group">
+        <label>
+          <input type="checkbox" name="send_invitation" value="1" checked>
+          Einladungs-Mail mit temporärem Passwort senden
+        </label>
+        <small class="hint">
+          Voraussetzung: In den Einstellungen sind Mail-API-Key und Absender konfiguriert.
+        </small>
+      </div>
+
+      <div class="form-group">
+        <label>{{ _('invite_language_label') }}</label>
+        <select name="invite_lang">
+          {% for code in supported_langs %}
+          <option value="{{ code }}" {% if lang == code %}selected{% endif %}>
+            {{ lang_names[code] }}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="form-group">
+        <label>
+          <input type="checkbox" name="create_printix" value="1">
+          Benutzer auch in Printix anlegen
+        </label>
+        <small class="hint">
+          Benötigt gültige Printix-User-Management-Credentials im Tenant.
+          Die Printix-Role-Zuordnung erfolgt über die CSV-Spalte <code>printix_role</code>
+          (USER oder GUEST_USER). Fehlt sie, greift der Standard unten.
+        </small>
+      </div>
+
+      <div class="form-group">
+        <label>Standard Printix-Rolle</label>
+        <select name="default_printix_role">
+          <option value="USER">USER (regulärer Mitarbeiter)</option>
+          <option value="GUEST_USER" selected>GUEST_USER (Gast mit Ablaufdatum)</option>
+        </select>
+      </div>
+
+      <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:20px;">
+        <button type="submit" class="btn btn-primary">📥 Import starten</button>
+        <a href="/admin/users" class="btn btn-secondary">{{ _('cancel') }}</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

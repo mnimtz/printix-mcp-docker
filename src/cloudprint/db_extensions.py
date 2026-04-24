@@ -790,18 +790,24 @@ def delete_employee(employee_id: str, parent_user_id: str) -> bool:
 
 
 def get_parent_user_id(user_id: str) -> Optional[str]:
-    """Ermittelt den Parent-User eines Mitarbeiters (oder sich selbst für Admin/User)."""
+    """Ermittelt den Tenant-Owner-User für einen gegebenen User.
+
+    Seit v7.0.0 (Single-Tenant-Modell): jeder User außer dem Tenant-Owner
+    selbst hat `parent_user_id` gesetzt — unabhängig von der Rolle. Damit
+    greifen zweite Admins UND Mitarbeiter gleichermaßen auf den einen
+    Tenant des Owners zu. Wenn `parent_user_id` leer ist, ist der User
+    selbst der Tenant-Owner.
+    """
     from db import _conn
     with _conn() as conn:
         row = conn.execute(
-            "SELECT id, role_type, parent_user_id FROM users WHERE id = ?",
+            "SELECT id, parent_user_id FROM users WHERE id = ?",
             (user_id,),
         ).fetchone()
     if not row:
         return None
-    if row["role_type"] == "employee" and row["parent_user_id"]:
-        return row["parent_user_id"]
-    return row["id"]
+    parent = (row["parent_user_id"] or "").strip() if row["parent_user_id"] else ""
+    return parent if parent else row["id"]
 
 
 def get_tenant_for_user(user_id: str) -> Optional[dict]:
