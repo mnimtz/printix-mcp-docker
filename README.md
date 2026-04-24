@@ -196,7 +196,7 @@ docker build -t printix-mcp-docker:dev .
 docker run --rm -p 8080:8080 -p 8765:8765 -v printix-data:/data printix-mcp-docker:dev
 ```
 
-Multi-Arch-Build (amd64 + arm64 + armv7) wird in CI via GitHub Actions erledigt — siehe [`.github/workflows/docker-publish.yml`](.github/workflows/docker-publish.yml).
+Multi-Arch-Build (amd64 + arm64) wird in CI via GitHub Actions erledigt — siehe [`.github/workflows/docker-publish.yml`](.github/workflows/docker-publish.yml). armv7 / i386 werden nicht mehr gebaut (keine pre-built Wheels für Python 3.13 auf 32-bit-ARM) — bei Bedarf lässt sich das im Workflow wieder aktivieren.
 
 ---
 

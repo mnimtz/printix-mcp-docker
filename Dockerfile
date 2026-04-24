@@ -6,7 +6,9 @@
 #   1. builder  — kompiliert Python-Wheels (pyodbc/pymssql brauchen dev-Header)
 #   2. runtime  — schlankes Debian-Slim mit nur Runtime-Deps (FreeTDS, LibreOffice-core)
 #
-# Ziel-Plattformen: linux/amd64, linux/arm64, linux/arm/v7 (gebaut via buildx in CI)
+# Ziel-Plattformen: linux/amd64, linux/arm64 (gebaut via buildx in CI)
+# Für armv7-Support zusätzlich libssl-dev libkrb5-dev libffi-dev zlib1g-dev
+# libjpeg-dev in den builder-Stage packen — deaktiviert, da wenig Nachfrage.
 # =============================================================================
 
 ARG PYTHON_VERSION=3.13

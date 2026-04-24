@@ -72,7 +72,12 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          platforms: linux/amd64,linux/arm64,linux/arm/v7
+          # armv7 und i386 wurden bewusst entfernt: für Python 3.13 existieren
+          # keine pre-built Wheels (pymssql/Pillow/cffi), was lange QEMU-Source-
+          # Compiles erzwingt für eine 2026 kaum noch relevante Hardware-Basis.
+          # Falls wieder benötigt, im builder-Stage zusätzlich libssl-dev
+          # libkrb5-dev libffi-dev zlib1g-dev libjpeg-dev installieren.
+          platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
