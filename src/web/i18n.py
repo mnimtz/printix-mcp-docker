@@ -836,6 +836,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         # -- Nav: Capture Store (v4.4.0) --
         "nav_capture":  "Capture Store",
 
+        "nav_guestprint": "Guest-Print",
         # -- Dashboard fehlende Keys (v4.3.3) --
         "dash_kpi_color":  "Farbanteil",
         "dash_kpi_duplex":  "Duplex-Rate",
@@ -1724,6 +1725,8 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "forecast_trend_stable":  "Stable trend",
 
         "nav_capture":  "Capture Store",
+
+        "nav_guestprint": "Guest-Print",
         "dash_kpi_color":  "Color Ratio",
         "dash_kpi_duplex":  "Duplex Rate",
         "dash_kpi_printers":  "Active Printers",
@@ -2609,6 +2612,8 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "forecast_trend_stable":  "Tendance stable",
 
         "nav_capture":  "Capture Store",
+
+        "nav_guestprint": "Guest-Print",
         "dash_kpi_color":  "Taux couleur",
         "dash_kpi_duplex":  "Taux recto-verso",
         "dash_kpi_printers":  "Imprimantes actives",
@@ -3494,6 +3499,8 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "forecast_trend_stable":  "Tendenza stabile",
 
         "nav_capture":  "Capture Store",
+
+        "nav_guestprint": "Guest-Print",
         "dash_kpi_color":  "Rapporto colore",
         "dash_kpi_duplex":  "Tasso fronte-retro",
         "dash_kpi_printers":  "Stampanti attive",
@@ -4379,6 +4386,8 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "forecast_trend_stable":  "Tendencia estable",
 
         "nav_capture":  "Capture Store",
+
+        "nav_guestprint": "Guest-Print",
         "dash_kpi_color":  "Ratio de color",
         "dash_kpi_duplex":  "Tasa dúplex",
         "dash_kpi_printers":  "Impresoras activas",
@@ -5264,6 +5273,8 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "forecast_trend_stable":  "Stabiele trend",
 
         "nav_capture":  "Capture Store",
+
+        "nav_guestprint": "Guest-Print",
         "dash_kpi_color":  "Kleurverhouding",
         "dash_kpi_duplex":  "Duplexpercentage",
         "dash_kpi_printers":  "Actieve printers",
@@ -6149,6 +6160,8 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "forecast_trend_stable":  "Stabil trend",
 
         "nav_capture":  "Capture Store",
+
+        "nav_guestprint": "Guest-Print",
         "dash_kpi_color":  "Fargeandel",
         "dash_kpi_duplex":  "Dupleksrate",
         "dash_kpi_printers":  "Aktive skrivere",
@@ -7034,6 +7047,8 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "forecast_trend_stable":  "Stabil trend",
 
         "nav_capture":  "Capture Store",
+
+        "nav_guestprint": "Guest-Print",
         "dash_kpi_color":  "Färgandel",
         "dash_kpi_duplex":  "Duplexgrad",
         "dash_kpi_printers":  "Aktiva skrivare",
@@ -7921,6 +7936,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         # -- Nav: Capture Store (v4.4.0) --
         "nav_capture":  "Capture Store",
 
+        "nav_guestprint": "Guest-Print",
         # -- Dashboard fehlende Keys (v4.3.3) --
         "dash_kpi_color":  "Farbanteil",
         "dash_kpi_duplex":  "Duplex-Rate",
@@ -8811,6 +8827,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         # -- Nav: Capture Store (v4.4.0) --
         "nav_capture":  "Capture Store",
 
+        "nav_guestprint": "Guest-Print",
         # -- Dashboard fehlende Keys (v4.3.3) --
         "dash_kpi_color":  "Farbanteil",
         "dash_kpi_duplex":  "Duplex-Rate",
@@ -9701,6 +9718,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         # -- Nav: Capture Store (v4.4.0) --
         "nav_capture":  "Capture Store",
 
+        "nav_guestprint": "Guest-Print",
         # -- Dashboard fehlende Keys (v4.3.3) --
         "dash_kpi_color":  "Farbanteil",
         "dash_kpi_duplex":  "Duplex-Rate",
@@ -10591,6 +10609,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         # -- Nav: Capture Store (v4.4.0) --
         "nav_capture":  "Capture Store",
 
+        "nav_guestprint": "Guest-Print",
         # -- Dashboard fehlende Keys (v4.3.3) --
         "dash_kpi_color":  "Farbanteil",
         "dash_kpi_duplex":  "Duplex-Rate",
@@ -11458,6 +11477,8 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "forecast_trend_stable":  "Steady as she goes",
 
         "nav_capture":  "Capture Store",
+
+        "nav_guestprint": "Guest-Print",
         "dash_kpi_color":  "Color Ratio",
         "dash_kpi_duplex":  "Duplex Rate",
         "dash_kpi_printers":  "Active Printers",
@@ -12291,6 +12312,8 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "forecast_trend_stable":  "Steady as she goes",
 
         "nav_capture":  "Capture Store",
+
+        "nav_guestprint": "Guest-Print",
         "dash_kpi_color":  "Color Ratio",
         "dash_kpi_duplex":  "Duplex Rate",
         "dash_kpi_printers":  "Active Printers",

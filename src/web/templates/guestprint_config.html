@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block title %}Guest-Print Entra-App — {{ _('brand_console_name') }}{% endblock %}
+
+{% block content %}
+<div class="container">
+  <div class="card">
+
+    {% if flash_msg %}
+    <div class="alert alert-{{ flash_kind if flash_kind else 'success' }}" style="margin-bottom:20px;">
+      {{ flash_msg }}
+    </div>
+    {% endif %}
+
+    <div style="display:flex; align-items:center; gap:12px; margin-bottom:4px;">
+      <h2 style="margin:0; font-size:1.3em; font-weight:700; color:#1e3a5f;">
+        📮 Guest-Print Entra-App
+      </h2>
+      {% if is_configured %}
+        <span class="badge badge-green">konfiguriert</span>
+      {% else %}
+        <span class="badge badge-yellow">noch nicht konfiguriert</span>
+      {% endif %}
+    </div>
+    <div style="color:#6b7280; font-size:.9em; margin-bottom:20px;">
+      Separate Entra-App-Registration für den Graph-Mail-Zugriff. Erforderliche
+      <strong>Application Permission</strong>: <code>Mail.ReadWrite</code> mit
+      Admin-Consent auf das zu überwachende Postfach.
+    </div>
+
+    <div style="margin-bottom:20px; font-size:.88em; padding:10px 14px; background:#f3f4f6; border-left:3px solid #2563eb; border-radius:4px;">
+      <strong>Hinweis:</strong> Diese App ist bewusst getrennt von der SSO-App
+      (<code>/admin/entra-app</code>), damit der Kunde für Guest-Print eine
+      Minimal-Scope-App registrieren kann (nur Mail.ReadWrite, kein User.Read.All).
+    </div>
+
+    <form method="post" action="/guestprint/config">
+      <div class="form-row" style="margin-bottom:16px;">
+        <label for="tenant_id" style="display:block; font-weight:600; margin-bottom:4px;">
+          Tenant-ID (GUID oder UPN-Domain)
+        </label>
+        <input type="text" id="tenant_id" name="tenant_id"
+               value="{{ tenant_id }}" autocomplete="off"
+               placeholder="contoso.onmicrosoft.com oder 00000000-0000-0000-0000-000000000000"
+               style="width:100%; padding:8px; border:1px solid #d1d5db; border-radius:6px;">
+      </div>
+
+      <div class="form-row" style="margin-bottom:16px;">
+        <label for="client_id" style="display:block; font-weight:600; margin-bottom:4px;">
+          Client-ID (App-Registration-ID)
+        </label>
+        <input type="text" id="client_id" name="client_id"
+               value="{{ client_id }}" autocomplete="off"
+               placeholder="00000000-0000-0000-0000-000000000000"
+               style="width:100%; padding:8px; border:1px solid #d1d5db; border-radius:6px;">
+      </div>
+
+      <div class="form-row" style="margin-bottom:16px;">
+        <label for="client_secret" style="display:block; font-weight:600; margin-bottom:4px;">
+          Client Secret {% if has_secret %}<span class="badge badge-green" style="margin-left:6px;">gesetzt</span>{% endif %}
+        </label>
+        <input type="password" id="client_secret" name="client_secret"
+               value="" autocomplete="new-password"
+               placeholder="{% if has_secret %}(leer lassen = nicht ändern){% else %}Value aus Azure-Portal{% endif %}"
+               style="width:100%; padding:8px; border:1px solid #d1d5db; border-radius:6px;">
+        <div style="font-size:.8em; color:#9ca3af; margin-top:4px;">
+          Aus Sicherheitsgründen wird das Secret nie zurückgegeben. Feld leer lassen = bestehenden Wert behalten.
+        </div>
+      </div>
+
+      <div style="display:flex; gap:10px; margin-top:24px;">
+        <button type="submit" class="btn btn-primary">💾 Speichern</button>
+        <a href="/guestprint/mailboxes" class="btn btn-secondary">Zurück</a>
+      </div>
+    </form>
+
+  </div>
+</div>
+{% endblock %}

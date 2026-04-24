@@ -1,0 +1,196 @@
+{% extends "base.html" %}
+{% block title %}Guest-Print Postfächer — {{ _('brand_console_name') }}{% endblock %}
+
+{% block extra_head %}
+<style>
+  .gp-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:24px; flex-wrap:wrap; gap:12px; }
+  .gp-header h2 { font-size:1.3em; font-weight:700; color:#1e3a5f; margin:0; }
+  .gp-section-title { font-weight:700; font-size:1em; color:#1e3a5f; margin:24px 0 8px; }
+  .gp-form-grid {
+    display:grid; gap:12px; grid-template-columns:repeat(auto-fit, minmax(200px,1fr));
+  }
+  .gp-form-grid label { display:block; font-size:.82em; font-weight:600; color:#374151; margin-bottom:2px; }
+  .gp-form-grid input, .gp-form-grid select {
+    width:100%; padding:6px 8px; border:1px solid #d1d5db; border-radius:6px; font-size:.9em;
+  }
+  .empty-state { text-align:center; padding:40px 20px; color:#9ca3af; }
+  .empty-state .es-icon { font-size:3em; margin-bottom:10px; }
+  .test-btn-result { font-size:.82em; margin-left:8px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+  <div class="card">
+
+    {% if flash_msg %}
+    <div class="alert alert-{{ flash_kind if flash_kind else 'success' }}" style="margin-bottom:20px;">
+      {{ flash_msg }}
+    </div>
+    {% endif %}
+
+    {% if not is_configured %}
+    <div class="alert alert-warning" style="margin-bottom:20px;">
+      ⚠️ <strong>Entra-App noch nicht konfiguriert.</strong>
+      Ohne diese Credentials kann kein Postfach überwacht werden.
+      <a href="/guestprint/config" style="color:#854d0e; font-weight:600;">Jetzt einrichten →</a>
+    </div>
+    {% endif %}
+
+    <div class="gp-header">
+      <h2>📮 Guest-Print Postfächer</h2>
+      <div style="display:flex; gap:8px;">
+        <a href="/guestprint/config" class="btn btn-secondary btn-sm">⚙️ Entra-App</a>
+      </div>
+    </div>
+
+    <!-- ── Mailbox-Liste ─────────────────────────────────────────────────── -->
+    {% if mailboxes %}
+    <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>UPN</th>
+          <th>Status</th>
+          <th>Letzter Poll</th>
+          <th style="text-align:right;">Aktionen</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for mb in mailboxes %}
+        <tr>
+          <td>
+            <a href="/guestprint/mailboxes/{{ mb.id }}"><strong>{{ mb.name or mb.upn }}</strong></a>
+          </td>
+          <td style="font-family:monospace; font-size:.88em;">{{ mb.upn }}</td>
+          <td>
+            {% if mb.enabled %}
+              <span class="badge badge-green">aktiv</span>
+            {% else %}
+              <span class="badge badge-yellow">deaktiviert</span>
+            {% endif %}
+            {% if mb.last_error %}
+              <span class="badge badge-red" title="{{ mb.last_error }}">Fehler</span>
+            {% endif %}
+          </td>
+          <td style="font-size:.82em; color:#6b7280;">
+            {{ mb.last_poll_at[:16] if mb.last_poll_at else '—' }}
+          </td>
+          <td style="text-align:right; white-space:nowrap;">
+            <button type="button" class="btn btn-secondary btn-sm"
+                    onclick="gpTestMailbox('{{ mb.id }}', this)" title="Graph-Connection testen">🔌</button>
+            <span class="test-btn-result" id="test-result-{{ mb.id }}"></span>
+            <form method="post" action="/guestprint/mailboxes/{{ mb.id }}/poll"
+                  style="display:inline;"
+                  onsubmit="this.querySelector('button').disabled=true;this.querySelector('button').textContent='⏳';">
+              <button type="submit" class="btn btn-primary btn-sm" title="Poll jetzt ausführen">▶</button>
+            </form>
+            <a href="/guestprint/mailboxes/{{ mb.id }}" class="btn btn-secondary btn-sm" title="Details / Gäste">👥</a>
+            <form method="post" action="/guestprint/mailboxes/{{ mb.id }}/delete"
+                  style="display:inline;"
+                  onsubmit="return confirm('Postfach {{ mb.upn }} wirklich löschen? (Gäste-Einträge werden mitgelöscht, Job-Historie bleibt erhalten.)');">
+              <button type="submit" class="btn btn-danger btn-sm" title="Löschen">🗑</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    {% else %}
+    <div class="empty-state">
+      <div class="es-icon">📭</div>
+      <div>Noch kein Postfach konfiguriert.</div>
+      <div style="font-size:.85em; margin-top:6px;">Lege unten dein erstes überwachtes Postfach an.</div>
+    </div>
+    {% endif %}
+
+    <div class="divider" style="margin:28px 0;"></div>
+
+    <!-- ── Neues Postfach ─────────────────────────────────────────────────── -->
+    <div class="gp-section-title">➕ Neues Postfach hinzufügen</div>
+    <form method="post" action="/guestprint/mailboxes">
+      <div class="gp-form-grid">
+        <div>
+          <label for="upn">UPN / Mailadresse <span style="color:#dc2626;">*</span></label>
+          <input type="email" id="upn" name="upn" required
+                 placeholder="gastdruck@contoso.com">
+        </div>
+        <div>
+          <label for="name">Anzeigename</label>
+          <input type="text" id="name" name="name"
+                 placeholder="z.B. 'Empfang'">
+        </div>
+        <div>
+          <label for="poll_interval_sec">Poll-Intervall (Sek.)</label>
+          <input type="number" id="poll_interval_sec" name="poll_interval_sec"
+                 value="60" min="30" max="3600">
+        </div>
+        <div>
+          <label for="max_attachment_bytes">Max. Anhang (Bytes)</label>
+          <input type="number" id="max_attachment_bytes" name="max_attachment_bytes"
+                 value="26214400" min="1">
+        </div>
+        <div>
+          <label for="default_printer_id">Default-Drucker-ID</label>
+          <input type="text" id="default_printer_id" name="default_printer_id"
+                 placeholder="aus /tenant/queues übernehmen">
+        </div>
+        <div>
+          <label for="default_queue_id">Default-Queue-ID</label>
+          <input type="text" id="default_queue_id" name="default_queue_id"
+                 placeholder="aus /tenant/queues übernehmen">
+        </div>
+        <div>
+          <label for="folder_processed">Processed-Ordner</label>
+          <input type="text" id="folder_processed" name="folder_processed"
+                 value="GuestPrint/Processed">
+        </div>
+        <div>
+          <label for="folder_skipped">Skipped-Ordner</label>
+          <input type="text" id="folder_skipped" name="folder_skipped"
+                 value="GuestPrint/Skipped">
+        </div>
+        <div style="display:flex; align-items:end; padding-bottom:6px;">
+          <label style="display:flex; align-items:center; gap:6px; font-size:.9em; font-weight:600;">
+            <input type="checkbox" name="enabled" value="1" checked>
+            Aktiv
+          </label>
+        </div>
+      </div>
+      <div style="margin-top:16px;">
+        <button type="submit" class="btn btn-primary">Anlegen</button>
+      </div>
+    </form>
+
+    <div style="margin-top:20px; font-size:.82em; color:#9ca3af;">
+      💡 Tipp: Drucker- und Queue-IDs findest du unter
+      <a href="/tenant/queues">Tenant → Queues</a>.
+      Leer lassen, wenn jeder Gast eine eigene Queue zugewiesen bekommt.
+    </div>
+
+  </div>
+</div>
+
+<script>
+async function gpTestMailbox(mbId, btn) {
+  const out = document.getElementById('test-result-' + mbId);
+  out.textContent = '⏳';
+  btn.disabled = true;
+  try {
+    const resp = await fetch('/guestprint/mailboxes/' + mbId + '/test', { method: 'POST' });
+    const data = await resp.json();
+    if (data.ok) {
+      out.innerHTML = '<span style="color:#16a34a;">✓ Verbindung OK</span>';
+    } else {
+      out.innerHTML = '<span style="color:#dc2626;" title="' + (data.error || '') + '">✗ ' + (data.error || 'Fehler') + '</span>';
+    }
+  } catch (e) {
+    out.innerHTML = '<span style="color:#dc2626;">✗ ' + e + '</span>';
+  }
+  btn.disabled = false;
+  setTimeout(() => { out.textContent = ''; }, 10000);
+}
+</script>
+{% endblock %}

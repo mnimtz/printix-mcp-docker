@@ -594,6 +594,7 @@
               <a href="/cards">{{ _('nav_cards') }}</a>
               <a href="/reports">{{ _('nav_reports') }}</a>
               <a href="/capture">{{ _('nav_capture') }}</a>
+              {% if user.is_admin %}<a href="/guestprint">{{ _('nav_guestprint') }}</a>{% endif %}
               <a href="/logs">{{ _('nav_logs') }}</a>
               <a href="/help">{{ _('nav_help') }}</a>
               {# v7.0.0: Roadmap-Nav-Link ausgeblendet. Routen /roadmap bleiben
@@ -651,6 +652,7 @@
         <a href="/cards"     onclick="closeMobileMenu()">{{ _('nav_cards') }}</a>
         <a href="/reports"   onclick="closeMobileMenu()">📊 {{ _('nav_reports') }}</a>
         <a href="/capture"   onclick="closeMobileMenu()">📥 {{ _('nav_capture') }}</a>
+        {% if user.is_admin %}<a href="/guestprint" onclick="closeMobileMenu()">📮 {{ _('nav_guestprint') }}</a>{% endif %}
         <a href="/logs"      onclick="closeMobileMenu()">📋 {{ _('nav_logs') }}</a>
         <a href="/help"      onclick="closeMobileMenu()">❓ {{ _('nav_help') }}</a>
         {# v7.0.0: Roadmap-Nav-Link ausgeblendet (Mobile). #}

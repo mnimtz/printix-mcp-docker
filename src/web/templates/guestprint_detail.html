@@ -1,0 +1,383 @@
+{% extends "base.html" %}
+{% block title %}{{ mailbox.name or mailbox.upn }} — Guest-Print{% endblock %}
+
+{% block extra_head %}
+<style>
+  .gp-tabs { display:flex; border-bottom:1px solid #e5e7eb; margin-bottom:20px; gap:4px; }
+  .gp-tab {
+    padding:10px 16px; cursor:pointer; border:none; background:transparent;
+    font-weight:600; color:#6b7280; border-bottom:2px solid transparent;
+  }
+  .gp-tab:hover { color:#1e3a5f; }
+  .gp-tab.active { color:#2563eb; border-bottom-color:#2563eb; }
+  .gp-panel { display:none; }
+  .gp-panel.active { display:block; }
+  .gp-form-grid {
+    display:grid; gap:12px; grid-template-columns:repeat(auto-fit, minmax(200px,1fr));
+  }
+  .gp-form-grid label { display:block; font-size:.82em; font-weight:600; color:#374151; margin-bottom:2px; }
+  .gp-form-grid input, .gp-form-grid select {
+    width:100%; padding:6px 8px; border:1px solid #d1d5db; border-radius:6px; font-size:.9em;
+  }
+  .empty-state { text-align:center; padding:30px 20px; color:#9ca3af; }
+  .status-ok      { color:#16a34a; font-weight:600; }
+  .status-failed  { color:#dc2626; font-weight:600; }
+  .status-skipped { color:#9ca3af; }
+  .status-pending { color:#f59e0b; }
+  .guest-row-edit { display:none; background:#f9fafb; }
+  .guest-row-edit.active { display:table-row; }
+  .gp-breadcrumb { font-size:.88em; color:#6b7280; margin-bottom:12px; }
+  .gp-breadcrumb a { color:#2563eb; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+  <div class="card">
+
+    {% if flash_msg %}
+    <div class="alert alert-{{ flash_kind if flash_kind else 'success' }}" style="margin-bottom:20px;">
+      {{ flash_msg }}
+    </div>
+    {% endif %}
+
+    <div class="gp-breadcrumb">
+      <a href="/guestprint/mailboxes">← Postfächer</a>
+    </div>
+
+    <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; margin-bottom:8px;">
+      <h2 style="margin:0; font-size:1.3em; font-weight:700; color:#1e3a5f;">
+        📮 {{ mailbox.name or mailbox.upn }}
+      </h2>
+      <div>
+        {% if mailbox.enabled %}
+          <span class="badge badge-green">aktiv</span>
+        {% else %}
+          <span class="badge badge-yellow">deaktiviert</span>
+        {% endif %}
+        <form method="post" action="/guestprint/mailboxes/{{ mailbox.id }}/poll"
+              style="display:inline;"
+              onsubmit="this.querySelector('button').disabled=true;this.querySelector('button').textContent='⏳ läuft';">
+          <button type="submit" class="btn btn-primary btn-sm">▶ Poll jetzt</button>
+        </form>
+      </div>
+    </div>
+    <div style="font-family:monospace; font-size:.88em; color:#6b7280; margin-bottom:20px;">
+      {{ mailbox.upn }}
+    </div>
+
+    {% if mailbox.last_error %}
+    <div class="alert alert-warning" style="margin-bottom:16px;">
+      <strong>Letzter Fehler:</strong> {{ mailbox.last_error }}
+    </div>
+    {% endif %}
+
+    <div class="gp-tabs">
+      <button class="gp-tab active" onclick="gpShowTab('guests', this)">
+        👥 Gäste ({{ guests | length }})
+      </button>
+      <button class="gp-tab" onclick="gpShowTab('history', this)">
+        📜 Verlauf ({{ jobs | length }})
+      </button>
+      <button class="gp-tab" onclick="gpShowTab('settings', this)">
+        ⚙️ Einstellungen
+      </button>
+    </div>
+
+    <!-- ── Tab: Gäste ──────────────────────────────────────────────────────── -->
+    <div class="gp-panel active" id="gp-panel-guests">
+      {% if guests %}
+      <div style="overflow-x:auto;">
+      <table>
+        <thead>
+          <tr>
+            <th>E-Mail</th>
+            <th>Name</th>
+            <th>Ablauf</th>
+            <th>Status</th>
+            <th>Printix-User</th>
+            <th>Letzter Match</th>
+            <th style="text-align:right;">Aktionen</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for g in guests %}
+          <tr>
+            <td style="font-family:monospace; font-size:.88em;">{{ g.sender_email }}</td>
+            <td>{{ g.full_name or '—' }}</td>
+            <td style="font-size:.82em;">
+              {% if g.expires_at %}
+                bis {{ g.expires_at[:10] }}
+              {% elif g.expiration_days > 0 %}
+                {{ g.expiration_days }}&nbsp;Tage
+              {% else %}
+                unbegrenzt
+              {% endif %}
+            </td>
+            <td>
+              {% if g.enabled %}
+                <span class="badge badge-green">aktiv</span>
+              {% else %}
+                <span class="badge badge-yellow">deaktiviert</span>
+              {% endif %}
+            </td>
+            <td style="font-size:.8em; color:#6b7280;">
+              {% if g.printix_user_id %}
+                <span class="badge badge-blue" title="{{ g.printix_user_id }}">provisioniert</span>
+              {% else %}
+                <span style="color:#9ca3af;">lazy (bei erstem Druck)</span>
+              {% endif %}
+            </td>
+            <td style="font-size:.82em; color:#6b7280;">
+              {{ g.last_match_at[:16] if g.last_match_at else '—' }}
+            </td>
+            <td style="text-align:right; white-space:nowrap;">
+              <button type="button" class="btn btn-secondary btn-sm"
+                      onclick="gpToggleEdit('{{ g.id }}')" title="Bearbeiten">✏</button>
+              <form method="post" action="/guestprint/guests/{{ g.id }}/delete"
+                    style="display:inline;"
+                    data-confirm="Gast {{ g.sender_email }} wirklich löschen?"
+                    onsubmit="return gpConfirmGuestDelete(this);">
+                <label style="font-size:.72em; color:#6b7280;">
+                  <input type="checkbox" name="delete_printix_user" value="1"
+                         title="Auch Printix-User löschen"
+                         {% if not g.printix_user_id %}disabled{% endif %}>
+                  +PX
+                </label>
+                <button type="submit" class="btn btn-danger btn-sm" title="Löschen">🗑</button>
+              </form>
+            </td>
+          </tr>
+          <tr class="guest-row-edit" id="guest-edit-{{ g.id }}">
+            <td colspan="7">
+              <form method="post" action="/guestprint/guests/{{ g.id }}/edit">
+                <div class="gp-form-grid">
+                  <div>
+                    <label>E-Mail</label>
+                    <input type="email" name="sender_email" value="{{ g.sender_email }}" required>
+                  </div>
+                  <div>
+                    <label>Name</label>
+                    <input type="text" name="full_name" value="{{ g.full_name }}">
+                  </div>
+                  <div>
+                    <label>Ablauf (Tage, 0 = unbegrenzt)</label>
+                    <input type="number" name="expiration_days" value="{{ g.expiration_days }}" min="0">
+                  </div>
+                  <div>
+                    <label>Drucker-ID (Override)</label>
+                    <input type="text" name="printer_id" value="{{ g.printer_id }}"
+                           placeholder="leer = Mailbox-Default">
+                  </div>
+                  <div>
+                    <label>Queue-ID (Override)</label>
+                    <input type="text" name="queue_id" value="{{ g.queue_id }}"
+                           placeholder="leer = Mailbox-Default">
+                  </div>
+                  <div style="display:flex; align-items:end; padding-bottom:6px;">
+                    <label style="display:flex; align-items:center; gap:6px; font-size:.9em; font-weight:600;">
+                      <input type="checkbox" name="enabled" value="1" {% if g.enabled %}checked{% endif %}>
+                      Aktiv
+                    </label>
+                  </div>
+                </div>
+                <div style="margin-top:10px; display:flex; gap:8px;">
+                  <button type="submit" class="btn btn-primary btn-sm">💾 Speichern</button>
+                  <button type="button" class="btn btn-secondary btn-sm"
+                          onclick="gpToggleEdit('{{ g.id }}')">Abbrechen</button>
+                </div>
+              </form>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      </div>
+      {% else %}
+      <div class="empty-state">
+        <div style="font-size:2.5em;">👥</div>
+        <div>Noch keine Gäste auf der Allowlist.</div>
+      </div>
+      {% endif %}
+
+      <div class="divider" style="margin:24px 0;"></div>
+
+      <div style="font-weight:700; font-size:1em; color:#1e3a5f; margin-bottom:8px;">
+        ➕ Neuen Gast hinzufügen
+      </div>
+      <form method="post" action="/guestprint/mailboxes/{{ mailbox.id }}/guests">
+        <div class="gp-form-grid">
+          <div>
+            <label>E-Mail <span style="color:#dc2626;">*</span></label>
+            <input type="email" name="sender_email" required
+                   placeholder="gast@externe-firma.de">
+          </div>
+          <div>
+            <label>Name</label>
+            <input type="text" name="full_name" placeholder="optional">
+          </div>
+          <div>
+            <label>Ablauf (Tage, 0 = unbegrenzt)</label>
+            <input type="number" name="expiration_days" value="7" min="0">
+          </div>
+          <div>
+            <label>Drucker-ID (Override)</label>
+            <input type="text" name="printer_id" placeholder="leer = Mailbox-Default">
+          </div>
+          <div>
+            <label>Queue-ID (Override)</label>
+            <input type="text" name="queue_id" placeholder="leer = Mailbox-Default">
+          </div>
+          <div style="display:flex; align-items:end; padding-bottom:6px;">
+            <label style="display:flex; align-items:center; gap:6px; font-size:.9em; font-weight:600;">
+              <input type="checkbox" name="enabled" value="1" checked>
+              Aktiv
+            </label>
+          </div>
+        </div>
+        <div style="margin-top:14px;">
+          <button type="submit" class="btn btn-primary">Anlegen</button>
+        </div>
+      </form>
+    </div>
+
+    <!-- ── Tab: Verlauf ────────────────────────────────────────────────────── -->
+    <div class="gp-panel" id="gp-panel-history">
+      {% if jobs %}
+      <div style="overflow-x:auto;">
+      <table>
+        <thead>
+          <tr>
+            <th>Zeit</th>
+            <th>Absender</th>
+            <th>Betreff / Anhang</th>
+            <th style="text-align:right;">Bytes</th>
+            <th>Status</th>
+            <th>Printix-Job</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for j in jobs %}
+          <tr>
+            <td style="font-size:.82em; color:#6b7280; white-space:nowrap;">
+              {{ j.created_at[:16] }}
+            </td>
+            <td style="font-family:monospace; font-size:.82em;">{{ j.sender_email or '—' }}</td>
+            <td>
+              <div style="font-size:.88em;">{{ j.subject or '(ohne Betreff)' }}</div>
+              <div style="font-size:.78em; color:#9ca3af;">📎 {{ j.attachment_name or '—' }}</div>
+              {% if j.error %}
+              <div style="font-size:.75em; color:#dc2626; margin-top:2px;">⚠ {{ j.error }}</div>
+              {% endif %}
+            </td>
+            <td style="text-align:right; font-size:.82em; color:#6b7280;">
+              {{ '{:,}'.format(j.attachment_bytes) if j.attachment_bytes else '—' }}
+            </td>
+            <td>
+              <span class="status-{{ j.status }}">
+                {% if j.status == 'ok' %}✓ OK
+                {% elif j.status == 'failed' %}✗ Failed
+                {% elif j.status == 'skipped' %}— Skipped
+                {% elif j.status == 'pending' %}⏳ Pending
+                {% else %}{{ j.status }}{% endif %}
+              </span>
+            </td>
+            <td style="font-family:monospace; font-size:.75em; color:#9ca3af;">
+              {{ j.printix_job_id[:10] + '…' if j.printix_job_id and j.printix_job_id|length > 10 else (j.printix_job_id or '—') }}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      </div>
+      <div style="margin-top:12px; font-size:.78em; color:#9ca3af;">
+        Letzte {{ jobs | length }} Einträge. Beim Löschen des Postfachs bleibt die Historie erhalten.
+      </div>
+      {% else %}
+      <div class="empty-state">
+        <div style="font-size:2.5em;">📭</div>
+        <div>Noch keine Jobs verarbeitet.</div>
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- ── Tab: Einstellungen ──────────────────────────────────────────────── -->
+    <div class="gp-panel" id="gp-panel-settings">
+      <form method="post" action="/guestprint/mailboxes/{{ mailbox.id }}">
+        <div class="gp-form-grid">
+          <div>
+            <label>UPN / Mailadresse</label>
+            <input type="email" name="upn" value="{{ mailbox.upn }}" required>
+          </div>
+          <div>
+            <label>Anzeigename</label>
+            <input type="text" name="name" value="{{ mailbox.name }}">
+          </div>
+          <div>
+            <label>Poll-Intervall (Sek.)</label>
+            <input type="number" name="poll_interval_sec"
+                   value="{{ mailbox.poll_interval_sec }}" min="30" max="3600">
+          </div>
+          <div>
+            <label>Max. Anhang (Bytes)</label>
+            <input type="number" name="max_attachment_bytes"
+                   value="{{ mailbox.max_attachment_bytes }}" min="1">
+          </div>
+          <div>
+            <label>Default-Drucker-ID</label>
+            <input type="text" name="default_printer_id"
+                   value="{{ mailbox.default_printer_id }}">
+          </div>
+          <div>
+            <label>Default-Queue-ID</label>
+            <input type="text" name="default_queue_id"
+                   value="{{ mailbox.default_queue_id }}">
+          </div>
+          <div>
+            <label>Processed-Ordner</label>
+            <input type="text" name="folder_processed"
+                   value="{{ mailbox.folder_processed }}">
+          </div>
+          <div>
+            <label>Skipped-Ordner</label>
+            <input type="text" name="folder_skipped"
+                   value="{{ mailbox.folder_skipped }}">
+          </div>
+          <div style="display:flex; align-items:end; padding-bottom:6px;">
+            <label style="display:flex; align-items:center; gap:6px; font-size:.9em; font-weight:600;">
+              <input type="checkbox" name="enabled" value="1" {% if mailbox.enabled %}checked{% endif %}>
+              Aktiv (wird vom Scheduler gepollt)
+            </label>
+          </div>
+        </div>
+        <div style="margin-top:16px; display:flex; gap:8px;">
+          <button type="submit" class="btn btn-primary">💾 Speichern</button>
+          <a href="/guestprint/mailboxes" class="btn btn-secondary">Zurück</a>
+        </div>
+      </form>
+    </div>
+
+  </div>
+</div>
+
+<script>
+function gpShowTab(name, btn) {
+  document.querySelectorAll('.gp-tab').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.gp-panel').forEach(p => p.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('gp-panel-' + name).classList.add('active');
+}
+function gpToggleEdit(guestId) {
+  const row = document.getElementById('guest-edit-' + guestId);
+  if (row) row.classList.toggle('active');
+}
+function gpConfirmGuestDelete(form) {
+  const msg = form.dataset.confirm || 'Wirklich löschen?';
+  const px = form.querySelector('input[name="delete_printix_user"]');
+  const pxMsg = px && px.checked
+    ? '\n\nINCL. Löschen des Printix-Users (unwiderruflich).'
+    : '';
+  return confirm(msg + pxMsg);
+}
+</script>
+{% endblock %}

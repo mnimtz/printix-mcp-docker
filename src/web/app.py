@@ -5640,6 +5640,13 @@ def create_app(session_secret: str) -> FastAPI:
     except Exception as _ce:
         logger.error("Capture-Routen konnten nicht registriert werden: %s", _ce)
 
+    # ── Guest-Print (v7.1.0) ──────────────────────────────────────────────────
+    try:
+        from web.guestprint_routes import register_guestprint_routes
+        register_guestprint_routes(app, templates, t_ctx, require_login)
+    except Exception as _ge:
+        logger.error("Guest-Print-Routen konnten nicht registriert werden: %s", _ge)
+
     # ── Cloud Print Port — Employee & Delegation (v5.12.0) ────────────────────
     try:
         from cloudprint.db_extensions import init_cloudprint_schema
