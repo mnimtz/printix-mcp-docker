@@ -5016,6 +5016,14 @@ if __name__ == "__main__":
         except Exception as _sched_err:
             logger.warning("Scheduler-Init fehlgeschlagen: %s", _sched_err)
 
+    # Guest-Print Meta-Tick (v7.1.0) — polled alle aktiven Mailboxes
+    try:
+        from guestprint.scheduler import start_guestprint_scheduler
+        if start_guestprint_scheduler():
+            logger.info("  Guest-Print Meta-Tick aktiv")
+    except Exception as _gp_err:
+        logger.warning("Guest-Print Scheduler konnte nicht gestartet werden: %s", _gp_err)
+
     logger.info("╔══════════════════════════════════════════════════════════════╗")
     logger.info("║        PRINTIX MCP SERVER v%s — MULTI-TENANT            ║", APP_VERSION)
     logger.info("╠══════════════════════════════════════════════════════════════╣")

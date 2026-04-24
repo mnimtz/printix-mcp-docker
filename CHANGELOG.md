@@ -2,6 +2,60 @@
 
 This project follows [Semantic Versioning](https://semver.org/).
 
+## 7.1.0 — 2026-04-24
+
+New main navigation tab **Guest-Print**: a mail-driven secure-print flow for
+external guests. A dedicated Entra-registered mailbox is polled for incoming
+attachments; senders are matched against an admin-curated allowlist, auto-
+provisioned as Printix `GUEST_USER` (with an optional "timebomb" expiration),
+and the attachment is uploaded to a secure-print queue with ownership
+transferred to the guest via `change_job_owner`.
+
+### Added
+
+- **`guestprint_*` DB tables** — `guestprint_mailbox`, `guestprint_guest`,
+  `guestprint_job` (with CRUD helpers in `db.py`). Unique dedupe index on
+  `(mailbox, message, attachment)` makes the poll loop crash-safe.
+- **`src/guestprint/` package** —
+  - `config.py`     separate Entra-App credentials (Fernet-encrypted secret)
+  - `graph.py`      Microsoft Graph v1.0 mail wrapper (token cache, 429
+                    retry, `list_unread_with_attachments`,
+                    `download_attachment`, `move_message`,
+                    `ensure_folder_path`, `test_connection`)
+  - `printix.py`    `GUEST_USER` provisioning with `expirationTimestamp` +
+                    idempotent lookup-by-email
+  - `printer.py`    secure-print 4-step flow (submit
+                    `release_immediately=False` -> upload -> complete ->
+                    `change_job_owner`)
+  - `poller.py`     orchestrator: match -> download -> print -> move to
+                    Processed/Skipped folder + job log
+  - `scheduler.py`  meta-tick registered on the existing APScheduler;
+                    polls every 60s and fires per-mailbox based on each
+                    mailbox's `poll_interval_sec` + `last_poll_at`
+- **Admin UI (`/guestprint`)** — nav-tab for admins with three surfaces:
+  - `/guestprint/config`        Entra-App credentials (tenant / client id /
+                                 secret). Separate from the SSO Entra-App so
+                                 customers can register a minimal-scope
+                                 `Mail.ReadWrite` application.
+  - `/guestprint/mailboxes`     list + inline create; per-mailbox
+                                 test-connection (AJAX) and poll-now button
+  - `/guestprint/mailboxes/:id` detail page with 3 tabs (Guests, History,
+                                 Settings); guest rows expand in-place to
+                                 edit; delete-guest may optionally also
+                                 delete the Printix user
+- i18n: `nav_guestprint` key added to all 14 language blocks.
+
+### Operator notes
+
+- Printer- and queue-IDs in the guest-print forms are free-text for the MVP.
+  Look them up under **Tenant -> Queues** and paste in; a dropdown resolver
+  is follow-up work.
+- The Graph Entra-App needs application permission **`Mail.ReadWrite`** with
+  admin consent for the monitored mailbox. `User.Read.All` is **not**
+  required — the code addresses mailboxes by UPN.
+- Poll interval per mailbox is configurable (30s-3600s). The scheduler
+  tick runs every 60s, so anything below that is effectively clamped to 60s.
+
 ## 7.0.2 — 2026-04-24
 
 Maintenance release: CI hotfix, Docker tag cleanup and three small fixes in
