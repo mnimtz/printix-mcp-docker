@@ -161,15 +161,23 @@ def list_unread_with_attachments(upn: str, top: int = 50) -> list[dict]:
 
     Returns: list[{id, subject, from_email, received_at, has_attachments}]
     """
+    # Graph/Exchange lehnt '$filter' mit 'and' in Kombination mit '$orderby'
+    # als "too complex" (HTTP 400) ab, sofern kein passender Composite-Index
+    # existiert. Wir filtern deshalb nur nach 'isRead eq false', lassen die
+    # Sortierung auf der Default-Order (neueste zuerst) und filtern die
+    # hasAttachments-Bedingung clientseitig nach.
     params = {
-        "$filter":  "hasAttachments eq true and isRead eq false",
-        "$select":  "id,subject,from,receivedDateTime,hasAttachments",
-        "$top":     str(int(top)),
-        "$orderby": "receivedDateTime asc",
+        "$filter": "isRead eq false",
+        "$select": "id,subject,from,receivedDateTime,hasAttachments",
+        "$top":    str(int(top)),
     }
     resp = _get(f"{_user_path(upn)}/mailFolders/inbox/messages", params)
+    raw = resp.get("value", []) or []
+    # Clientseitig: nur Mails mit Anhang, aeltere zuerst (stabile Poll-Reihenfolge)
+    raw = [m for m in raw if m.get("hasAttachments")]
+    raw.sort(key=lambda m: m.get("receivedDateTime", "") or "")
     out: list[dict] = []
-    for m in resp.get("value", []) or []:
+    for m in raw:
         frm = (m.get("from") or {}).get("emailAddress") or {}
         out.append({
             "id":               m.get("id", ""),

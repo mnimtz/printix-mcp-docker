@@ -2,6 +2,21 @@
 
 This project follows [Semantic Versioning](https://semver.org/).
 
+## 7.1.2 — 2026-04-24
+
+Hotfix for the Guest-Print poll loop.
+
+### Fixes
+
+- **`list_unread_with_attachments` returned HTTP 400 from Graph.** The query
+  combined `$filter` (with `and`) and `$orderby` on `/users/{upn}/mailFolders/
+  inbox/messages`, which Exchange rejects as "too complex" unless the mailbox
+  has a matching composite index — which is not the default. The server-side
+  filter is now limited to `isRead eq false` (no `$orderby`); the
+  `hasAttachments` check and chronological sort happen client-side on the page
+  returned by Graph. Polling now works against a vanilla Exchange Online
+  mailbox with no extra configuration.
+
 ## 7.1.1 — 2026-04-24
 
 Same-day follow-up release with three polish items on top of v7.1.0's
