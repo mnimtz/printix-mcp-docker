@@ -2,6 +2,37 @@
 
 This project follows [Semantic Versioning](https://semver.org/).
 
+## 7.1.3 — 2026-04-24
+
+Per-mailbox control of what happens to an incoming mail after Guest-Print
+has successfully submitted the attachment(s) to the queue.
+
+### Added
+
+- **Mailbox setting `on_success`** — pickable in the create form and the
+  detail-page "Settings" tab. Three options:
+  - **`move`** (default, previous behaviour) — mail is moved into the
+    configured Processed-folder (`folder_processed`).
+  - **`keep`** — mail stays in the Inbox but is flagged as read
+    (`PATCH /messages/{id}` with `isRead=true`), so the next poll won't pick
+    it up again.
+  - **`delete`** — mail is deleted via `DELETE /messages/{id}`, which Graph
+    translates into a move to the well-known *Deleted Items* folder. Not a
+    hard-purge.
+- Graph client: added `mark_message_read()` and `delete_message()` wrappers;
+  `_request` now also handles PATCH/DELETE.
+- DB: added column `on_success` to `guestprint_mailbox` (default `'move'`);
+  idempotent `ALTER TABLE ADD COLUMN` migration runs on startup for existing
+  installs.
+
+### Notes
+
+- The "no printer configured" early-exit branch (guest allowlisted, but
+  neither guest nor mailbox default has printer+queue) now also respects
+  `on_success`. Previously it always moved to the Processed-folder to avoid
+  infinite retry; now it follows the admin's choice.
+- Behaviour is identical to v7.1.2 when the setting is left at `move`.
+
 ## 7.1.2 — 2026-04-24
 
 Hotfix for the Guest-Print poll loop.

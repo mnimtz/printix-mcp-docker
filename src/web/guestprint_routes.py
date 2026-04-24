@@ -444,6 +444,7 @@ def register_guestprint_routes(
         poll_interval_sec:     int = Form(60),
         folder_processed:      str = Form("GuestPrint/Processed"),
         folder_skipped:        str = Form("GuestPrint/Skipped"),
+        on_success:            str = Form("move"),
         max_attachment_bytes:  int = Form(26214400),
         enabled:               str = Form(""),
     ):
@@ -469,6 +470,7 @@ def register_guestprint_routes(
                 poll_interval_sec=int(poll_interval_sec or 60),
                 folder_processed=folder_processed or "GuestPrint/Processed",
                 folder_skipped=folder_skipped or "GuestPrint/Skipped",
+                on_success=on_success or "move",
                 max_attachment_bytes=int(max_attachment_bytes or 26214400),
                 enabled=bool(enabled),
             )
@@ -586,6 +588,7 @@ def register_guestprint_routes(
         poll_interval_sec:     int = Form(60),
         folder_processed:      str = Form("GuestPrint/Processed"),
         folder_skipped:        str = Form("GuestPrint/Skipped"),
+        on_success:            str = Form("move"),
         max_attachment_bytes:  int = Form(26214400),
         enabled:               str = Form(""),
     ):
@@ -602,6 +605,7 @@ def register_guestprint_routes(
                 poll_interval_sec=int(poll_interval_sec or 60),
                 folder_processed=folder_processed,
                 folder_skipped=folder_skipped,
+                on_success=on_success or "move",
                 max_attachment_bytes=int(max_attachment_bytes or 26214400),
                 enabled=bool(enabled),
             )

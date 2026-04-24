@@ -165,6 +165,14 @@
           <input type="text" id="folder_skipped" name="folder_skipped"
                  value="GuestPrint/Skipped">
         </div>
+        <div>
+          <label for="on_success">Nach erfolgreichem Druck</label>
+          <select id="on_success" name="on_success">
+            <option value="move" selected>In Processed-Ordner verschieben</option>
+            <option value="keep">In Inbox lassen (als gelesen markieren)</option>
+            <option value="delete">Löschen (nach „Gelöschte Elemente")</option>
+          </select>
+        </div>
         <div style="display:flex; align-items:end; padding-bottom:6px;">
           <label style="display:flex; align-items:center; gap:6px; font-size:.9em; font-weight:600;">
             <input type="checkbox" name="enabled" value="1" checked>

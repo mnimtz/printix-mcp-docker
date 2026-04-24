@@ -383,6 +383,14 @@
             <input type="text" name="folder_skipped"
                    value="{{ mailbox.folder_skipped }}">
           </div>
+          <div>
+            <label>Nach erfolgreichem Druck</label>
+            <select name="on_success">
+              <option value="move"   {% if (mailbox.on_success or 'move') == 'move'   %}selected{% endif %}>In Processed-Ordner verschieben</option>
+              <option value="keep"   {% if mailbox.on_success == 'keep'   %}selected{% endif %}>In Inbox lassen (als gelesen markieren)</option>
+              <option value="delete" {% if mailbox.on_success == 'delete' %}selected{% endif %}>Löschen (nach „Gelöschte Elemente")</option>
+            </select>
+          </div>
           <div style="display:flex; align-items:end; padding-bottom:6px;">
             <label style="display:flex; align-items:center; gap:6px; font-size:.9em; font-weight:600;">
               <input type="checkbox" name="enabled" value="1" {% if mailbox.enabled %}checked{% endif %}>

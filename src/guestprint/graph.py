@@ -144,6 +144,14 @@ def _post(path: str, payload: Any = None) -> Any:
     return _request("POST", path, json=payload)
 
 
+def _patch(path: str, payload: Any = None) -> Any:
+    return _request("PATCH", path, json=payload)
+
+
+def _delete(path: str) -> Any:
+    return _request("DELETE", path)
+
+
 def _get_raw(path: str, params: Optional[dict] = None) -> bytes:
     return _request("GET", path, params=params, raw=True)
 
@@ -248,6 +256,21 @@ def move_message(upn: str, message_id: str, destination_folder_id: str) -> str:
         {"destinationId": destination_folder_id},
     )
     return resp.get("id", "") if isinstance(resp, dict) else ""
+
+
+def mark_message_read(upn: str, message_id: str) -> None:
+    """Setzt isRead=true. Wichtig fuer on_success='keep', damit die Mail
+    beim naechsten Poll nicht wieder eingesammelt wird."""
+    _patch(
+        f"{_user_path(upn)}/messages/{message_id}",
+        {"isRead": True},
+    )
+
+
+def delete_message(upn: str, message_id: str) -> None:
+    """Loescht eine Nachricht. Graph verschiebt sie in 'Deleted Items' —
+    kein Hard-Delete (das ginge nur via Purge in 'Deleted Items')."""
+    _delete(f"{_user_path(upn)}/messages/{message_id}")
 
 
 # ─── Ordner-Handling ─────────────────────────────────────────────────────────

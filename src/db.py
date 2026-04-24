@@ -401,6 +401,7 @@ def init_db() -> None:
                 poll_interval_sec    INTEGER NOT NULL DEFAULT 60,
                 folder_processed     TEXT NOT NULL DEFAULT 'GuestPrint/Processed',
                 folder_skipped       TEXT NOT NULL DEFAULT 'GuestPrint/Skipped',
+                on_success           TEXT NOT NULL DEFAULT 'move',
                 max_attachment_bytes INTEGER NOT NULL DEFAULT 26214400,
                 enabled              INTEGER NOT NULL DEFAULT 1,
                 last_poll_at         TEXT NOT NULL DEFAULT '',
@@ -460,6 +461,17 @@ def init_db() -> None:
             CREATE INDEX IF NOT EXISTS idx_guestprint_job_status
                 ON guestprint_job (status, created_at DESC);
         """)
+
+    # v7.1.3: on_success je Postfach — move (Default, Altverhalten) | keep | delete
+    with _conn() as conn:
+        gp_cols = {r[1] for r in conn.execute(
+            "PRAGMA table_info(guestprint_mailbox)"
+        ).fetchall()}
+        if "on_success" not in gp_cols:
+            conn.execute(
+                "ALTER TABLE guestprint_mailbox "
+                "ADD COLUMN on_success TEXT NOT NULL DEFAULT 'move'"
+            )
 
     logger.info("DB initialisiert: %s", DB_PATH)
 
@@ -1882,23 +1894,25 @@ def create_guestprint_mailbox(
     poll_interval_sec: int = 60,
     folder_processed: str = "GuestPrint/Processed",
     folder_skipped: str = "GuestPrint/Skipped",
+    on_success: str = "move",
     max_attachment_bytes: int = 26214400,
     enabled: bool = True,
 ) -> dict:
     """Legt ein neues ueberwachtes Postfach an."""
     mid = str(uuid.uuid4())
     now = _now()
+    on_success = on_success if on_success in ("move", "keep", "delete") else "move"
     with _conn() as conn:
         conn.execute("""
             INSERT INTO guestprint_mailbox
                 (id, tenant_id, name, upn, default_printer_id, default_queue_id,
-                 poll_interval_sec, folder_processed, folder_skipped,
+                 poll_interval_sec, folder_processed, folder_skipped, on_success,
                  max_attachment_bytes, enabled, created_at, updated_at)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
         """, (
             mid, tenant_id, (name or upn).strip(), upn.strip().lower(),
             default_printer_id, default_queue_id,
-            int(poll_interval_sec), folder_processed, folder_skipped,
+            int(poll_interval_sec), folder_processed, folder_skipped, on_success,
             int(max_attachment_bytes), 1 if enabled else 0, now, now,
         ))
     return get_guestprint_mailbox(mid)
@@ -1929,7 +1943,7 @@ def update_guestprint_mailbox(mailbox_id: str, **fields) -> Optional[dict]:
     max_attachment_bytes, enabled, last_poll_at, last_error."""
     allowed = {
         "name", "upn", "default_printer_id", "default_queue_id",
-        "poll_interval_sec", "folder_processed", "folder_skipped",
+        "poll_interval_sec", "folder_processed", "folder_skipped", "on_success",
         "max_attachment_bytes", "enabled", "last_poll_at", "last_error",
     }
     parts, params = [], []
@@ -1942,6 +1956,8 @@ def update_guestprint_mailbox(mailbox_id: str, **fields) -> Optional[dict]:
             v = int(v)
         elif k == "upn" and isinstance(v, str):
             v = v.strip().lower()
+        elif k == "on_success":
+            v = v if v in ("move", "keep", "delete") else "move"
         parts.append(f"{k}=?"); params.append(v)
     if not parts:
         return get_guestprint_mailbox(mailbox_id)
@@ -1974,6 +1990,7 @@ def _mailbox_row(row) -> dict:
         "poll_interval_sec":    int(d.get("poll_interval_sec") or 60),
         "folder_processed":     d.get("folder_processed", "GuestPrint/Processed"),
         "folder_skipped":       d.get("folder_skipped", "GuestPrint/Skipped"),
+        "on_success":           (d.get("on_success") or "move"),
         "max_attachment_bytes": int(d.get("max_attachment_bytes") or 26214400),
         "enabled":              bool(d.get("enabled", 0)),
         "last_poll_at":         d.get("last_poll_at", ""),

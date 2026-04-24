@@ -184,8 +184,15 @@ def _process_message(
     queue_id   = (guest.get("queue_id")   or mailbox.get("default_queue_id")   or "").strip()
     if not (printer_id and queue_id):
         _err(result, f"msg={msg_id}: kein Drucker konfiguriert (guest + mailbox leer)")
-        # Trotzdem verschieben, sonst wird die Mail bei jedem Poll erneut versucht.
-        _move_processed(upn, msg_id, processed_fid, result)
+        # Trotzdem aus der Inbox ziehen, sonst wird die Mail bei jedem Poll
+        # erneut versucht. Respektiert dabei das Mailbox-`on_success`-Setting.
+        _finalize_success(
+            upn=upn,
+            msg_id=msg_id,
+            mode=(mailbox.get("on_success") or "move"),
+            processed_fid=processed_fid,
+            result=result,
+        )
         return
 
     # 4) Guest ggf. in Printix provisionieren — nur EINMAL pro Guest-Zeile
@@ -231,19 +238,40 @@ def _process_message(
     except Exception:
         pass
 
-    # 7) Mail verschieben — wenn mindestens ein Attachment bearbeitet wurde
-    #    (ok/skipped/duplicate), wandert sie nach Processed. Andernfalls
-    #    Bleibt sie in der Inbox (Retry).
+    # 7) Mail nach Erfolg behandeln — Mailbox-Setting `on_success`:
+    #    'move'   -> in folder_processed verschieben (Default, Altverhalten)
+    #    'keep'   -> in Inbox lassen, aber als gelesen markieren
+    #    'delete' -> loeschen (Graph DELETE verschiebt nach 'Deleted Items')
+    #    Nur wenn mindestens ein Attachment bearbeitet wurde, sonst Retry.
     if any_processed:
-        _move_processed(upn, msg_id, processed_fid, result)
+        _finalize_success(
+            upn=upn,
+            msg_id=msg_id,
+            mode=(mailbox.get("on_success") or "move"),
+            processed_fid=processed_fid,
+            result=result,
+        )
 
 
-def _move_processed(upn: str, msg_id: str, processed_fid: str,
-                     result: MailboxPollResult) -> None:
+def _finalize_success(
+    *,
+    upn: str,
+    msg_id: str,
+    mode: str,
+    processed_fid: str,
+    result: MailboxPollResult,
+) -> None:
+    """Wendet die `on_success`-Regel auf eine erfolgreich verarbeitete Mail an."""
+    mode = (mode or "move").lower()
     try:
-        graph.move_message(upn, msg_id, processed_fid)
+        if mode == "keep":
+            graph.mark_message_read(upn, msg_id)
+        elif mode == "delete":
+            graph.delete_message(upn, msg_id)
+        else:  # 'move' + unbekannt -> Default
+            graph.move_message(upn, msg_id, processed_fid)
     except Exception as e:
-        _err(result, f"move(processed) msg={msg_id}: {e}")
+        _err(result, f"on_success={mode} msg={msg_id}: {e}")
 
 
 # ─── Guest-Provisionierung ───────────────────────────────────────────────────
