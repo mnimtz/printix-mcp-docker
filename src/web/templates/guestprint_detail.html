@@ -164,14 +164,28 @@
                     <label>Ablauf (Tage, 0 = unbegrenzt)</label>
                     <input type="number" name="expiration_days" value="{{ g.expiration_days }}" min="0">
                   </div>
+                  {% if printer_queue_pairs %}
+                  <div style="grid-column:1 / -1;">
+                    <label>Drucker / Queue auswählen (Override)</label>
+                    <select onchange="gpApplyPair(this, 'g_pid_{{ g.id }}', 'g_qid_{{ g.id }}')">
+                      <option value="">— leer = Mailbox-Default —</option>
+                      {% for pq in printer_queue_pairs %}
+                      <option value="{{ pq.printer_id }}|{{ pq.queue_id }}"
+                              {% if pq.printer_id == g.printer_id and pq.queue_id == g.queue_id %}selected{% endif %}>
+                        {{ pq.label }}
+                      </option>
+                      {% endfor %}
+                    </select>
+                  </div>
+                  {% endif %}
                   <div>
                     <label>Drucker-ID (Override)</label>
-                    <input type="text" name="printer_id" value="{{ g.printer_id }}"
+                    <input type="text" id="g_pid_{{ g.id }}" name="printer_id" value="{{ g.printer_id }}"
                            placeholder="leer = Mailbox-Default">
                   </div>
                   <div>
                     <label>Queue-ID (Override)</label>
-                    <input type="text" name="queue_id" value="{{ g.queue_id }}"
+                    <input type="text" id="g_qid_{{ g.id }}" name="queue_id" value="{{ g.queue_id }}"
                            placeholder="leer = Mailbox-Default">
                   </div>
                   <div style="display:flex; align-items:end; padding-bottom:6px;">
@@ -220,13 +234,24 @@
             <label>Ablauf (Tage, 0 = unbegrenzt)</label>
             <input type="number" name="expiration_days" value="7" min="0">
           </div>
+          {% if printer_queue_pairs %}
+          <div style="grid-column:1 / -1;">
+            <label>Drucker / Queue auswählen (Override)</label>
+            <select onchange="gpApplyPair(this, 'new_g_pid', 'new_g_qid')">
+              <option value="">— leer = Mailbox-Default —</option>
+              {% for pq in printer_queue_pairs %}
+              <option value="{{ pq.printer_id }}|{{ pq.queue_id }}">{{ pq.label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          {% endif %}
           <div>
             <label>Drucker-ID (Override)</label>
-            <input type="text" name="printer_id" placeholder="leer = Mailbox-Default">
+            <input type="text" id="new_g_pid" name="printer_id" placeholder="leer = Mailbox-Default">
           </div>
           <div>
             <label>Queue-ID (Override)</label>
-            <input type="text" name="queue_id" placeholder="leer = Mailbox-Default">
+            <input type="text" id="new_g_qid" name="queue_id" placeholder="leer = Mailbox-Default">
           </div>
           <div style="display:flex; align-items:end; padding-bottom:6px;">
             <label style="display:flex; align-items:center; gap:6px; font-size:.9em; font-weight:600;">
@@ -323,14 +348,29 @@
             <input type="number" name="max_attachment_bytes"
                    value="{{ mailbox.max_attachment_bytes }}" min="1">
           </div>
+          {% if printer_queue_pairs %}
+          <div style="grid-column:1 / -1;">
+            <label for="mb_pq_picker">Standard-Drucker / Queue auswählen</label>
+            <select id="mb_pq_picker"
+                    onchange="gpApplyPair(this, 'mb_default_printer_id', 'mb_default_queue_id')">
+              <option value="">— beibehalten ({{ mailbox.default_printer_id[:8] if mailbox.default_printer_id else 'keiner' }}) —</option>
+              {% for pq in printer_queue_pairs %}
+              <option value="{{ pq.printer_id }}|{{ pq.queue_id }}"
+                      {% if pq.printer_id == mailbox.default_printer_id and pq.queue_id == mailbox.default_queue_id %}selected{% endif %}>
+                {{ pq.label }}
+              </option>
+              {% endfor %}
+            </select>
+          </div>
+          {% endif %}
           <div>
             <label>Default-Drucker-ID</label>
-            <input type="text" name="default_printer_id"
+            <input type="text" id="mb_default_printer_id" name="default_printer_id"
                    value="{{ mailbox.default_printer_id }}">
           </div>
           <div>
             <label>Default-Queue-ID</label>
-            <input type="text" name="default_queue_id"
+            <input type="text" id="mb_default_queue_id" name="default_queue_id"
                    value="{{ mailbox.default_queue_id }}">
           </div>
           <div>
@@ -361,6 +401,14 @@
 </div>
 
 <script>
+function gpApplyPair(select, printerInputId, queueInputId) {
+  const val = select.value || '';
+  const [pid, qid] = val.split('|', 2);
+  const pi = document.getElementById(printerInputId);
+  const qi = document.getElementById(queueInputId);
+  if (pi) pi.value = pid || '';
+  if (qi) qi.value = qid || '';
+}
 function gpShowTab(name, btn) {
   document.querySelectorAll('.gp-tab').forEach(b => b.classList.remove('active'));
   document.querySelectorAll('.gp-panel').forEach(p => p.classList.remove('active'));

@@ -39,6 +39,14 @@ from guestprint import config as gp_config, graph as gp_graph
 from guestprint import poller as gp_poller
 from guestprint.printix import delete_guest as px_delete_guest
 
+# Session-Keys fuer den Auto-Setup-Wizard. Der Device-Code-Admin-Token wird
+# kurzzeitig im Session-Store gehalten, damit nach erfolgreichem App-Create
+# die Postfachliste geladen werden kann — sobald der Admin ein Postfach
+# gewaehlt hat (oder explizit abbricht), wird der Token geloescht.
+_SESSION_DEVICE_CODE = "gp_entra_device_code"
+_SESSION_ADMIN_TOKEN = "gp_entra_admin_token"
+_SESSION_PROVISIONED = "gp_entra_provisioned_app"
+
 logger = logging.getLogger("printix.guestprint")
 
 
@@ -69,6 +77,71 @@ def _get_tenant(user: dict) -> dict:
     except Exception as e:
         logger.warning("Guest-Print: get_tenant fehlgeschlagen: %s", e)
         return {}
+
+
+def _list_printer_queue_pairs(tenant: dict) -> list[dict]:
+    """Holt (printer_id, queue_id, label) fuer die Dropdown-Auswahl in den
+    Mailbox-/Gast-Formularen. Mirror von _extract_printer_queue_pairs aus
+    app.py:3527 — wir duplizieren den Parser hier, damit die Route ohne
+    Circular-Import auskommt.
+
+    Bei fehlenden Credentials oder API-Fehlern: leere Liste (Formular
+    degradiert dann still zum Freitext-Input).
+    """
+    if not tenant:
+        return []
+    has_print_api = bool(
+        tenant.get("print_client_id") or tenant.get("shared_client_id")
+    )
+    if not has_print_api:
+        return []
+
+    try:
+        client = _make_printix_client(tenant)
+        data = client.list_printers(size=200)
+    except Exception as e:
+        logger.info("Guest-Print: list_printers fehlgeschlagen (%s) — Dropdown leer", e)
+        return []
+
+    raw_items: list[dict] = []
+    if isinstance(data, dict):
+        for key in ("printers", "content"):
+            val = data.get(key)
+            if isinstance(val, list):
+                raw_items = val
+                break
+
+    import re
+    pairs: list[dict] = []
+    for item in raw_items:
+        if not isinstance(item, dict):
+            continue
+        href = (item.get("_links") or {}).get("self", {}).get("href", "")
+        m = re.search(r"/printers/([^/]+)/queues/([^/?]+)", href)
+        printer_id = m.group(1) if m else (item.get("id", "") or "")
+        queue_id   = m.group(2) if m else ""
+        if not (printer_id and queue_id):
+            continue
+        vendor = item.get("vendor", "") or ""
+        model  = item.get("model", "") or ""
+        name   = item.get("name", "") or ""
+        location = item.get("location", "") or ""
+        printer_name = f"{vendor} {model}".strip() or name
+        # Label: "HP LaserJet 4200 — Empfang-Queue @ Haus A"
+        label = printer_name
+        if name and name not in label:
+            label = f"{label} — {name}" if label else name
+        if location:
+            label = f"{label} @ {location}"
+        pairs.append({
+            "printer_id": printer_id,
+            "queue_id":   queue_id,
+            "label":      label or f"{printer_id[:8]}…/{queue_id[:8]}…",
+        })
+
+    # Stabil sortieren — gleiche Drucker werden gruppiert
+    pairs.sort(key=lambda p: p["label"].lower())
+    return pairs
 
 
 def register_guestprint_routes(
@@ -154,6 +227,182 @@ def register_guestprint_routes(
         return RedirectResponse("/guestprint/config", status_code=302)
 
     # ─────────────────────────────────────────────────────────────────────────
+    # Auto-Setup-Wizard (Device Code Flow)
+    # ─────────────────────────────────────────────────────────────────────────
+    @app.post("/guestprint/config/device-code", response_class=JSONResponse)
+    async def gp_device_code_start(request: Request):
+        """Startet den Device Code Flow fuer den Guest-Print-Auto-Setup."""
+        user = _require_admin(request)
+        if not user:
+            return JSONResponse({"error": "unauthorized"}, status_code=401)
+        try:
+            from entra import start_device_code_flow_guestprint
+        except ImportError:
+            return JSONResponse({"error": "entra module not available"},
+                                status_code=500)
+        result = start_device_code_flow_guestprint()
+        if not result or not result.get("device_code"):
+            return JSONResponse({"error": "device_code_failed"}, status_code=502)
+        request.session[_SESSION_DEVICE_CODE] = result["device_code"]
+        return JSONResponse({
+            "user_code":        result["user_code"],
+            "verification_uri": result["verification_uri"],
+            "expires_in":       result["expires_in"],
+            "interval":         result.get("interval", 5),
+            "message":          result.get("message", ""),
+        })
+
+    @app.get("/guestprint/config/device-poll", response_class=JSONResponse)
+    async def gp_device_code_poll(request: Request):
+        """Pollt den Token, erstellt bei Erfolg die Guest-Print-App + speichert."""
+        user = _require_admin(request)
+        if not user:
+            return JSONResponse({"error": "unauthorized"}, status_code=401)
+        device_code = request.session.get(_SESSION_DEVICE_CODE, "")
+        if not device_code:
+            return JSONResponse({"status": "error", "error": "no_device_code"})
+
+        try:
+            from entra import (auto_register_guestprint_app,
+                                list_tenant_mailboxes, poll_device_code_token)
+        except ImportError:
+            return JSONResponse({"status": "error",
+                                  "error": "entra module not available"})
+
+        poll = poll_device_code_token(device_code)
+        status = poll.get("status")
+
+        if status == "pending":
+            return JSONResponse({"status": "pending"})
+        if status == "expired":
+            request.session.pop(_SESSION_DEVICE_CODE, None)
+            return JSONResponse({"status": "expired"})
+        if status == "error":
+            request.session.pop(_SESSION_DEVICE_CODE, None)
+            return JSONResponse({"status": "error",
+                                  "error": poll.get("error", "")})
+
+        # status == "success"
+        access_token = poll.get("access_token", "")
+        request.session.pop(_SESSION_DEVICE_CODE, None)
+        if not access_token:
+            return JSONResponse({"status": "error", "error": "no_access_token"})
+
+        reg = auto_register_guestprint_app(access_token)
+        if not reg or not reg.get("client_id"):
+            return JSONResponse({"status": "error",
+                                  "error": "app_creation_failed"})
+
+        try:
+            gp_config.set_config(
+                tenant_id=reg.get("tenant_id", ""),
+                client_id=reg.get("client_id", ""),
+                client_secret=reg.get("client_secret", ""),
+            )
+        except Exception as e:
+            logger.exception("Guest-Print Auto-Setup Speichern fehlgeschlagen")
+            return JSONResponse({
+                "status": "error",
+                "error":  f"App erstellt, aber Speichern fehlgeschlagen: {e}",
+            })
+
+        # Postfachliste direkt nachladen, solange wir den Admin-Token haben.
+        # Cache den Token kurz in der Session fuer ggf. Retry, sonst ist er
+        # nach 1h eh tot.
+        request.session[_SESSION_ADMIN_TOKEN] = access_token
+        request.session[_SESSION_PROVISIONED] = {
+            "client_id": reg.get("client_id", ""),
+            "tenant_id": reg.get("tenant_id", ""),
+            "consent_ok": bool(reg.get("consent_ok")),
+        }
+
+        mailboxes = list_tenant_mailboxes(access_token)
+
+        try:
+            from db import audit
+            audit(user["id"], "guestprint_auto_setup",
+                  f"Guest-Print-App erstellt (client_id={reg.get('client_id','')}, "
+                  f"consent={'ok' if reg.get('consent_ok') else 'manuell'})")
+        except Exception:
+            pass
+
+        return JSONResponse({
+            "status":     "success",
+            "client_id":  reg.get("client_id", ""),
+            "tenant_id":  reg.get("tenant_id", ""),
+            "consent_ok": bool(reg.get("consent_ok")),
+            "mailboxes":  mailboxes,
+        })
+
+    @app.get("/guestprint/config/list-mailboxes", response_class=JSONResponse)
+    async def gp_list_tenant_mailboxes(request: Request):
+        """Laedt die Postfachliste erneut (wenn der Token noch in der
+        Session liegt). Wird vom Wizard nach Postfach-Auswahl-Neuladen benutzt."""
+        user = _require_admin(request)
+        if not user:
+            return JSONResponse({"error": "unauthorized"}, status_code=401)
+        token = request.session.get(_SESSION_ADMIN_TOKEN, "")
+        if not token:
+            return JSONResponse({"status": "expired", "mailboxes": []})
+        try:
+            from entra import list_tenant_mailboxes
+        except ImportError:
+            return JSONResponse({"status": "error",
+                                  "error": "entra module not available"})
+        mailboxes = list_tenant_mailboxes(token)
+        return JSONResponse({"status": "ok", "mailboxes": mailboxes})
+
+    @app.post("/guestprint/config/create-mailbox", response_class=HTMLResponse)
+    async def gp_create_mailbox_from_wizard(
+        request: Request,
+        upn:         str = Form(""),
+        name:        str = Form(""),
+    ):
+        """Schritt nach dem Auto-Setup: Admin waehlt ein Postfach, wir legen
+        den guestprint_mailbox-Eintrag an und leiten auf die Detail-Seite."""
+        user = _require_admin(request)
+        if not user:
+            return _redirect_login()
+        upn = (upn or "").strip().lower()
+        if not upn:
+            _flash(request, "Kein Postfach ausgewaehlt.", "error")
+            return RedirectResponse("/guestprint/config", status_code=302)
+
+        tenant = _get_tenant(user)
+        tid = tenant.get("id", "")
+        if not tid:
+            _flash(request, "Kein Tenant gefunden.", "error")
+            return RedirectResponse("/guestprint/config", status_code=302)
+
+        try:
+            mb = db.create_guestprint_mailbox(
+                tenant_id=tid,
+                name=name or upn,
+                upn=upn,
+                default_printer_id="",
+                default_queue_id="",
+                poll_interval_sec=60,
+                folder_processed="GuestPrint/Processed",
+                folder_skipped="GuestPrint/Skipped",
+                max_attachment_bytes=26214400,
+                enabled=True,
+            )
+        except Exception as e:
+            logger.exception("Guest-Print Wizard: Mailbox-Create fehlgeschlagen")
+            _flash(request, f"Postfach anlegen fehlgeschlagen: {e}", "error")
+            return RedirectResponse("/guestprint/config", status_code=302)
+
+        # Wizard-State aufraeumen — der Admin-Token bleibt nicht laenger
+        # in der Session, als noetig.
+        request.session.pop(_SESSION_ADMIN_TOKEN, None)
+        request.session.pop(_SESSION_PROVISIONED, None)
+
+        _flash(request, f"Postfach '{upn}' angelegt. Jetzt Drucker/Queue "
+                        "waehlen und optional Gaeste hinzufuegen.", "success")
+        return RedirectResponse(f"/guestprint/mailboxes/{mb['id']}",
+                                 status_code=302)
+
+    # ─────────────────────────────────────────────────────────────────────────
     # Mailbox-Liste
     # ─────────────────────────────────────────────────────────────────────────
     @app.get("/guestprint/mailboxes", response_class=HTMLResponse)
@@ -178,6 +427,7 @@ def register_guestprint_routes(
             "user":          user,
             "tenant":        tenant,
             "mailboxes":     mailboxes,
+            "printer_queue_pairs": _list_printer_queue_pairs(tenant),
             "is_configured": gp_config.is_configured(),
             "flash_msg":     flash_msg,
             "flash_kind":    flash_kind,
@@ -319,6 +569,7 @@ def register_guestprint_routes(
             "mailbox":    mb,
             "guests":     guests,
             "jobs":       jobs,
+            "printer_queue_pairs": _list_printer_queue_pairs(tenant),
             "flash_msg":  flash_msg,
             "flash_kind": flash_kind,
             **tc,

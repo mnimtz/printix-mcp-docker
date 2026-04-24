@@ -173,6 +173,23 @@ _GRAPH_SCOPES_DEVICE = (
     "https://graph.microsoft.com/Organization.Read.All"
 )
 
+# Zusaetzliche Scopes fuer den Guest-Print-Auto-Setup: wir brauchen
+# AppRoleAssignment.ReadWrite.All um nach dem App-Create programmatisch
+# Admin-Consent fuer Mail.ReadWrite (Application) zu erteilen, und
+# User.Read.All, um direkt danach die Postfachliste des Tenants zu laden.
+_GRAPH_SCOPES_GUESTPRINT = (
+    "https://graph.microsoft.com/Application.ReadWrite.All "
+    "https://graph.microsoft.com/Organization.Read.All "
+    "https://graph.microsoft.com/AppRoleAssignment.ReadWrite.All "
+    "https://graph.microsoft.com/User.Read.All"
+)
+
+# Well-known IDs fuer Microsoft Graph (App-Only Permissions):
+#   resourceAppId           = Microsoft Graph's well-known App-ID
+#   MAIL_READWRITE_APP_ROLE = Role-ID der Application-Permission "Mail.ReadWrite"
+_GRAPH_APP_ID = "00000003-0000-0000-c000-000000000000"
+_GRAPH_MAIL_READWRITE_APP_ROLE = "e2a3a72e-5f79-4c64-b1b1-878b674786c9"
+
 
 def start_device_code_flow(tenant: str = "common",
                              scopes: str | None = None) -> dict | None:
@@ -370,6 +387,226 @@ def auto_register_app(
     except Exception as e:
         logger.error("Graph API Fehler bei Auto-Setup: %s", e)
         return None
+
+
+# ─── Guest-Print Auto-Setup ──────────────────────────────────────────────────
+#
+# Analog zum SSO-Auto-Setup oben, aber mit anderen Permissions:
+#   - `Mail.ReadWrite` als **Application-Role** (nicht Delegated-Scope), weil
+#     der Poller mit App-Only-Token laeuft — kein User im Loop.
+#   - Admin-Consent wird programmatisch erteilt via
+#     POST /servicePrincipals/{gp_sp_id}/appRoleAssignments.
+#     Dazu muss der Device-Code-Admin Global-Admin (oder Privileged Role
+#     Admin) sein und der Token muss AppRoleAssignment.ReadWrite.All haben.
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def start_device_code_flow_guestprint(tenant: str = "common") -> dict | None:
+    """Device Code Flow fuer den Guest-Print-Auto-Setup. Unterscheidet sich
+    vom SSO-Flow durch die breiteren Scopes (AppRoleAssignment.ReadWrite.All
+    fuer programmatischen Consent, User.Read.All fuer den Mailbox-Picker)."""
+    return start_device_code_flow(tenant=tenant, scopes=_GRAPH_SCOPES_GUESTPRINT)
+
+
+def _get_service_principal_by_app_id(access_token: str, app_id: str) -> str:
+    """Liefert die ObjectId (id) des ServicePrincipals zu einem appId.
+    Leerstring wenn nicht gefunden."""
+    headers = {"Authorization": f"Bearer {access_token}"}
+    try:
+        resp = _requests.get(
+            f"{_GRAPH_URL}/servicePrincipals",
+            headers=headers,
+            params={"$filter": f"appId eq '{app_id}'"},
+            timeout=15,
+        )
+    except Exception as e:
+        logger.warning("Graph: servicePrincipals lookup fehlgeschlagen: %s", e)
+        return ""
+    if resp.status_code != 200:
+        return ""
+    items = resp.json().get("value", [])
+    return items[0].get("id", "") if items else ""
+
+
+def auto_register_guestprint_app(
+    access_token: str,
+    app_name: str = "Printix Guest-Print",
+) -> dict | None:
+    """Erstellt eine Entra-App mit Mail.ReadWrite Application-Role + Admin-
+    Consent im Tenant des Device-Code-Admins.
+
+    Returns: dict mit tenant_id, client_id, client_secret — oder None bei Fehler.
+    """
+    headers = {
+        "Authorization": f"Bearer {access_token}",
+        "Content-Type": "application/json",
+    }
+
+    # 1) Tenant-ID ermitteln
+    tenant_id = ""
+    try:
+        me_resp = _requests.get(f"{_GRAPH_URL}/organization",
+                                  headers=headers, timeout=10)
+        if me_resp.status_code == 200:
+            orgs = me_resp.json().get("value", [])
+            if orgs:
+                tenant_id = orgs[0].get("id", "")
+    except Exception as e:
+        logger.warning("Guest-Print Auto-Setup: Tenant-ID nicht ermittelbar: %s", e)
+
+    # 2) App-Registration erstellen — Single-Tenant (die App ist nur
+    # im Kunden-Tenant benutzbar, das passt zum Minimal-Scope-Gedanken).
+    app_body = {
+        "displayName": app_name,
+        "signInAudience": "AzureADMyOrg",
+        "requiredResourceAccess": [
+            {
+                "resourceAppId": _GRAPH_APP_ID,
+                "resourceAccess": [
+                    {"id": _GRAPH_MAIL_READWRITE_APP_ROLE, "type": "Role"},
+                ],
+            }
+        ],
+    }
+    try:
+        resp = _requests.post(f"{_GRAPH_URL}/applications",
+                                headers=headers, json=app_body, timeout=15)
+        if resp.status_code not in (200, 201):
+            logger.error("Guest-Print Graph: App-Create fehlgeschlagen: %s %s",
+                          resp.status_code, resp.text[:500])
+            return None
+        app_data = resp.json()
+        app_id = app_data["appId"]
+        obj_id = app_data["id"]
+    except Exception as e:
+        logger.error("Guest-Print Graph: App-Create Exception: %s", e)
+        return None
+
+    # 3) Client-Secret generieren
+    client_secret = ""
+    try:
+        secret_body = {"passwordCredential": {
+            "displayName": "Printix Guest-Print Auto-Generated",
+            "endDateTime": "2099-12-31T23:59:59Z",
+        }}
+        resp2 = _requests.post(
+            f"{_GRAPH_URL}/applications/{obj_id}/addPassword",
+            headers=headers, json=secret_body, timeout=15,
+        )
+        if resp2.status_code in (200, 201):
+            client_secret = resp2.json().get("secretText", "") or ""
+        else:
+            logger.error("Guest-Print Graph: Secret-Create fehlgeschlagen: %s %s",
+                          resp2.status_code, resp2.text[:500])
+    except Exception as e:
+        logger.error("Guest-Print Graph: Secret-Create Exception: %s", e)
+
+    # 4) ServicePrincipal fuer die neue App anlegen (notwendig, damit Consent
+    # ueberhaupt granted werden kann — eine App ohne SP ist im Tenant nicht
+    # auffindbar).
+    gp_sp_id = ""
+    try:
+        sp_resp = _requests.post(
+            f"{_GRAPH_URL}/servicePrincipals",
+            headers=headers, json={"appId": app_id}, timeout=15,
+        )
+        if sp_resp.status_code in (200, 201):
+            gp_sp_id = sp_resp.json().get("id", "")
+        else:
+            # 409 = existiert schon (z.B. bei Retry) — per Lookup nachholen
+            gp_sp_id = _get_service_principal_by_app_id(access_token, app_id)
+            if not gp_sp_id:
+                logger.error("Guest-Print Graph: SP-Create fehlgeschlagen: %s %s",
+                              sp_resp.status_code, sp_resp.text[:500])
+    except Exception as e:
+        logger.error("Guest-Print Graph: SP-Create Exception: %s", e)
+
+    # 5) Admin-Consent fuer Mail.ReadWrite App-Role erteilen.
+    # Braucht AppRoleAssignment.ReadWrite.All im Device-Code-Token + einen
+    # Admin mit Privileged-Role (Global Admin oder Privileged Role Admin).
+    consent_ok = False
+    if gp_sp_id:
+        graph_sp_id = _get_service_principal_by_app_id(access_token, _GRAPH_APP_ID)
+        if graph_sp_id:
+            try:
+                ass_resp = _requests.post(
+                    f"{_GRAPH_URL}/servicePrincipals/{gp_sp_id}/appRoleAssignments",
+                    headers=headers,
+                    json={
+                        "principalId": gp_sp_id,
+                        "resourceId":  graph_sp_id,
+                        "appRoleId":   _GRAPH_MAIL_READWRITE_APP_ROLE,
+                    },
+                    timeout=15,
+                )
+                consent_ok = ass_resp.status_code in (200, 201)
+                if not consent_ok:
+                    # 400 mit "Permission being assigned already exists" ist OK
+                    body = (ass_resp.text or "")[:300]
+                    if "already exists" in body.lower():
+                        consent_ok = True
+                    else:
+                        logger.warning(
+                            "Guest-Print Graph: Admin-Consent-Grant fehlgeschlagen: %s %s",
+                            ass_resp.status_code, body,
+                        )
+            except Exception as e:
+                logger.warning("Guest-Print Graph: Admin-Consent Exception: %s", e)
+
+    logger.info(
+        "Guest-Print Auto-Setup: app_id=%s tenant=%s consent=%s",
+        app_id, tenant_id, "ok" if consent_ok else "manuell erforderlich",
+    )
+    return {
+        "tenant_id":     tenant_id,
+        "client_id":     app_id,
+        "client_secret": client_secret,
+        "consent_ok":    consent_ok,
+        "object_id":     obj_id,
+        "service_principal_id": gp_sp_id,
+    }
+
+
+def list_tenant_mailboxes(access_token: str, top: int = 200) -> list[dict]:
+    """Listet Postfaecher (Mail-enabled Users) im Tenant via delegated Token.
+
+    Rueckgabe: list[{id, upn, display_name, mail}] — sortiert alphabetisch.
+    Leere Liste bei Fehler oder leerem Tenant.
+    """
+    headers = {"Authorization": f"Bearer {access_token}"}
+    try:
+        resp = _requests.get(
+            f"{_GRAPH_URL}/users",
+            headers=headers,
+            params={
+                "$select": "id,userPrincipalName,displayName,mail",
+                # Filter weggelassen — Graph erlaubt "mail ne null" nicht
+                # als simpler Filter; wir filtern stattdessen client-side.
+                "$top":    str(min(max(top, 1), 999)),
+                "$orderby": "displayName",
+            },
+            timeout=20,
+        )
+    except Exception as e:
+        logger.warning("Guest-Print list_tenant_mailboxes Netzwerk: %s", e)
+        return []
+    if resp.status_code != 200:
+        logger.warning("Guest-Print list_tenant_mailboxes: %s %s",
+                        resp.status_code, resp.text[:300])
+        return []
+    out: list[dict] = []
+    for u in resp.json().get("value", []):
+        mail = u.get("mail") or u.get("userPrincipalName") or ""
+        if not mail:
+            continue
+        out.append({
+            "id":           u.get("id", ""),
+            "upn":          u.get("userPrincipalName", "") or mail,
+            "display_name": u.get("displayName", "") or mail,
+            "mail":         mail,
+        })
+    out.sort(key=lambda x: (x["display_name"] or x["upn"]).lower())
+    return out
 
 
 # ─── JWT Decode ──────────────────────────────────────────────────────────────

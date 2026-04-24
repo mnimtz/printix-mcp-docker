@@ -2,6 +2,59 @@
 
 This project follows [Semantic Versioning](https://semver.org/).
 
+## 7.1.1 — 2026-04-24
+
+Same-day follow-up release with three polish items on top of v7.1.0's
+Guest-Print feature. No breaking changes, no DB migrations.
+
+### Added
+
+- **Attachment conversion pipeline.** Guest-Print now accepts more than
+  just PDF. It reuses the existing `upload_converter.py` (already part of
+  the web-upload flow) to transform attachments before submit:
+  - **PDF** — passthrough.
+  - **Images** (`png`, `jpg`/`jpeg`, `gif`, `bmp`, `tif`/`tiff`) — rendered
+    to PDF via Pillow at 150 dpi.
+  - **Plain text** (`txt`) — rendered to PDF via Pillow (monospace,
+    A4 @150 dpi, soft-wrapped lines).
+  - **Office** (`docx`, `xlsx`, `pptx`, `odt`, `ods`, `odp`, `doc`, `xls`,
+    `ppt`, `rtf`) — converted via `libreoffice --headless --convert-to pdf`
+    (LibreOffice is already bundled in the runtime image).
+
+  The Printix submit-PDL is always `application/pdf` after conversion.
+  Attachments with unsupported types or conversion errors land as
+  `skipped` in the per-mailbox history with a readable reason.
+- **Device-code auto-setup wizard** for the Guest-Print Entra-App, analogous
+  to the SSO auto-setup on `/admin/settings`. The `/guestprint/config` page
+  now has a "🚀 Auto-Setup starten" button that runs the full flow:
+  1. Admin signs in via `https://microsoft.com/devicelogin` with a short code
+     (scopes: `Application.ReadWrite.All`, `AppRoleAssignment.ReadWrite.All`,
+     `User.Read.All`, `Organization.Read.All`).
+  2. Server registers a **single-tenant** Entra app named "Printix Guest-Print"
+     with `Mail.ReadWrite` as an **Application Role** (not a Delegated Scope —
+     the poller runs app-only).
+  3. Server generates a client secret and creates the app's service principal.
+  4. Server grants admin consent programmatically via
+     `POST /servicePrincipals/{id}/appRoleAssignments` (if the signed-in
+     admin has a Privileged Role). If not, the UI instructs the admin to
+     click **Grant admin consent** in the portal manually.
+  5. Credentials are saved to `guestprint_entra_*` settings (client secret
+     Fernet-encrypted via the same `_enc()` used elsewhere).
+  6. Using the delegated admin token still in the session, the server
+     fetches the tenant's mailbox list via `/users`. The admin picks the
+     mailbox to monitor from a dropdown, the `guestprint_mailbox` row is
+     created, and we redirect to the new mailbox's detail page.
+
+  The manual 3-field form remains as a fallback below the wizard.
+- **Printer / queue dropdown** in the mailbox create/edit forms and the
+  per-guest override forms. Populated from
+  `PrintixClient.list_printers(size=200)` using the same href-parser as
+  `/tenant/queues`. Picking an option fills the `default_printer_id` /
+  `default_queue_id` (or `printer_id` / `queue_id`) inputs via JS — the
+  inputs stay visible and editable as a fallback. If the tenant has no
+  Print-API credentials configured (or the API call fails), the dropdown
+  is hidden and the form degrades silently to free-text.
+
 ## 7.1.0 — 2026-04-24
 
 New main navigation tab **Guest-Print**: a mail-driven secure-print flow for
@@ -46,10 +99,6 @@ transferred to the guest via `change_job_owner`.
 - i18n: `nav_guestprint` key added to all 14 language blocks.
 
 ### Operator notes
-
-- Printer- and queue-IDs in the guest-print forms are free-text for the MVP.
-  Look them up under **Tenant -> Queues** and paste in; a dropdown resolver
-  is follow-up work.
 - The Graph Entra-App needs application permission **`Mail.ReadWrite`** with
   admin consent for the monitored mailbox. `User.Read.All` is **not**
   required — the code addresses mailboxes by UPN.

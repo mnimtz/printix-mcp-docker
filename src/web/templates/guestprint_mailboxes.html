@@ -132,15 +132,28 @@
           <input type="number" id="max_attachment_bytes" name="max_attachment_bytes"
                  value="26214400" min="1">
         </div>
+        {% if printer_queue_pairs %}
+        <div style="grid-column:1 / -1;">
+          <label for="pq_picker">Standard-Drucker / Queue auswählen</label>
+          <select id="pq_picker"
+                  onchange="gpApplyPair(this, 'default_printer_id', 'default_queue_id')"
+                  style="width:100%; padding:6px 8px; border:1px solid #d1d5db; border-radius:6px; font-size:.9em;">
+            <option value="">— keine Vorauswahl (jeder Gast hat eigene Queue) —</option>
+            {% for pq in printer_queue_pairs %}
+            <option value="{{ pq.printer_id }}|{{ pq.queue_id }}">{{ pq.label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        {% endif %}
         <div>
           <label for="default_printer_id">Default-Drucker-ID</label>
           <input type="text" id="default_printer_id" name="default_printer_id"
-                 placeholder="aus /tenant/queues übernehmen">
+                 placeholder="leer lassen oder manuell eintragen">
         </div>
         <div>
           <label for="default_queue_id">Default-Queue-ID</label>
           <input type="text" id="default_queue_id" name="default_queue_id"
-                 placeholder="aus /tenant/queues übernehmen">
+                 placeholder="leer lassen oder manuell eintragen">
         </div>
         <div>
           <label for="folder_processed">Processed-Ordner</label>
@@ -174,6 +187,15 @@
 </div>
 
 <script>
+function gpApplyPair(select, printerInputId, queueInputId) {
+  const val = select.value || '';
+  const [pid, qid] = val.split('|', 2);
+  const pi = document.getElementById(printerInputId);
+  const qi = document.getElementById(queueInputId);
+  if (pi) pi.value = pid || '';
+  if (qi) qi.value = qid || '';
+}
+
 async function gpTestMailbox(mbId, btn) {
   const out = document.getElementById('test-result-' + mbId);
   out.textContent = '⏳';

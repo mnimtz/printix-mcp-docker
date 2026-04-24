@@ -3,6 +3,7 @@
 Ein Anhang -> ein Printix-Secure-Print-Job mit Owner = Gast-Email.
 
 Ablauf (baut auf dem etablierten Submit-Flow in cloudprint/ipp_server.py auf):
+  0. convert_to_pdf(attachment)     -> Office/Bilder/TXT -> PDF via LibreOffice/Pillow
   1. submit_print_job(printer_id, queue_id, title, release_immediately=False)
      -> bekommt job_id + uploadUrl/uploadLinks
   2. upload_file_to_url(upload_url, bytes, content_type)
@@ -12,18 +13,62 @@ Ablauf (baut auf dem etablierten Submit-Flow in cloudprint/ipp_server.py auf):
 
 release_immediately=False ist essentiell: Secure-Print heisst, der Gast
 loest den Job an einem Drucker seiner Wahl aus, nicht direkt rausgedruckt.
+
+Formatunterstuetzung:
+  Wir akzeptieren alles, was upload_converter.convert_to_pdf() umwandeln
+  kann — PDF (passthrough), Bilder (png/jpg/gif/bmp/tif via Pillow), Plain-
+  Text und Office-Dokumente (docx/xlsx/pptx/odt/ods/odp/rtf/doc/xls/ppt via
+  LibreOffice headless). Der Konverter steckt schon im Container (siehe
+  Dockerfile: libreoffice-core/writer/calc/impress + Pillow) und wird vom
+  Web-Upload bereits benutzt.
 """
 
 from __future__ import annotations
 
 import logging
+import os
+import sys
 from typing import Any
 
 logger = logging.getLogger(__name__)
 
-# MVP: Nur PDF. Weitere Typen -> Konverter in Phase v2.
-_ACCEPTED_TYPES = {"application/pdf"}
-_ACCEPTED_EXTS  = (".pdf",)
+# upload_converter liegt auf src/-Ebene (Schwester von guestprint/).
+# Wir importieren lazy in den Funktionen, damit Unit-Tests ohne PIL/Libre-
+# Office laufen koennen — aber wir haengen den Pfad hier einmalig ein.
+_SRC_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _SRC_ROOT not in sys.path:
+    sys.path.insert(0, _SRC_ROOT)
+
+# Akzeptierte MIME-Typen (direkt oder via Konverter). Reine MIME-Pruefung
+# reicht nicht immer — Graph liefert fuer Office oft 'application/octet-
+# stream' — deshalb zusaetzlich der Extension-Fallback.
+_ACCEPTED_TYPES = {
+    "application/pdf",
+    "application/postscript",
+    "text/plain",
+    "application/rtf",
+    "application/msword",
+    "application/vnd.ms-excel",
+    "application/vnd.ms-powerpoint",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    "application/vnd.oasis.opendocument.text",
+    "application/vnd.oasis.opendocument.spreadsheet",
+    "application/vnd.oasis.opendocument.presentation",
+    "image/png",
+    "image/jpeg",
+    "image/gif",
+    "image/bmp",
+    "image/tiff",
+}
+_ACCEPTED_EXTS = (
+    ".pdf", ".ps",
+    ".txt", ".rtf",
+    ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx",
+    ".odt", ".ods", ".odp",
+    ".png", ".jpg", ".jpeg", ".gif", ".bmp", ".tif", ".tiff",
+)
 
 
 class PrintSkip(Exception):
@@ -39,13 +84,51 @@ class PrintFailed(Exception):
 
 
 def is_printable(name: str, content_type: str) -> bool:
-    """Filter: nur PDF akzeptieren. Signatur wird nicht geprueft (MVP)."""
+    """True, wenn wir den Anhang akzeptieren (direkt PDF oder konvertierbar).
+
+    Prueft zuerst den MIME-Type, dann den Dateinamens-Suffix — Graph liefert
+    fuer viele Office-Anhaenge 'application/octet-stream', deshalb ist der
+    Extension-Fallback kein Nice-to-have sondern der Normalfall.
+    """
     ctype = (content_type or "").split(";", 1)[0].strip().lower()
     if ctype in _ACCEPTED_TYPES:
+        return True
+    if ctype.startswith("image/"):
         return True
     if name and name.lower().endswith(_ACCEPTED_EXTS):
         return True
     return False
+
+
+def _ensure_pdf(file_bytes: bytes, filename: str, content_type: str) -> tuple[bytes, str]:
+    """Konvertiert den Anhang bei Bedarf zu PDF. Returns (pdf_bytes, label).
+
+    PDF wird passthrough durchgereicht. Alles andere laeuft durch
+    upload_converter.convert_to_pdf — Fehler dort werfen wir als
+    PrintSkip (konvertierung fehlgeschlagen -> Admin-Verlauf), nicht
+    als PrintFailed, da der Printix-Submit-Flow gar nicht erst lief.
+    """
+    ctype = (content_type or "").split(";", 1)[0].strip().lower()
+    if ctype == "application/pdf" or (filename or "").lower().endswith(".pdf"):
+        return file_bytes, "pdf (passthrough)"
+
+    try:
+        from upload_converter import ConversionError, convert_to_pdf
+    except ImportError as e:
+        raise PrintSkip(f"Konverter nicht verfuegbar: {e}")
+
+    try:
+        pdf_bytes, label = convert_to_pdf(file_bytes, filename)
+    except ConversionError as e:
+        raise PrintSkip(f"Konvertierung fehlgeschlagen: {e}")
+    except Exception as e:  # defensiver Catch — Pillow/LO kann breit werfen
+        raise PrintSkip(f"Konvertierung unerwartet: {e}")
+
+    logger.info(
+        "Guest-Print Konvertierung: %s (%d bytes) -> PDF (%d bytes) [%s]",
+        filename, len(file_bytes), len(pdf_bytes), label,
+    )
+    return pdf_bytes, label
 
 
 def _extract_upload(submit_resp: Any) -> tuple[str, str, dict]:
@@ -101,13 +184,17 @@ def print_attachment(
     if not owner_email:
         raise PrintFailed("Kein Owner-Email")
 
+    # 0) Konvertierung (Bild/Office/TXT -> PDF). PDF wird passthrough gereicht.
+    pdf_bytes, _conv_label = _ensure_pdf(file_bytes, title or "", content_type)
+    pdf_ctype = "application/pdf"
+
     # 1) Submit
     try:
         resp = client.submit_print_job(
             printer_id=printer_id,
             queue_id=queue_id,
             title=title or "Guest-Print",
-            pdl=content_type,
+            pdl=pdf_ctype,
             release_immediately=False,
         )
     except Exception as e:
@@ -119,11 +206,11 @@ def print_attachment(
     if not upload_url:
         raise PrintFailed(f"Submit lieferte keine uploadUrl (job_id={job_id})")
 
-    # 2) Upload
+    # 2) Upload (immer PDF nach Konvertierung)
     try:
         client.upload_file_to_url(
-            upload_url, file_bytes,
-            content_type or "application/pdf",
+            upload_url, pdf_bytes,
+            pdf_ctype,
             upload_headers,
         )
     except Exception as e:
@@ -150,7 +237,7 @@ def print_attachment(
         ) from e
 
     logger.info(
-        "Guest-Print OK: job_id=%s owner=%s title=%s (%d bytes)",
-        job_id, owner_email, title, len(file_bytes),
+        "Guest-Print OK: job_id=%s owner=%s title=%s (%d bytes in, %d bytes out)",
+        job_id, owner_email, title, len(file_bytes), len(pdf_bytes),
     )
     return job_id

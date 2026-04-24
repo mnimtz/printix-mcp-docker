@@ -1,6 +1,30 @@
 {% extends "base.html" %}
 {% block title %}Guest-Print Entra-App — {{ _('brand_console_name') }}{% endblock %}
 
+{% block extra_head %}
+<style>
+  .gp-setup-box {
+    border:1px solid #cfe1ff; background:#f5f9ff; border-radius:8px;
+    padding:16px 18px; margin-bottom:24px;
+  }
+  .gp-setup-box h3 { margin:0 0 6px; font-size:1.05em; color:#1e3a5f; }
+  .gp-setup-box .desc { color:#4b5563; font-size:.9em; margin-bottom:12px; }
+  .gp-code-box {
+    display:inline-block; background:white; border:2px dashed #2563eb;
+    border-radius:6px; padding:10px 16px; font-family:monospace;
+    font-size:1.4em; font-weight:700; letter-spacing:4px; color:#1e3a5f;
+    margin:6px 0;
+  }
+  .gp-wizard-step { margin:10px 0; }
+  .gp-spinner {
+    display:inline-block; width:14px; height:14px; border:2px solid #d1d5db;
+    border-top-color:#2563eb; border-radius:50%; animation:gp-spin .8s linear infinite;
+    vertical-align:middle; margin-right:6px;
+  }
+  @keyframes gp-spin { to { transform:rotate(360deg); } }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="container">
   <div class="card">
@@ -27,10 +51,102 @@
       Admin-Consent auf das zu überwachende Postfach.
     </div>
 
+    <!-- ── Wizard: Automatisch einrichten ─────────────────────────────────── -->
+    <div class="gp-setup-box" id="gp-auto-setup-box">
+
+      <div id="gp-dc-start">
+        <h3>✨ Automatisch einrichten</h3>
+        <div class="desc">
+          Klicke den Button — du bekommst einen Code, meldest dich einmalig bei
+          Microsoft mit einem <strong>Global Admin</strong> an, und die App wird
+          samt Client-Secret und Admin-Consent im Tenant angelegt.
+          Danach wählst du hier direkt das zu überwachende Postfach.
+        </div>
+        <button type="button" class="btn btn-primary" onclick="gpStartDeviceCode()">
+          🚀 Auto-Setup starten
+        </button>
+        <div style="font-size:.8em; color:#6b7280; margin-top:8px;">
+          Genutzte Scopes (nur einmalig beim Admin-Login):
+          <code>Application.ReadWrite.All</code>,
+          <code>AppRoleAssignment.ReadWrite.All</code>,
+          <code>User.Read.All</code>,
+          <code>Organization.Read.All</code>.
+        </div>
+      </div>
+
+      <div id="gp-dc-code" style="display:none;">
+        <h3>1&nbsp;→&nbsp; Code eingeben</h3>
+        <div class="gp-wizard-step">
+          Gib diesen Code ein:
+          <div class="gp-code-box" id="gp-dc-user-code"></div>
+          <div style="font-size:.85em; color:#6b7280;">
+            2&nbsp;→&nbsp;auf dieser Seite:
+            <a id="gp-dc-link" href="https://microsoft.com/devicelogin" target="_blank"
+               style="color:#2563eb; font-weight:600;">
+              <span id="gp-dc-link-text">https://microsoft.com/devicelogin</span> ↗
+            </a>
+          </div>
+        </div>
+        <div class="gp-wizard-step" id="gp-dc-status"
+             style="padding:8px 10px; background:white; border-radius:6px; font-size:.9em;">
+          <span class="gp-spinner"></span>
+          Warte auf deine Anmeldung bei Microsoft …
+        </div>
+      </div>
+
+      <div id="gp-dc-success" style="display:none;">
+        <h3>✅ App erstellt — jetzt Postfach auswählen</h3>
+        <div class="desc" id="gp-dc-success-summary">
+          Die Guest-Print-App wurde in deinem Tenant registriert.
+        </div>
+        <form method="post" action="/guestprint/config/create-mailbox" id="gp-mailbox-pick-form">
+          <div style="display:grid; grid-template-columns: 1fr 200px; gap:10px; align-items:end;">
+            <div>
+              <label for="gp-mb-upn" style="display:block; font-weight:600; font-size:.9em; margin-bottom:4px;">
+                Zu überwachendes Postfach
+              </label>
+              <select id="gp-mb-upn" name="upn" required
+                      style="width:100%; padding:8px; border:1px solid #d1d5db; border-radius:6px;">
+                <option value="">— wähle ein Postfach —</option>
+              </select>
+            </div>
+            <div>
+              <label for="gp-mb-name" style="display:block; font-weight:600; font-size:.9em; margin-bottom:4px;">
+                Anzeigename (optional)
+              </label>
+              <input type="text" id="gp-mb-name" name="name"
+                     placeholder="z.B. 'Empfang'"
+                     style="width:100%; padding:8px; border:1px solid #d1d5db; border-radius:6px;">
+            </div>
+          </div>
+          <div style="margin-top:14px; display:flex; gap:10px;">
+            <button type="submit" class="btn btn-primary">📮 Postfach anlegen & weiter</button>
+            <a href="/guestprint/mailboxes" class="btn btn-secondary">Überspringen</a>
+          </div>
+        </form>
+      </div>
+
+      <div id="gp-dc-error" style="display:none;">
+        <h3>⚠️ Fehler beim Setup</h3>
+        <div style="color:#b91c1c; padding:8px 10px; background:white; border-radius:6px;"
+             id="gp-dc-error-msg"></div>
+        <button type="button" class="btn btn-secondary" style="margin-top:10px;"
+                onclick="gpResetDeviceCode()">Neu versuchen</button>
+      </div>
+
+    </div>
+
+    <!-- ── Manuelle Konfiguration ─────────────────────────────────────────── -->
+    <div style="display:flex; align-items:center; gap:10px; margin:20px 0 10px;">
+      <div style="flex:1; border-top:1px solid #e5e7eb;"></div>
+      <span style="font-size:.82em; color:#9ca3af;">oder manuell eintragen</span>
+      <div style="flex:1; border-top:1px solid #e5e7eb;"></div>
+    </div>
+
     <div style="margin-bottom:20px; font-size:.88em; padding:10px 14px; background:#f3f4f6; border-left:3px solid #2563eb; border-radius:4px;">
       <strong>Hinweis:</strong> Diese App ist bewusst getrennt von der SSO-App
-      (<code>/admin/entra-app</code>), damit der Kunde für Guest-Print eine
-      Minimal-Scope-App registrieren kann (nur Mail.ReadWrite, kein User.Read.All).
+      (<code>/admin/entra-app</code>), damit du für Guest-Print eine
+      Minimal-Scope-App registrieren kannst (nur Mail.ReadWrite, kein User.Read.All).
     </div>
 
     <form method="post" action="/guestprint/config">
@@ -75,4 +191,95 @@
 
   </div>
 </div>
+
+<script>
+let gpPollInterval = null;
+
+function gpShowStep(step) {
+  ['start','code','success','error'].forEach(s => {
+    const el = document.getElementById('gp-dc-' + s);
+    if (el) el.style.display = (s === step) ? '' : 'none';
+  });
+}
+
+function gpResetDeviceCode() {
+  if (gpPollInterval) { clearInterval(gpPollInterval); gpPollInterval = null; }
+  gpShowStep('start');
+}
+
+async function gpStartDeviceCode() {
+  gpShowStep('code');
+  document.getElementById('gp-dc-user-code').textContent = '…';
+  try {
+    const resp = await fetch('/guestprint/config/device-code', { method: 'POST' });
+    const data = await resp.json();
+    if (!resp.ok || !data.user_code) {
+      gpError(data.error || 'device_code_failed');
+      return;
+    }
+    document.getElementById('gp-dc-user-code').textContent = data.user_code;
+    if (data.verification_uri) {
+      const a = document.getElementById('gp-dc-link');
+      a.href = data.verification_uri;
+      document.getElementById('gp-dc-link-text').textContent = data.verification_uri;
+    }
+    const intervalSec = Math.max(data.interval || 5, 3);
+    gpPollInterval = setInterval(gpPollOnce, intervalSec * 1000);
+  } catch (e) {
+    gpError(String(e));
+  }
+}
+
+async function gpPollOnce() {
+  try {
+    const resp = await fetch('/guestprint/config/device-poll');
+    const data = await resp.json();
+    if (data.status === 'pending') return;
+    clearInterval(gpPollInterval); gpPollInterval = null;
+
+    if (data.status === 'success') {
+      gpOnSuccess(data);
+      return;
+    }
+    if (data.status === 'expired') {
+      gpError('Code ist abgelaufen — bitte neu starten.');
+      return;
+    }
+    gpError(data.error || data.status || 'unbekannter Fehler');
+  } catch (e) {
+    clearInterval(gpPollInterval); gpPollInterval = null;
+    gpError(String(e));
+  }
+}
+
+function gpOnSuccess(data) {
+  // Zusammenfassung
+  const consentMsg = data.consent_ok
+    ? 'Admin-Consent wurde automatisch erteilt.'
+    : '<strong>Achtung:</strong> Admin-Consent konnte nicht programmatisch gesetzt werden — erteile ihn manuell im Azure-Portal (App → API Permissions → Grant admin consent).';
+  document.getElementById('gp-dc-success-summary').innerHTML =
+    'Client-ID: <code>' + (data.client_id || '') + '</code><br>' +
+    'Tenant: <code>' + (data.tenant_id || '') + '</code><br>' + consentMsg;
+
+  // Postfach-Dropdown befüllen
+  const sel = document.getElementById('gp-mb-upn');
+  sel.innerHTML = '<option value="">— wähle ein Postfach —</option>';
+  const mailboxes = data.mailboxes || [];
+  if (mailboxes.length === 0) {
+    sel.innerHTML += '<option value="" disabled>Keine Postfächer gefunden — prüfe User.Read.All-Consent</option>';
+  }
+  mailboxes.forEach(m => {
+    const opt = document.createElement('option');
+    opt.value = m.upn || m.mail || '';
+    opt.textContent = (m.display_name || m.upn) + ' — ' + (m.mail || m.upn);
+    sel.appendChild(opt);
+  });
+  gpShowStep('success');
+}
+
+function gpError(msg) {
+  document.getElementById('gp-dc-error-msg').textContent = msg;
+  gpShowStep('error');
+}
+</script>
 {% endblock %}
