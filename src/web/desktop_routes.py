@@ -1163,6 +1163,197 @@ def register_desktop_routes(app: FastAPI, get_app_version) -> None:
             },
         })
 
+    # ── Authorization Code Flow + PKCE (für iOS-App, v7.1.4+) ─────────────
+    #
+    # Im Gegensatz zum Device-Code-Flow oeffnet die iOS-App eine
+    # ASWebAuthenticationSession (in-app Safari-Sheet), MS redirected per
+    # Custom-URL-Scheme zurueck, App schickt code+state hier her, wir
+    # tauschen code+verifier gegen einen Token. Der `code_verifier` bleibt
+    # die ganze Zeit auf dem Server (Pending-Tabelle), der Client sieht
+    # ihn nie.
+    #
+    # Voraussetzung in der Entra App-Registration:
+    #   Authentication → Mobile and desktop applications → Add URI
+    #   z.B. printixmobileprint://oauth/callback
+
+    @app.post("/desktop/auth/entra/authcode/start")
+    async def desktop_entra_authcode_start(request: Request,
+                                            device_name: str = Form(""),
+                                            redirect_uri: str = Form(...)):
+        ci = _log_req(request, "POST /auth/entra/authcode/start",
+                      f"device='{device_name or '-'}' redirect='{redirect_uri}'")
+        from db import get_setting
+        if (get_setting("entra_enabled", "0") or "0") != "1":
+            logger.warning("Desktop-Entra-AuthCode-Start FAIL (entra disabled) — peer=%s",
+                           ci["peer"])
+            return _json_error("Entra SSO not enabled on this server",
+                               code="entra_disabled", status=400)
+        try:
+            from entra import generate_pkce_pair, build_authorize_url_pkce, generate_state
+        except ImportError:
+            logger.error("Desktop-Entra-AuthCode-Start EXC (entra module missing)")
+            return _json_error("Entra module not available",
+                               code="entra_unavailable", status=500)
+
+        # PKCE-Paar + State erzeugen, alles serverseitig persistieren
+        verifier, challenge = generate_pkce_pair()
+        state = generate_state()
+
+        import secrets
+        from datetime import datetime, timezone, timedelta
+        from db import _conn
+        session_id = secrets.token_urlsafe(24)
+        now = datetime.now(timezone.utc).isoformat()
+        # 10 Minuten Default — typischer Login dauert <2 Min
+        expires_in_s = 600
+        expires = (datetime.now(timezone.utc) +
+                   timedelta(seconds=expires_in_s)).isoformat()
+        with _conn() as conn:
+            conn.executescript("""
+                CREATE TABLE IF NOT EXISTS desktop_entra_authcode_pending (
+                    session_id    TEXT PRIMARY KEY,
+                    code_verifier TEXT NOT NULL,
+                    state         TEXT NOT NULL,
+                    redirect_uri  TEXT NOT NULL,
+                    device_name   TEXT NOT NULL DEFAULT '',
+                    created_at    TEXT NOT NULL,
+                    expires_at    TEXT NOT NULL
+                );
+            """)
+            conn.execute(
+                "INSERT INTO desktop_entra_authcode_pending "
+                "(session_id, code_verifier, state, redirect_uri, "
+                " device_name, created_at, expires_at) "
+                "VALUES (?,?,?,?,?,?,?)",
+                (session_id, verifier, state, redirect_uri,
+                 (device_name or "").strip(), now, expires),
+            )
+
+        auth_url = build_authorize_url_pkce(redirect_uri, state, challenge)
+        logger.info(
+            "Desktop-Entra-AuthCode-Start OK — session=%s… state=%s… "
+            "redirect=%s device='%s' peer=%s",
+            session_id[:12], state[:8], redirect_uri,
+            device_name or "-", ci["peer"],
+        )
+
+        return JSONResponse({
+            "session_id": session_id,
+            "auth_url":   auth_url,
+            "state":      state,
+            "expires_in": expires_in_s,
+        })
+
+    @app.post("/desktop/auth/entra/authcode/exchange")
+    async def desktop_entra_authcode_exchange(request: Request,
+                                                session_id: str = Form(...),
+                                                code: str = Form(...),
+                                                state: str = Form(...)):
+        ci = _log_req(request, "POST /auth/entra/authcode/exchange",
+                      f"session={session_id[:12] if session_id else '-'}…")
+        from db import _conn
+        with _conn() as conn:
+            row = conn.execute(
+                "SELECT code_verifier, state, redirect_uri, device_name "
+                "FROM desktop_entra_authcode_pending WHERE session_id = ?",
+                (session_id,),
+            ).fetchone()
+        if not row:
+            logger.warning(
+                "Desktop-Entra-AuthCode-Exchange FAIL (session unknown) — "
+                "session=%s… peer=%s",
+                session_id[:12] if session_id else "-", ci["peer"],
+            )
+            return _json_error("unknown session", code="session_unknown",
+                               status=404)
+
+        # CSRF-Schutz: state aus dem Callback muss zu unserem gespeicherten
+        # state passen. Wenn nicht → Angriffsversuch oder kaputter Client.
+        if state != row["state"]:
+            logger.warning(
+                "Desktop-Entra-AuthCode-Exchange FAIL (state mismatch) — "
+                "session=%s… got=%s… expected=%s… peer=%s",
+                session_id[:12], (state or "")[:8], (row["state"] or "")[:8],
+                ci["peer"],
+            )
+            return _json_error("state mismatch", code="state_mismatch",
+                               status=400)
+
+        verifier     = row["code_verifier"]
+        redirect_uri = row["redirect_uri"]
+        device_name  = row["device_name"]
+
+        try:
+            from entra import exchange_code_pkce
+        except ImportError:
+            logger.error("Desktop-Entra-AuthCode-Exchange EXC (entra missing)")
+            return _json_error("Entra module not available",
+                               code="entra_unavailable", status=500)
+
+        profile = exchange_code_pkce(code, redirect_uri, verifier)
+        if not profile or not profile.get("oid"):
+            logger.warning(
+                "Desktop-Entra-AuthCode-Exchange FAIL (token exchange failed) — "
+                "session=%s…",
+                session_id[:12],
+            )
+            return _json_error("token exchange failed",
+                               code="exchange_failed", status=502)
+
+        try:
+            from db import get_or_create_entra_user
+            user = get_or_create_entra_user(
+                entra_oid=profile["oid"],
+                email=profile.get("email", ""),
+                display_name=profile.get("name", ""),
+            )
+        except Exception as e:
+            logger.error(
+                "Desktop-Entra-AuthCode-Exchange: get_or_create_entra_user "
+                "FAIL — oid=%s… email='%s' err=%s",
+                profile["oid"][:10], profile.get("email", ""), e,
+            )
+            return _json_error(str(e)[:200], code="user_lookup_failed",
+                               status=500)
+
+        if not user or user.get("status") in ("disabled", "suspended"):
+            logger.warning(
+                "Desktop-Entra-AuthCode-Exchange NO_MATCH — user-lookup "
+                "returned %s (status=%s) for email='%s'",
+                "None" if not user else "user",
+                (user or {}).get("status"),
+                profile.get("email", ""),
+            )
+            return JSONResponse({"status": "no_match",
+                                 "error": "user not approved"})
+
+        # Desktop-Token anlegen + Pending-Eintrag löschen
+        token = create_token(user["id"],
+                             device_name=device_name or "Entra-Mobile")
+        with _conn() as conn:
+            conn.execute(
+                "DELETE FROM desktop_entra_authcode_pending WHERE session_id = ?",
+                (session_id,),
+            )
+        logger.info(
+            "Desktop-Entra-AuthCode-Exchange OK — user='%s' uid=%s email='%s' "
+            "oid=%s… token=%s device='%s'",
+            user.get("username"), user.get("id"), user.get("email", ""),
+            profile.get("oid", "")[:10], _mask_token(token),
+            device_name or "Entra-Mobile",
+        )
+        return JSONResponse({
+            "status": "ok",
+            "token":  token,
+            "user": {
+                "id":        user["id"],
+                "username":  user.get("username", ""),
+                "email":     user.get("email", ""),
+                "full_name": user.get("full_name", ""),
+                "role_type": user.get("role_type", "user"),
+            },
+        })
+
     # ── Update-Check ──────────────────────────────────────────────────────
     @app.get("/desktop/client/latest-version")
     async def desktop_client_version(request: Request):

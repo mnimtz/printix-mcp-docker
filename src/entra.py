@@ -13,6 +13,7 @@ wird automatisch via Graph API erstellt. Keine Bootstrap-App nötig.
 """
 
 import base64
+import hashlib
 import json
 import logging
 import os
@@ -28,6 +29,17 @@ _AUTH_URL = "https://login.microsoftonline.com/{tenant}/oauth2/v2.0/authorize"
 _TOKEN_URL = "https://login.microsoftonline.com/{tenant}/oauth2/v2.0/token"
 _DEVICE_CODE_URL = "https://login.microsoftonline.com/{tenant}/oauth2/v2.0/devicecode"
 _SCOPES = "openid profile email"
+
+# Fuer den nativen-App-PKCE-Flow brauchen wir zusaetzlich Graph
+# `User.Read`, weil wir nach dem Token-Exchange `/v1.0/me` aufrufen,
+# um oid/email/name zu holen. Ohne diesen Scope antwortet Graph mit
+# 403 — das schmale `_SCOPES` (nur ID-Token-Claims) reicht nicht.
+# `offline_access` damit Microsoft auch refresh_tokens ausstellt
+# (zukuenftige Token-Erneuerung ohne erneuten Login).
+_SCOPES_GRAPH_USER_READ = (
+    "https://graph.microsoft.com/User.Read "
+    "offline_access openid email profile"
+)
 
 # Graph API
 _GRAPH_URL = "https://graph.microsoft.com/v1.0"
@@ -149,6 +161,149 @@ def exchange_code_for_user(code: str, redirect_uri: str) -> dict | None:
         "email": email,
         "name":  payload.get("name", ""),
         "tid":   payload.get("tid", ""),
+    }
+
+
+# ─── PKCE Authorization Code Flow (Native Mobile Apps, v7.1.4+) ──────────────
+#
+# Für die iOS-App: statt Device Code Flow (Code abtippen auf zweitem Gerät)
+# benutzen wir den Standard-OAuth-Flow für native Mobile Apps —
+# Authorization Code mit PKCE. Der iOS-Client öffnet eine
+# ASWebAuthenticationSession (in-app Safari-Sheet), der User meldet sich
+# direkt bei Microsoft an, MS redirected zurück zum Custom-URL-Scheme,
+# der Client schickt den Code an unseren Server, wir tauschen ihn gegen
+# Tokens.
+#
+# Wichtig: code_verifier wird SERVER-SEITIG generiert und gespeichert,
+# NIE an den Client geschickt — sonst hätte PKCE keinen Sicherheitsgewinn
+# gegenüber dem reinen Auth-Code-Flow.
+#
+# Voraussetzung in der Entra App-Registration:
+#   Authentication → Mobile and desktop applications → Add URI:
+#     z.B. printixmobileprint://oauth/callback
+
+
+def generate_pkce_pair() -> tuple[str, str]:
+    """Erzeugt ein (code_verifier, code_challenge)-Paar nach RFC 7636.
+
+    code_verifier:  43-128 Zeichen URL-safe Random.
+    code_challenge: SHA256(verifier), base64url ohne Padding.
+
+    Den Verifier behalten wir auf dem Server, die Challenge geht in die
+    Microsoft-Auth-URL.
+    """
+    verifier = secrets.token_urlsafe(64)[:96]   # ~96 Zeichen, deutlich im Limit
+    digest = hashlib.sha256(verifier.encode("ascii")).digest()
+    challenge = base64.urlsafe_b64encode(digest).decode("ascii").rstrip("=")
+    return verifier, challenge
+
+
+def build_authorize_url_pkce(redirect_uri: str,
+                             state: str,
+                             code_challenge: str,
+                             *,
+                             prompt: str = "select_account",
+                             scope: str = _SCOPES_GRAPH_USER_READ) -> str:
+    """Baut die Microsoft-Login-URL für den Authorization Code Flow mit
+    PKCE — gedacht für die iOS-App und andere native Clients.
+
+    Im Gegensatz zu `build_authorize_url` zusätzlich `code_challenge` +
+    `code_challenge_method=S256`. Default-Prompt = `select_account`,
+    damit der User die richtige Identität wählen kann. Default-Scope
+    fordert `User.Read` an, damit das anschliessende Graph `/me`
+    funktioniert (sonst 403 Forbidden).
+    """
+    cfg = get_config()
+    tenant = cfg["tenant_id"] or "common"
+    params = {
+        "client_id":             cfg["client_id"],
+        "response_type":         "code",
+        "redirect_uri":          redirect_uri,
+        "scope":                 scope,
+        "response_mode":         "query",
+        "state":                 state,
+        "prompt":                prompt,
+        "code_challenge":        code_challenge,
+        "code_challenge_method": "S256",
+    }
+    return _AUTH_URL.format(tenant=tenant) + "?" + urlencode(params)
+
+
+def exchange_code_pkce(code: str,
+                       redirect_uri: str,
+                       code_verifier: str,
+                       *,
+                       scope: str = _SCOPES_GRAPH_USER_READ) -> dict | None:
+    """Tauscht den Authorization Code gegen Tokens — PKCE-Variante.
+
+    Holt zusätzlich Profil-Daten (oid, email, name) via Microsoft Graph
+    `/me`, damit das Mapping auf MCP-User identisch zum Device-Code-Flow
+    läuft (siehe desktop_routes `/desktop/auth/entra/poll`).
+
+    Returns dict mit keys: oid, email, name, tid — oder None bei Fehler.
+    """
+    cfg = get_config()
+    tenant = cfg["tenant_id"] or "common"
+
+    # WICHTIG: KEIN client_secret beim PKCE-Flow fuer Mobile/Desktop-Apps!
+    # Wenn die Redirect-URI ein Custom-Scheme ist (z.B.
+    # `printixmobileprint://...`) erkennt Microsoft das als
+    # Public-Client-Flow und lehnt jeden Request mit client_secret ab:
+    #   AADSTS700025: Client is public so neither 'client_assertion' nor
+    #                 'client_secret' should be presented
+    # PKCE (code_verifier) uebernimmt hier die Sicherheits-Garantie
+    # statt des Geheimnisses. Fuer den Web-Auth-Code-Flow
+    # (`exchange_code_for_user`) brauchen wir das Secret weiterhin —
+    # diese Funktion ist explizit fuer den Native-App-Flow gedacht.
+    try:
+        resp = _requests.post(
+            _TOKEN_URL.format(tenant=tenant),
+            data={
+                "client_id":     cfg["client_id"],
+                "code":          code,
+                "redirect_uri":  redirect_uri,
+                "grant_type":    "authorization_code",
+                "scope":         scope,
+                "code_verifier": code_verifier,
+            },
+            timeout=15,
+        )
+    except Exception as e:
+        logger.error("Entra PKCE token exchange Netzwerkfehler: %s", e)
+        return None
+
+    if resp.status_code != 200:
+        logger.error("Entra PKCE token exchange fehlgeschlagen: %s %s",
+                      resp.status_code, resp.text[:500])
+        return None
+
+    data = resp.json()
+    access_token = data.get("access_token", "")
+    if not access_token:
+        logger.error("Entra PKCE: kein access_token in der Antwort")
+        return None
+
+    # Profil aus Microsoft Graph holen — wie im Device-Code-Flow, damit
+    # das User-Mapping konsistent ist.
+    try:
+        me = _requests.get(
+            "https://graph.microsoft.com/v1.0/me",
+            headers={"Authorization": f"Bearer {access_token}"},
+            timeout=15,
+        )
+        me.raise_for_status()
+        me_data = me.json()
+    except Exception as e:
+        logger.error("Entra PKCE: Graph /me Abruf fehlgeschlagen: %s", e)
+        return None
+
+    return {
+        "oid":   me_data.get("id", ""),
+        "email": (me_data.get("mail") or
+                  me_data.get("userPrincipalName") or ""),
+        "name":  (me_data.get("displayName") or
+                  me_data.get("givenName") or ""),
+        "tid":   "",
     }
 
 

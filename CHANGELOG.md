@@ -2,6 +2,92 @@
 
 This project follows [Semantic Versioning](https://semver.org/).
 
+## 7.1.4 — 2026-04-27
+
+iOS Entra login migrated from Device Code Flow to native Authorization
+Code + PKCE (RFC 7636). The mobile app now opens an in-app
+`ASWebAuthenticationSession` (Safari sheet), the user signs in directly
+at Microsoft (Face ID / MFA / passkeys), the sheet auto-closes and the
+app is signed in — no device code to type, no second device. macOS and
+Windows desktop clients keep the Device Code Flow.
+
+This release ports the four iterative fixes from the HA-Addon side
+(v6.7.119 → v6.7.122) into a single coherent release.
+
+### Added
+
+- **`POST /desktop/auth/entra/authcode/start`** — accepts form fields
+  `device_name` and `redirect_uri`. Generates a PKCE pair (verifier +
+  SHA-256 challenge), a CSRF state token, persists everything in a new
+  table `desktop_entra_authcode_pending`, builds the Microsoft auth URL
+  and returns `{session_id, auth_url, state, expires_in}`. The
+  `code_verifier` never leaves the server.
+- **`POST /desktop/auth/entra/authcode/exchange`** — accepts
+  `session_id`, `code`, `state`. Validates state (CSRF), exchanges code
+  + verifier for a Microsoft access token, fetches profile via Graph
+  `/me`, maps to MCP user via the existing `get_or_create_entra_user`,
+  issues a desktop bearer token. Returns `{status, token, user}`.
+- **`entra.py`** — new helpers `generate_pkce_pair()`,
+  `build_authorize_url_pkce(...)`, `exchange_code_pkce(...)`. New
+  constant `_SCOPES_GRAPH_USER_READ` =
+  `"https://graph.microsoft.com/User.Read offline_access openid email profile"`.
+
+### Critical implementation notes
+
+- **No `client_secret` in the PKCE token exchange.** Microsoft classifies
+  custom-URL-scheme redirects (`printixmobileprint://...`) as Public
+  Client. With a Public Client, sending `client_secret` fails with
+  `AADSTS700025: Client is public so neither 'client_assertion' nor
+  'client_secret' should be presented`. PKCE replaces the secret as the
+  security guarantee. The web auth-code flow
+  (`exchange_code_for_user`) keeps the secret — it's confidential.
+- **Scope must include `https://graph.microsoft.com/User.Read`.** The
+  narrow `_SCOPES = "openid profile email"` are ID-token claims only —
+  not Graph permissions. Without `User.Read` the access_token is
+  rejected by Graph `/v1.0/me` with **403 Forbidden**. Helpers default
+  to `_SCOPES_GRAPH_USER_READ`.
+- **Form-encoded requests, not JSON.** Both endpoints use FastAPI
+  `Form(...)`. Clients must send `application/x-www-form-urlencoded`.
+- **State is verified before token exchange.** Mismatch → HTTP 400
+  `code="state_mismatch"`. Stale rows in
+  `desktop_entra_authcode_pending` are deleted on success.
+
+### Setup (one-time, Azure Portal)
+
+In the existing Entra app registration:
+
+1. *Authentication* → *Add a platform* → **Mobile and desktop applications**
+2. Custom redirect URI: `printixmobileprint://oauth/callback`
+3. Save. *Allow public client flows* stays **No**.
+
+Same `client_id` / `client_secret` / `tenant_id` continue to serve the
+web login (`exchange_code_for_user`) and admin device-code flows. First
+sign-in per user shows a one-time consent prompt for `User.Read`;
+expected and persistent.
+
+### Database
+
+New table `desktop_entra_authcode_pending` (created idempotently in the
+start endpoint, columns: `session_id PRIMARY KEY`, `code_verifier`,
+`state`, `redirect_uri`, `device_name`, `created_at`, `expires_at`).
+Rows TTL ≈ 10 minutes; row deleted on successful exchange.
+
+### Files touched
+
+- `src/entra.py` — `import hashlib`, `_SCOPES_GRAPH_USER_READ`,
+  `generate_pkce_pair`, `build_authorize_url_pkce`,
+  `exchange_code_pkce` (no `client_secret`)
+- `src/web/desktop_routes.py` — two new endpoints with full logging
+- `VERSION` — `7.1.3` → `7.1.4`
+
+### Client side (informational)
+
+The matching iOS client changes are in the `printix-MobilePrint` /
+`PrintixSendCore` repo (Swift `EntraAuthCodeStartResponse` model,
+`entraAuthCodeStart` / `entraAuthCodeExchange` methods,
+`ASWebAuthenticationSession` integration in `LoginView`). macOS /
+Windows desktop clients are not affected.
+
 ## 7.1.3 — 2026-04-24
 
 Per-mailbox control of what happens to an incoming mail after Guest-Print
