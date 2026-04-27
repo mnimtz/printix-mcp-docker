@@ -232,6 +232,74 @@ See `.env.example` for the full, annotated list.
 
 ---
 
+## Microsoft Entra ID / SSO
+
+Lets users sign in with their work Microsoft account instead of a local password. Works for the web UI, the Windows / macOS desktop clients (Device Code Flow) **and** the iOS *Printix MobilePrint* app (Authorization Code + PKCE, native in-app Safari sheet — v7.1.4+).
+
+### Step 1 — Auto-create the Entra App Registration
+
+1. Open the web UI → log in as admin → *Settings* → *Microsoft Entra ID*.
+2. Click **„Auto-Setup"**. The page shows a one-time device code.
+3. Open `https://microsoft.com/devicelogin` on **any** device, paste the code, sign in with an account that has **Application Administrator** (or Global Admin) rights in the target Entra tenant, grant consent.
+4. The server uses Microsoft Graph to create an App Registration named *„Printix Management Console"*, generates a client secret, and stores `tenant_id` / `client_id` / `client_secret` in the settings table. Done — web SSO works.
+
+> Already done on a sister instance? You can skip the auto-setup and paste an existing `tenant_id` / `client_id` / `client_secret` triple manually — the same App Registration can serve multiple MCP server instances.
+
+### Step 2 — Add a redirect URI for the iOS app *(only if you use the mobile app)*
+
+The iOS app uses Authorization Code Flow with PKCE. Microsoft treats the custom URL scheme `printixmobileprint://` as a **public client**, so it needs an extra platform on the App Registration:
+
+1. Open <https://portal.azure.com> → *Microsoft Entra ID* → *App registrations* → tab **All applications** → search for the Client-ID shown in the MCP web UI (or the name *„Printix Management Console"*).
+2. Open the app → *Authentication* → click **+ Add a platform** → choose **Mobile and desktop applications**.
+3. In *Custom redirect URIs* enter exactly:
+
+   ```
+   printixmobileprint://oauth/callback
+   ```
+
+   No `https://`, no trailing slash, no spaces.
+4. *Configure* → *Save*. *Allow public client flows* stays **No**.
+
+That's it. The same App Registration now serves all four flows:
+
+| Flow | Used by | Redirect / Mode |
+|------|---------|-----------------|
+| Auth Code (confidential) | Web UI | `https://<your-host>/auth/entra/callback` |
+| Device Code | macOS, Windows clients, admin auto-setup | none — code-based |
+| Auth Code + PKCE (public) | iOS *Printix MobilePrint* | `printixmobileprint://oauth/callback` |
+| Auth Code (confidential) | Guest-Print mailbox onboarding | `https://<your-host>/admin/guestprint/...` |
+
+### Step 3 — Verify
+
+```bash
+# Web SSO: visit https://<your-host>/login → "Sign in with Microsoft"
+# iOS: install the TestFlight build, open the app, tap
+#      "Sign in with Microsoft" — an in-app Safari sheet should open
+#      and return automatically after authentication.
+# Server smoketest for the iOS-PKCE endpoint:
+curl -sS -X POST https://<your-host>/desktop/auth/entra/authcode/start \
+     -d 'device_name=test' \
+     -d 'redirect_uri=printixmobileprint://oauth/callback' \
+| python3 -m json.tool
+# Expected: {session_id, auth_url, state, expires_in: 600}
+```
+
+### Common errors
+
+| Symptom | Cause | Fix |
+|---------|-------|-----|
+| `AADSTS50011 redirect URI mismatch` | URI typo or missing platform entry | Re-check Step 2; URI must match byte-for-byte |
+| `AADSTS700025 Client is public, no client_secret allowed` | Mobile redirect on a server that still sends the secret | Already handled in v7.1.4+. Make sure you're on at least 7.1.4 (`docker compose pull && docker compose up -d`) |
+| Graph `/me` returns **403 Forbidden** | Access token without `User.Read` permission | Already handled in v7.1.4+. First sign-in per user shows a one-time consent prompt — accept it |
+| iOS app shows *„the data couldn't be read"* on tap | Server endpoint not reachable or version too old | Server must be ≥ 7.1.4 *and* expose `/desktop/*` |
+| Auto-Setup wizard fails with *„insufficient privileges"* | Signed-in user is not Application Administrator | Use a Global Admin account for the device-code login or have your tenant admin run the wizard once |
+
+### Single tenant vs. multi-tenant App
+
+The auto-setup wizard registers a **single-tenant** App by default (only users from the tenant where the app was created can log in). If you operate the MCP server for multiple Entra tenants, switch the App's *Supported account types* in the Azure Portal to *„Accounts in any organizational directory (Multitenant)"* and set `tenant_id = "common"` in the settings — the rest of the code already handles multi-tenant tokens.
+
+---
+
 ## Updates
 
 ```bash
