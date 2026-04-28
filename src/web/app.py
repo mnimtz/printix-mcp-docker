@@ -287,58 +287,126 @@ def create_app(session_secret: str) -> FastAPI:
         """Benachrichtigt alle Admins (is_admin=1, status='approved') deren
         Tenant das Event `user_registered` in `notify_events` aktiviert hat.
 
-        Effekt-Funnel pro Admin:
-          1. is_admin = 1 + status = 'approved'  (sonst skip)
-          2. Tenant-Lookup via get_tenant_full_by_user_id
+        Effekt-Funnel pro Admin (alle 5 muessen erfuellt sein, sonst kein Mail):
+          1. is_admin = 1 + status = 'approved'
+          2. Tenant-Lookup via get_tenant_full_by_user_id liefert was
           3. is_event_enabled(tenant, 'user_registered') == True
-          4. tenant.alert_recipients ist nicht leer
-          5. Mail-Credentials via 3-stufiger Fallback (tenant→global→env)
-        Erst wenn alle 5 Bedingungen erfuellt sind, geht eine Mail raus.
+             (Toggle in Settings → Benachrichtigungen)
+          4. tenant.alert_recipients ist nicht leer (Empfaenger-CSV)
+          5. Mail-Credentials via 3-stufige Fallback-Resolution
+             (tenant.mail_api_key + mail_from → global Resend → ENV)
+
+        Pro Admin der NICHT in den Mail-Versand kommt, wird ein INFO-Log
+        geschrieben mit dem konkreten Grund — sodass der User im Container-
+        Log sofort sieht WARUM keine Mail rausging. Vorher haben wir nur
+        ein zusammenfassendes "0 Mails versendet" gelogt, aber nicht den Grund.
 
         Returns: Anzahl tatsaechlich versendeter Mails.
         """
         from db import get_all_users, get_tenant_full_by_user_id
         from reporting.notify_helper import (
             send_event_notification, html_user_registered,
+            is_event_enabled, resolve_mail_credentials,
         )
         sent = 0
+        new_username = new_user.get("username", "?")
         admins = [
             u for u in get_all_users()
             if u.get("is_admin") and u.get("status") == "approved"
         ]
         if not admins:
-            logger.debug("user_registered: keine approved Admins, skip")
+            logger.info(
+                "user_registered: keine approved Admins gefunden — keine "
+                "Mail moeglich (neuer User: %s)", new_username,
+            )
             return 0
         subject = (
             f"🔔 Neuer Printix-MCP-Benutzer wartet auf Freischaltung: "
-            f"{new_user.get('username', '?')}"
+            f"{new_username}"
         )
         html = html_user_registered(
-            username=new_user.get("username", ""),
+            username=new_username,
             email=new_user.get("email", ""),
             company=new_user.get("company", ""),
         )
         for admin in admins:
+            admin_id = admin.get("email") or admin.get("id")
             try:
                 admin_tenant = get_tenant_full_by_user_id(admin["id"])
                 if not admin_tenant:
+                    logger.info(
+                        "user_registered: Admin '%s' hat keinen Tenant — skip",
+                        admin_id,
+                    )
                     continue
+
+                # Pre-Flight-Diagnose mit klaren INFO-Logs (nicht DEBUG),
+                # damit User die Ursache OHNE log_level=debug sehen.
+                if not is_event_enabled(admin_tenant, "user_registered"):
+                    logger.info(
+                        "user_registered: Admin '%s' hat 'user_registered' NICHT in "
+                        "notify_events aktiv — Toggle in Settings → Benachrichtigungen → "
+                        "'🔔 Neuer MCP-Benutzer registriert' anhaken (skip)",
+                        admin_id,
+                    )
+                    continue
+
+                recipients_str = admin_tenant.get("alert_recipients", "") or ""
+                recipients = [r.strip() for r in recipients_str.split(",") if r.strip()]
+                if not recipients:
+                    logger.info(
+                        "user_registered: Admin '%s' hat den Toggle aktiv, ABER "
+                        "'alert_recipients' ist LEER — bitte Empfaenger-Email(s) "
+                        "in Settings → Benachrichtigungen → Empfaenger (CSV) "
+                        "eintragen (skip)",
+                        admin_id,
+                    )
+                    continue
+
+                creds = resolve_mail_credentials(admin_tenant)
+                if not creds.get("api_key") or not creds.get("mail_from"):
+                    logger.info(
+                        "user_registered: Admin '%s' — keine Mail-Credentials gefunden "
+                        "(Reihenfolge: Tenant-Settings, Global-Fallback unter "
+                        "/admin/settings, ENV MAIL_API_KEY/MAIL_FROM). Bitte einen "
+                        "der drei konfigurieren (skip)",
+                        admin_id,
+                    )
+                    continue
+
+                # Alle Pre-Flight-Checks ok — Mail tatsaechlich senden.
+                # check_enabled=False weil wir oben schon gecheckt haben
+                # (sparen einen redundanten DB-Hit + klareres Log).
                 ok = send_event_notification(
                     admin_tenant,
                     "user_registered",
                     subject,
                     html,
-                    check_enabled=True,  # respects notify_events toggle
+                    check_enabled=False,
                 )
                 if ok:
                     sent += 1
+                    logger.info(
+                        "user_registered: Mail an Admin '%s' gesendet "
+                        "(Empfaenger: %s, Mail-Source: %s)",
+                        admin_id, ", ".join(recipients), creds.get("source", "?"),
+                    )
+                else:
+                    logger.warning(
+                        "user_registered: send_event_notification fuer Admin '%s' "
+                        "lieferte False — Mail-Versand-Fehler (siehe vorhergehende "
+                        "Log-Zeile)",
+                        admin_id,
+                    )
             except Exception as e:
                 logger.warning(
-                    "user_registered notify for admin %s failed: %s",
-                    admin.get("email") or admin.get("id"), e,
+                    "user_registered: notify for admin '%s' failed: %s",
+                    admin_id, e,
                 )
-        logger.info("user_registered: %d Mail(s) an Admins versendet "
-                     "(neuer User: %s)", sent, new_user.get("username", ""))
+        logger.info(
+            "user_registered: %d/%d Mail(s) an Admins versendet (neuer User: %s)",
+            sent, len(admins), new_username,
+        )
         return sent
 
     @app.get("/register", response_class=HTMLResponse)

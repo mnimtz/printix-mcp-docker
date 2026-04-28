@@ -2,6 +2,20 @@
 
 This project follows [Semantic Versioning](https://semver.org/).
 
+## 7.2.13 (2026-04-28) — user_registered notify: per-admin diagnostic logs
+
+### Improved
+- **`_notify_admins_of_user_registered` now logs an INFO-level reason for every admin that did NOT receive a mail.** Previously only the summary "X mails sent" was logged — when X=0, the user couldn't tell which of the 5 prerequisites was missing.
+- Per-admin diagnostic before the send call:
+  - `'user_registered' NOT in notify_events` (Settings toggle)
+  - `'alert_recipients' is empty` (recipient CSV)
+  - `no mail credentials found in any of: tenant / global / env`
+- Success case now also logs: `Mail an Admin '...' gesendet (Empfaenger: ..., Mail-Source: tenant|global|env)` so user can see which credential chain matched.
+- `check_enabled=False` on the send call (we already checked above) — avoids a redundant DB hit and avoids silent skips inside the helper.
+
+### Background
+Bug-reporter's test registration produced `0 Mail(s) versendet` with no explanation. v7.2.13 makes the log transparent.
+
 ## 7.2.12 (2026-04-28) — Bugfix: admin notification on pending registration never fired
 
 ### Fixed
