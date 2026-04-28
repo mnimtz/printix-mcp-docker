@@ -1874,11 +1874,37 @@ def create_app(session_secret: str) -> FastAPI:
         sql_password:         str = Form(default=""),
         mail_api_key:         str = Form(default=""),
         mail_from:            str = Form(default=""),
+        # v6.8.14: Notification-Settings (Tabelle "tenants" hat alert_*
+        # und notify_events). Vorher waren diese Felder NICHT im Handler
+        # deklariert, sodass jeder Save den Toggle-Status kommentarlos
+        # verworfen hat. Daher das gemeldete UX-Problem: Haken setzen,
+        # speichern, Haken weg.
+        alert_recipients:     str = Form(default=""),
+        alert_min_level:      str = Form(default="ERROR"),
+        notify_log_error:        str = Form(default=""),
+        notify_new_printer:      str = Form(default=""),
+        notify_new_queue:        str = Form(default=""),
+        notify_new_guest_user:   str = Form(default=""),
+        notify_report_sent:      str = Form(default=""),
+        notify_user_registered:  str = Form(default=""),
     ):
         user = require_login(request)
         if not user:
             return RedirectResponse("/login", status_code=302)
         tc = t_ctx(request)
+
+        # v6.8.14: aus den 6 Toggle-Checkboxen ein JSON-Array fuer
+        # `tenants.notify_events` bauen. Die DB speichert eine Liste der
+        # AKTIVIERTEN Event-Typen — nicht-aktivierte fehlen einfach.
+        import json as _json
+        _enabled_events = []
+        if notify_log_error:        _enabled_events.append("log_error")
+        if notify_new_printer:      _enabled_events.append("new_printer")
+        if notify_new_queue:        _enabled_events.append("new_queue")
+        if notify_new_guest_user:   _enabled_events.append("new_guest_user")
+        if notify_report_sent:      _enabled_events.append("report_sent")
+        if notify_user_registered:  _enabled_events.append("user_registered")
+        notify_events_json = _json.dumps(_enabled_events)
 
         try:
             from db import update_tenant_credentials, get_tenant_full_by_user_id, audit
@@ -1902,6 +1928,13 @@ def create_app(session_secret: str) -> FastAPI:
                 sql_password=sql_password.strip() or None,
                 mail_api_key=mail_api_key.strip() or None,
                 mail_from=mail_from.strip() or None,
+                # v6.8.14: jetzt werden die Notification-Felder auch
+                # tatsaechlich gespeichert. Leerstring erlaubt — User
+                # kann z.B. alert_recipients leer setzen um Mails
+                # auszuschalten ohne Toggle zu deaktivieren.
+                alert_recipients=alert_recipients.strip(),
+                alert_min_level=(alert_min_level.strip() or "ERROR"),
+                notify_events=notify_events_json,
             )
             audit(user["id"], "update_settings", "Credentials aktualisiert")
             tenant = get_tenant_full_by_user_id(user["id"])

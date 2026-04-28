@@ -1290,6 +1290,7 @@ def update_tenant_credentials(
     mail_from_name: Optional[str] = None,
     alert_recipients: Optional[str] = None,
     alert_min_level: Optional[str] = None,
+    notify_events: Optional[str] = None,
 ) -> bool:
     """
     Aktualisiert Tenant-Credentials (nur gesetzte Felder).
@@ -1324,6 +1325,7 @@ def update_tenant_credentials(
     _add("mail_from_name",       mail_from_name)
     _add("alert_recipients",     alert_recipients)
     _add("alert_min_level",      alert_min_level)
+    _add("notify_events",        notify_events)
 
     if not parts:
         return True

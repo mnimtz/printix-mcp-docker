@@ -2,6 +2,21 @@
 
 This project follows [Semantic Versioning](https://semver.org/).
 
+## 7.2.14 (2026-04-28) — Settings save: notification toggles were never persisted
+
+### Fixed
+- **Classic half-finished feature**: the settings template renders 8 notification fields (`alert_recipients`, `alert_min_level`, plus 6 `notify_*` toggles) and the form posts them to `/settings`. But the `settings_post` handler in `web/app.py` declared **none** of them as `Form(...)` parameters — they were silently discarded.
+
+  Symptom: user ticks the toggle, saves, reloads — toggle is gone. The `notify_events` column in the `tenants` table was never updated, so our `_notify_admins_of_user_registered` (v7.2.12+) couldn't fire either: `is_event_enabled(tenant, 'user_registered')` returned False because `notify_events` was empty.
+
+- **Fix**: 8 form parameters added to `settings_post`. The 6 toggle booleans are turned into a JSON array and passed as `notify_events` to `update_tenant_credentials`. `update_tenant_credentials` itself gains a `notify_events` parameter — the DB column already existed.
+
+### Effect
+Together with the diagnostic logs from v7.2.13, the notification flow is now fully functional:
+1. Settings toggle persists across save+reload ✅ *(new)*
+2. Mail to admins on user_registered event actually fires ✅ *(new in v7.2.12)*
+3. Misconfiguration is logged per-admin with the exact reason ✅ *(new in v7.2.13)*
+
 ## 7.2.13 (2026-04-28) — user_registered notify: per-admin diagnostic logs
 
 ### Improved
