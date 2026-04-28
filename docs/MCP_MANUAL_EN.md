@@ -1,6 +1,6 @@
 # Printix MCP — User Handbook
 
-> **Version:** 6.8.8 · **Tool inventory:** 127 tools · **As of:** April 2026
+> **Version:** 6.8.10 · **Tool inventory:** 127 tools · **As of:** April 2026
 > **Audience:** Administrators, helpdesk and power users who interact with the Printix MCP Server through an AI assistant (claude.ai, ChatGPT, Claude Desktop, Cursor, etc.).
 > **Language:** English · German version see `MCP_MANUAL_DE.pdf`
 
@@ -33,7 +33,7 @@ You **don't have to memorize tool names**. The assistant picks the right tool fo
 
 Each category has a short intro, a tool table with purpose descriptions and several **example dialogues** with concrete prompts and tool calls. You can use the prompts verbatim or as inspiration.
 
-🆕 marks tools added in v6.8.0–v6.8.8 (April 2026).
+🆕 marks tools added in v6.8.0–v6.8.10 (April 2026).
 
 ---
 
@@ -467,4 +467,4 @@ Backups, demo data, feature tracking. Mix of operations and meta.
 
 ---
 
-*Document generated from Printix MCP Server v6.8.8 · April 2026 · 127 tools · [Repository](https://github.com/mnimtz/Printix-MCP)*
+*Document generated from Printix MCP Server v6.8.10 · April 2026 · 127 tools · [Repository](https://github.com/mnimtz/Printix-MCP)*
