@@ -5026,36 +5026,48 @@ def printix_print_self(
     color: bool = True,
 ) -> str:
     """
-    Druckt eine Datei in die EIGENE Secure-Print-Queue des aufrufenden MCP-Users.
+        Druckt eine Datei in die EIGENE Secure-Print-Queue des aufrufenden MCP-Users.
+        Auto-PDL-Conversion (Default: PDF→PCL XL via Ghostscript).
 
-    Killer-Use-Case: das KI-Modell erzeugt im Chat ein PDF (z.B. Wochenbericht,
-    Vertragsentwurf, Auswertung) und schickt es direkt zur Abholung am Drucker —
-    ohne Datei-Upload-URL, ohne Empfaenger-Adresse.
+        Wann nutzen — typische User-Prompts:
+          • "Druck mir das"
+          • "Drucke das fuer mich zur Abholung"
+          • "Print this to my queue"
+          • "Send this to my own printer"
+          • "Erstelle einen Bericht und schick ihn an meinen Drucker"
+          • "Generate a PDF and queue it on my printer"
 
-    Zur Aufloesung des Self-Users wird die im MCP-Server hinterlegte
-    Tenant-E-Mail genutzt (current_tenant.email). Wenn diese nicht zu
-    einem Printix-User passt, wird ein klarer Fehler zurueckgegeben.
+        Wann NICHT — stattdessen:
+          • Anderer Empfaenger (E-Mail bekannt)   → printix_send_to_user
+          • Mehrere Empfaenger gleichzeitig       → printix_print_to_recipients
+          • Datei in Paperless archivieren        → printix_send_to_capture
+          • URL statt Base64                      → printix_quick_print
 
-    Auto-Conversion (v6.8.8+): Eingehende PDFs / PostScript / Text-Dateien
-    werden serverseitig via Ghostscript zu PCL XL konvertiert (Default),
-    weil die Printix-API kein PDF als PDL akzeptiert. Drucker ohne
-    eingebauten PDF-RIP wuerden sonst Hieroglyphen drucken.
+        Returns dict mit:
+          - ok:                  bool
+          - job_id:              Printix-Job-UUID (→ printix_get_job, _delete_job, _change_job_owner)
+          - owner_email:         bestaetigter Besitzer
+          - owner_user_id:       Printix-User-UUID
+          - filename:            Anzeigename
+          - size_input:          Original-Bytes
+          - size_after_conversion: Bytes nach Ghostscript
+          - pdl:                 tatsaechliches PDL ("PCLXL" | "PCL5" | "POSTSCRIPT")
+          - printer_id, queue_id: zur Diagnose
+          - next_step:           Hinweis fuer den User
 
-    Args:
-        file_b64:        Base64-kodierter Dateiinhalt (PDF/PS/PCL/Text).
-        filename:        Anzeigename der Datei (z.B. "Bericht_Q1.pdf").
-        title:           Optionaler Job-Titel; Default = filename.
-        target_printer:  Druckername oder 'printer_id:queue_id'. Default:
-                         erster verfuegbarer Drucker des Tenants.
-        copies:          Anzahl Kopien (default: 1).
-        pdl:             Ziel-PDL fuer die Konvertierung. "auto" (Default
-                         = PCLXL) | "PCLXL" | "PCL5" | "POSTSCRIPT" |
-                         "passthrough" (Datei unveraendert; PDF wird
-                         dann von vielen Druckern als Hieroglyphen
-                         gedruckt — nur fuer Debug oder wenn die
-                         Drucker-Queue serverseitig konvertiert).
-        color:           Farb-Output bei der PCL-Konvertierung (Default
-                         True = pxlcolor). False = pxlmono.
+        Args:
+          file_b64:        Base64-kodierte Bytes. PDF / PostScript / PCL / Plaintext.
+                           Beispiel: AI generiert ein PDF und encodet es vor dem Aufruf.
+          filename:        "Bericht_Q1.pdf" — Anzeigename, NICHT Datei-Pfad.
+          title:           Job-Titel an der Drucker-Konsole. Default = filename.
+          target_printer:  "" (leer) = erster verfuegbarer Drucker
+                           "HP M577 Düsseldorf" = Fuzzy-Match (Name/Location/Model)
+                           "abc-123:def-456" = printer_id:queue_id direkt aus list_printers
+          copies:          1 (Default), 2, 3, ...
+          pdl:             "auto" (Default = PCLXL) | "PCLXL" | "PCL5" | "POSTSCRIPT" | "passthrough"
+                           passthrough = ohne Ghostscript-Konvertierung; bei PDF auf nicht-RIP-Druckern Hieroglyphen.
+          color:           True (Default, pxlcolor) | False (pxlmono)
+
     """
     import base64 as _b64
     from print_conversion import prepare_for_print, ConversionError
@@ -5166,24 +5178,43 @@ async def printix_send_to_capture(
     metadata_json: str = "{}",
 ) -> str:
     """
-    Schickt eine Datei direkt in einen Capture-Workflow — gleicher Code-Pfad
-    wie ein eingehender Printix-Capture-Webhook, aber ohne Drucker-Umweg
-    und ohne Azure-Blob-SAS-URL.
+        Schickt eine Datei direkt in einen Capture-Workflow (Paperless/SharePoint/DMS).
+        Gleicher Pfad wie ein eingehender Webhook, aber ohne Drucker- oder
+        Azure-Blob-Umweg — die Datei geht direkt ins Plugin (z.B. Paperless-API).
 
-    Praktisch fuer: KI-generierte Vertraege/Berichte direkt nach Paperless
-    archivieren, Mail-Anhaenge in Dokumenten-Workflows einspeisen, Daten
-    aus dem Chat in den DMS-Workflow einklinken.
+        Wann nutzen — typische User-Prompts:
+          • "Archiviere das in Paperless"
+          • "Speicher den Vertrag im DMS"
+          • "File this in Paperless with tags X, Y"
+          • "Save this to my document workflow"
+          • "Capture diesen Scan und tag mit X"
 
-    Args:
-        profile:        Capture-Profil-Name oder UUID. Sieh
-                        printix_list_capture_profiles().
-        file_b64:       Base64-kodierter Dateiinhalt.
-        filename:       Originaldateiname (z.B. "Vertrag_2026.pdf").
-        metadata_json:  JSON-Objekt mit Plugin-spezifischen Index-Feldern.
-                        Pruefe vorher die akzeptierten Felder mit
-                        printix_describe_capture_profile(profile).
-                        Beispiel Paperless: {"tags":["Q1","Vertrag"],
-                        "correspondent":"Acme","document_type":"Vertrag"}.
+        Wann NICHT — stattdessen:
+          • Datei drucken (statt archivieren)         → printix_print_self / _send_to_user
+          • Erst pruefen welche Felder akzeptiert werden → printix_describe_capture_profile
+          • Profile auflisten                          → printix_list_capture_profiles
+
+        Returns dict mit:
+          - ok:               bool
+          - profile:          aufgeloester Profil-Name oder UUID
+          - plugin:           "paperless_ngx" | ...
+          - filename:         der Name unter dem es im Ziel-System erscheint
+          - size:             Bytes
+          - result_message:   Plugin-spezifische Antwort (z.B. "Document uploaded HTTP 200")
+
+        Args:
+          profile:        Capture-Profil-Name ("Paperless (Marcus)") ODER UUID.
+                          Wenn unsicher: vorher printix_list_capture_profiles aufrufen.
+          file_b64:       Base64-Bytes der Datei. PDF empfohlen — die meisten DMS-Systeme
+                          mögen PDF mehr als PCL/PS.
+          filename:       "vertrag_acme_2026-04.pdf" — wird als Original-Dateiname gespeichert.
+          metadata_json:  JSON-String mit Plugin-Feldern. Pruefe mit
+                          printix_describe_capture_profile welche akzeptiert werden.
+                          Paperless-Beispiel:
+                            '{"tags":["Q1","Vertrag"], "correspondent":"Acme Corp",
+                              "document_type":"Vertrag"}'
+                          Default "{}" = nur Defaults aus Profil-Konfig.
+
     """
     import base64 as _b64
     import json as _json
@@ -5245,14 +5276,32 @@ async def printix_send_to_capture(
 @mcp.tool()
 def printix_describe_capture_profile(profile: str) -> str:
     """
-    Zeigt das Plugin-Schema eines Capture-Profils — welche metadata-Felder
-    erlaubt/erwartet sind, plus aktuelle Konfiguration (ohne Secrets).
+        Zeigt das Plugin-Schema eines Capture-Profils — welche metadata-Felder
+        erlaubt/erwartet sind, plus aktuelle Konfiguration (Secrets maskiert).
+        Diagnose-Tool — vor dem eigentlichen send_to_capture aufrufen, damit
+        das Modell das richtige metadata_json baut.
 
-    Vor dem Aufruf von printix_send_to_capture nutzen, um das richtige
-    metadata_json zu konstruieren.
+        Wann nutzen — typische User-Prompts:
+          • "Was nimmt das Paperless-Profil an Metadaten an?"
+          • "Welche Felder erwartet mein DMS-Profil?"
+          • "Show me what fields the capture profile accepts"
+          • "Schema des Capture-Profils X"
 
-    Args:
-        profile: Capture-Profil-Name oder UUID.
+        Wann NICHT — stattdessen:
+          • Datei wirklich archivieren                 → printix_send_to_capture
+          • Liste aller Profile                        → printix_list_capture_profiles
+          • Capture-Server-Status                      → printix_capture_status
+
+        Returns dict mit:
+          - profile, plugin_id, plugin_name, plugin_description
+          - config_schema:           Liste der Konfig-Felder mit type/required/hint/default
+          - current_config:          aktuelle Werte (Tokens/Passwords als "***")
+          - supports_direct_ingest:  bool — ob Plugin send_to_capture-faehig ist
+          - accepts_metadata_fields: erwartete Index-Felder
+
+        Args:
+          profile:  Profil-Name oder UUID. Beispiel "Paperless (Marcus)" oder "d7ab98ac-…".
+
     """
     try:
         tid = _get_card_tenant_id()
@@ -5358,14 +5407,32 @@ def _group_id(g: dict) -> str:
 @mcp.tool()
 def printix_get_group_members(group_id_or_name: str) -> str:
     """
-    Listet alle Mitglieder einer Printix-Gruppe.
+        Listet alle Mitglieder einer Printix-Gruppe (per UUID oder Anzeigename,
+        case-insensitive). Bei mehrdeutigen Namen kommt eine Kandidatenliste.
 
-    Akzeptiert sowohl die Group-UUID als auch den Anzeigenamen
-    (case-insensitive, exakte Gleichheit). Bei mehrdeutigen Namen wird
-    ein Fehler mit Kandidatenliste zurueckgegeben.
+        Wann nutzen — typische User-Prompts:
+          • "Wer ist alles in der Marketing-Gruppe?"
+          • "Show me all members of group X"
+          • "List users in Sales-DACH"
+          • "Wer gehört zur Gruppe …?"
 
-    Args:
-        group_id_or_name: Printix-Group-UUID oder Group-Name.
+        Wann NICHT — stattdessen:
+          • Liste ALLER Gruppen                        → printix_list_groups
+          • Gruppen EINES Users                        → printix_get_user_groups
+          • Beim Drucken Empfaenger aufloesen          → printix_resolve_recipients
+            (akzeptiert "group:Name" als Eingabe)
+
+        Returns dict mit:
+          - group:        {id, name}
+          - member_count: int
+          - members:      Liste {id, email, name, role}
+          - note:         Hinweistext wenn API keine Members liefert (z.B. wegen
+                          Directory-Sync-Lag im Printix-Admin)
+
+        Args:
+          group_id_or_name:  "Marketing-DACH" (case-insensitive Name-Match)
+                             ODER "abc-123-uuid" (Group-UUID, ueber 32 Zeichen)
+
     """
     try:
         c = client()
@@ -5429,15 +5496,32 @@ def printix_get_group_members(group_id_or_name: str) -> str:
 @mcp.tool()
 def printix_get_user_groups(user_email_or_id: str) -> str:
     """
-    Listet alle Gruppen in denen der angegebene User Mitglied ist.
+        Reverse-Lookup: in welchen Gruppen ist User X Mitglied?
+        Versucht zuerst das User-Objekt (Felder `groups`/`memberOf`),
+        faellt sonst auf einen Gruppen-Scan zurueck (langsamer aber zuverlaessig).
 
-    Funktioniert via:
-    1) get_user(user_id) — wenn `groups`/`memberOf` Feld vorhanden
-    2) Fallback: alle Gruppen durchgehen und Membership pruefen (langsam,
-       aber zuverlaessig). Wird nur gemacht wenn (1) leer bleibt.
+        Wann nutzen — typische User-Prompts:
+          • "In welchen Gruppen ist Anna?"
+          • "Show me Marcus's group memberships"
+          • "Welche Gruppen hat User X?"
+          • "Group memberships for alice@firma.de"
 
-    Args:
-        user_email_or_id: E-Mail oder Printix-User-UUID.
+        Wann NICHT — stattdessen:
+          • Mitglieder EINER Gruppe                    → printix_get_group_members
+          • Komplette User-Sicht inkl. Gruppen          → printix_user_360
+          • User generell suchen                        → printix_find_user
+
+        Returns dict mit:
+          - user:        {id, email}
+          - group_count: int
+          - groups:      Liste {id, name}
+          - method:      "user_object_direct" | "groups_scan"
+          - note:        Hinweis bei Performance-Cap (max 50 Gruppen gescannt)
+
+        Args:
+          user_email_or_id:  "alice@firma.de" oder Printix-User-UUID.
+                             Email wird per _collect_all_users aufgeloest.
+
     """
     try:
         c = client()
@@ -5725,21 +5809,38 @@ def _entra_group_members(group_oid: str) -> list[dict] | None:
 @mcp.tool()
 def printix_resolve_recipients(recipients_csv: str) -> str:
     """
-    Loest eine komma-getrennte Empfaengerliste zu einer flachen Printix-User-
-    Liste auf. Akzeptierte Eingabeformen:
+        Diagnose-Tool: loest eine gemischte Empfaengerliste zu einer flachen
+        Printix-User-Liste auf — OHNE zu drucken. Vor printix_print_to_recipients
+        nutzen um zu pruefen wer wirklich angeschrieben wird.
 
-      - "alice@firma.de"            → Email-Lookup in Printix
-      - "group:Marketing-DACH"      → Mitglieder einer Printix-Gruppe
-      - "entra:<group-oid>"         → Mitglieder einer Entra/AD-Gruppe
-                                      (per Graph-API), gemappt via Email
-      - "upn:alice@firma.de"        → forciert UPN-Match (gleich wie Email)
-      - "Alice Müller"              → Name-Suche; Fehler bei Mehrdeutigkeit
+        Wann nutzen — typische User-Prompts:
+          • "An wen wuerde das gehen?"
+          • "Resolve these recipients first: …"
+          • "Wieviele User sind in group:X?"
+          • "Pruef vorher die Empfaenger"
+          • "Show me who's in this list"
 
-    Diagnose-Tool — vor dem eigentlichen print_to_recipients-Aufruf nutzbar
-    um zu pruefen wie viele User wirklich angeschrieben werden.
+        Wann NICHT — stattdessen:
+          • Tatsaechlich drucken                       → printix_print_to_recipients
+          • Nur EINE Group-Membership pruefen          → printix_get_group_members
+          • User suchen                                 → printix_find_user
 
-    Args:
-        recipients_csv: Komma-getrennte Liste der Eingaben.
+        Returns dict mit:
+          - input_count, resolved_count: Eingabe vs Treffer
+          - resolved:    Liste {user_id, email, name, source}
+          - not_found:   Liste der nicht aufloesbaren Eingaben
+          - ambiguous:   Liste {input, candidates} bei Mehrdeutigkeit (z.B. zwei Gruppen
+                         mit gleichem Namen)
+
+        Args:
+          recipients_csv:  Komma-getrennte Liste mit gemischten Eingaben:
+                           "alice@firma.de"          (Email-Lookup)
+                           "group:Marketing-DACH"    (Printix-Gruppe → Members)
+                           "entra:abc-uuid"          (Entra-/AD-Gruppe via Graph API)
+                           "upn:alice@firma.de"      (forciert UPN-Match)
+                           "Alice Mueller"           (Name-Suche)
+                           Beispiel: "alice@firma.de, group:Sales, entra:abc-123"
+
     """
     try:
         items = [x.strip() for x in (recipients_csv or "").split(",") if x.strip()]
@@ -5770,31 +5871,42 @@ def printix_print_to_recipients(
     color: bool = True,
 ) -> str:
     """
-    Sendet ein Dokument als individuelle Druckjobs an mehrere Empfaenger.
-    Jeder Empfaenger bekommt einen eigenen Job in seiner Secure-Print-Queue.
+        Druckt EIN Dokument als individuelle Secure-Print-Jobs an MEHRERE
+        Empfaenger. Jeder bekommt einen eigenen Job in seiner Queue. Konvertiert
+        PDF/PS/Text einmalig vor der Schleife (spart Ghostscript-Calls).
 
-    Recipient-Aufloesung wie in printix_resolve_recipients (Emails,
-    group:Name, entra:OID, upn:UPN). Bei `fail_on_unresolved=True` und
-    nicht-aufloesbaren Eingaben wird ABGEBROCHEN ohne zu drucken — sicherer
-    Default. Auf False setzen wenn "best effort" gewuenscht.
+        Wann nutzen — typische User-Prompts:
+          • "Schick das an alle aus Marketing"
+          • "Send this PDF to Marcus and Anna"
+          • "An mehrere Leute drucken"
+          • "Distribute this to group X"
+          • "Print this for everyone in Sales-DACH"
 
-    Auto-Conversion (v6.8.8+): EINMALIGE PDF→PCL-Konvertierung vor dem
-    Submit; danach wird derselbe Output-Stream an alle Empfaenger
-    geschickt. Spart Ghostscript-Calls bei Multi-Recipient-Bursts.
+        Wann NICHT — stattdessen:
+          • Nur EIN Empfaenger                          → printix_send_to_user
+          • An sich selbst                              → printix_print_self
+          • Vorab pruefen wer aufgeloest wird           → printix_resolve_recipients
+          • Ein gemeinsamer Pickup-Job (statt N)        → nicht implementiert; jeder
+                                                           bekommt seinen eigenen Job
 
-    Args:
-        recipients_csv:        Komma-getrennte Empfaenger-Liste.
-        file_b64:              Base64-Dateiinhalt (PDF/PS/PCL/Text).
-        filename:              Anzeigename.
-        target_printer:        Optional Printer-Name oder pid:qid; sonst
-                               erster verfuegbarer Drucker.
-        copies:                Kopien pro Empfaenger.
-        fail_on_unresolved:    True = abbrechen wenn unaufloesbare Eingaben
-                               existieren; False = nur die aufloesbaren
-                               drucken.
-        pdl:                   "auto" (=PCLXL) | "PCLXL" | "PCL5" |
-                               "POSTSCRIPT" | "passthrough".
-        color:                 Farbe bei der PCL-Konvertierung.
+        Returns dict mit:
+          - ok:                bool (true wenn ALLE submissions erfolgreich)
+          - summary.input_count, resolved_count, submitted_count, failed_count
+          - summary.not_found, ambiguous: Diagnose-Listen
+          - filename, size_input, size_after_conversion, pdl
+          - results:           Liste pro Empfaenger {recipient, user_id, ok, job_id|error}
+
+        Args:
+          recipients_csv:        Wie printix_resolve_recipients
+                                 ("alice@firma.de, group:Marketing, entra:oid").
+          file_b64:              Base64-Datei. PDF empfohlen.
+          filename:              Anzeigename (gilt fuer alle Jobs).
+          target_printer:        Wie in printix_print_self.
+          copies:                Kopien PRO EMPFAENGER.
+          fail_on_unresolved:    True (Default!) = abbrechen wenn unaufloesbar.
+                                 False = nur die aufloesbaren drucken (best effort).
+          pdl, color:            Wie in printix_print_self.
+
     """
     import base64 as _b64
     from print_conversion import prepare_for_print, ConversionError
@@ -6143,22 +6255,40 @@ def printix_welcome_user(
     timebombs: str = "card_enrol_7d,first_print_reminder_3d",
 ) -> str:
     """
-    Onboarding-Begleiter fuer einen frisch angelegten User: erzeugt ein
-    personalisiertes Welcome-PDF, optional direkt in dessen Secure-Print-
-    Queue, und setzt Time-Bombs (verzoegerte Auto-Reminder) die nach X
-    Tagen pruefen ob der User die erwartete Aktion durchgefuehrt hat —
-    und falls nicht, automatisch nachfassen.
+        Onboarding-Begleiter fuer einen frisch angelegten Printix-User: erzeugt
+        ein Welcome-PDF, optional in dessen Secure-Print-Queue, und scharft
+        Time-Bombs (verzoegerte Auto-Reminder mit Bedingungs-Check).
 
-    Verfuegbare Time-Bombs (csv-konfigurierbar via `timebombs`):
-      - card_enrol_7d            → 7 Tage; reminder falls keine Karte enrolled
-      - first_print_reminder_3d  → 3 Tage; reminder falls noch kein Druckjob
-      - card_enrol_30d           → 30 Tage; spaeterer Final-Reminder
+        Wann nutzen — typische User-Prompts:
+          • "Onboard Peter mit Welcome-Workflow"
+          • "Set up new user with reminders"
+          • "Mach das Welcome-Paket fuer Neuen X"
+          • "Welcome flow fuer marcus@firma.de"
 
-    Args:
-        user_email:         E-Mail des onboardenden Users.
-        template:           Welcome-Template-Name (aktuell nur "default").
-        auto_print_to_self: True = Welcome-PDF gleich in Secure-Print-Queue.
-        timebombs:          csv von Time-Bomb-Typen.
+        Wann NICHT — stattdessen:
+          • User erst anlegen                           → printix_onboard_user / _create_user
+          • Time-Bombs anschauen                        → printix_list_timebombs
+          • Time-Bomb manuell deaktivieren              → printix_defuse_timebomb
+
+        Returns dict mit:
+          - ok:               bool
+          - user:             {id, email, name}
+          - welcome_print:    Resultat des send_to_user oder None bei auto_print_to_self=False
+          - timebombs_armed:  Liste {id, type, spec, trigger_at}
+          - next_steps:       Hinweistexte
+
+        Args:
+          user_email:         Email des User (muss bereits in Printix existieren).
+          template:           "default" (aktuell nur dieser).
+          auto_print_to_self: True (Default) = Welcome-PDF in seine Queue;
+                              False = nur Time-Bombs anlegen, kein Druckjob.
+          timebombs:          CSV-Liste der Bomben-Typen, default
+                              "card_enrol_7d,first_print_reminder_3d".
+                              Verfuegbar:
+                                card_enrol_7d           — 7d Reminder ohne Karte
+                                first_print_reminder_3d — 3d Reminder ohne ersten Druck
+                                card_enrol_30d          — 30d Final-Reminder
+
     """
     import json as _json
     from datetime import datetime, timezone, timedelta
@@ -6267,11 +6397,31 @@ def printix_list_timebombs(
     status: str = "pending",
 ) -> str:
     """
-    Listet aktive (oder vergangene) Time-Bombs des Tenants.
+        Listet aktive (oder historische) Time-Bombs des Tenants — verzoegerte
+        Auto-Reminder die mit dem Onboarding (welcome_user) oder Session-Print
+        angelegt werden.
 
-    Args:
-        user_email: Optional auf einen User filtern.
-        status:     "pending" | "fired" | "defused" | "error" | "all".
+        Wann nutzen — typische User-Prompts:
+          • "Welche Reminder sind gerade aktiv?"
+          • "Show me pending timebombs"
+          • "Was steht fuer Anna noch aus?"
+          • "List active timebombs"
+
+        Wann NICHT — stattdessen:
+          • Bombe entschaerfen                          → printix_defuse_timebomb
+          • Neue Bombe anlegen (per Onboarding)         → printix_welcome_user
+          • Session-Print mit Auto-Expire               → printix_session_print
+
+        Returns dict mit:
+          - count:     int
+          - timebombs: Liste {id, tenant_id, user_id, user_email, bomb_type,
+                              trigger_at, action_json, status, created_at,
+                              resolved_at, last_message}
+
+        Args:
+          user_email:  Optional auf einen User filtern. Leer = alle.
+          status:      "pending" (Default) | "fired" | "defused" | "error" | "all".
+
     """
     try:
         _ensure_timebomb_table()
@@ -6297,12 +6447,28 @@ def printix_list_timebombs(
 @mcp.tool()
 def printix_defuse_timebomb(bomb_id: int, reason: str = "manual") -> str:
     """
-    Markiert eine geplante Time-Bomb als 'defused' (deaktiviert), ohne ihre
-    Action auszufuehren. Tenant-Filter aktiv — nur eigene Bomben.
+        Markiert eine geplante Time-Bomb als "defused" (deaktiviert), ohne ihre
+        Action auszufuehren. Tenant-Filter aktiv — nur eigene Bomben.
 
-    Args:
-        bomb_id: Numerische ID aus printix_list_timebombs.
-        reason:  Freitext fuer Audit-Trail.
+        Wann nutzen — typische User-Prompts:
+          • "Stell die Erinnerung fuer Anna ab"
+          • "Defuse timebomb 42"
+          • "Anna ist im Urlaub, deaktivier die Reminder"
+          • "Cancel the reminder for user X"
+
+        Wann NICHT — stattdessen:
+          • Erst gucken welche Bomben da sind           → printix_list_timebombs
+
+        Returns dict mit:
+          - ok:        bool (false wenn ID nicht im Tenant)
+          - bomb_id:   numerische ID
+          - status:    "defused"
+
+        Args:
+          bomb_id:  Numerische ID aus printix_list_timebombs.
+          reason:   Freitext fuer Audit-Trail. Default "manual".
+                    Beispiel: "User im Urlaub bis 2026-05-12"
+
     """
     from datetime import datetime, timezone
     try:
@@ -6334,22 +6500,37 @@ def printix_sync_entra_group_to_printix(
     sync_mode: str = "report_only",
 ) -> str:
     """
-    Pulled Mitglieder einer Entra/AD-Gruppe via MS-Graph (App-Permission
-    Group.Read.All noetig) und gleicht sie mit einer Printix-Gruppe ab.
+        Pulled Mitglieder einer Entra-/AD-Gruppe via Microsoft Graph (App-Permission
+        Group.Read.All) und vergleicht sie mit einer Printix-Gruppe. Default
+        `report_only` — keine Schreib-Operationen ohne Vorlauf.
 
-    Modi:
-      - report_only:  zeigt nur was synchronisiert WUERDE — kein Schreiben
-      - additive:     fuegt fehlende User in Printix-Gruppe hinzu (sofern
-                      Printix das ueber API zulaesst — derzeit best-effort)
-      - mirror:       additive + entfernt Printix-Mitglieder die nicht in
-                      Entra sind (riskant — nur mit report_only-Vorlauf)
+        Wann nutzen — typische User-Prompts:
+          • "Sync die Entra-Gruppe X mit Printix"
+          • "Compare Entra group to Printix"
+          • "Was muesste man synchronisieren?"
+          • "Show diff between Azure AD and Printix"
 
-    Args:
-        entra_group_oid:   Entra-Group-Object-ID (UUID).
-        printix_group_id:  Ziel-Printix-Group-UUID. Leer = es wird vorher
-                           printix_list_groups durchsucht ob eine
-                           gleichnamige Gruppe existiert.
-        sync_mode:         report_only | additive | mirror.
+        Wann NICHT — stattdessen:
+          • Nur Printix-Members anschauen                → printix_get_group_members
+          • Group ohne AD-Bezug                          → printix_create_group / _delete_group
+
+        Returns dict mit:
+          - entra_group_oid, printix_group_id
+          - entra_member_count, printix_member_count
+          - to_add:    Liste Emails (in Entra, nicht in Printix)
+          - to_remove: Liste Emails (in Printix, nicht in Entra)
+          - sync_mode: "report_only" | "additive" | "mirror"
+          - note:      Hinweis dass write paths derzeit nicht implementiert sind
+
+        Args:
+          entra_group_oid:   Microsoft-Graph Group-Object-ID (UUID).
+                             Format: "abc12345-..."
+          printix_group_id:  Ziel-Printix-Group-UUID. Leer = nicht implementiert
+                             (Auto-Resolve by Name kommt spaeter).
+          sync_mode:         "report_only" (Default!) — nur Diff zeigen
+                             "additive"   — fehlende User adden (best-effort)
+                             "mirror"     — additive + extras entfernen
+
     """
     try:
         c = client()
@@ -6414,16 +6595,36 @@ def printix_card_enrol_assist(
     profile_id: str = "",
 ) -> str:
     """
-    Karten-Enrolment via AI: nimmt eine rohe Card-UID (z.B. von der
-    iOS-App nach NFC-Scan geliefert), laeuft sie durch den Card-
-    Transformer (HID/Mifare/FeliCa-Profile) und ordnet die transformierte
-    Value einem User zu.
+        AI-gefuehrtes Karten-Onboarding: nimmt eine rohe Card-UID (z.B. von der
+        iOS-App nach NFC-Scan), laeuft sie durch das Card-Profile-Transform und
+        ordnet sie einem User zu — alles in einem Aufruf.
 
-    Args:
-        user_email:    E-Mail des Users dem die Karte gehoert.
-        card_uid_raw:  Rohe UID (HEX). Beispiel: "04A1B2C3D4E5F6".
-        profile_id:    Optionales Card-Profil. Leer = Default-Profil
-                       des Tenants (oder erstes verfuegbares).
+        Wann nutzen — typische User-Prompts:
+          • "Marcus hat seine Karte gescannt, UID 04A1B2…"
+          • "Register card UID … for user X"
+          • "Karte X dem User Y zuweisen"
+          • "NFC tag enrolment for marcus@firma.de"
+
+        Wann NICHT — stattdessen:
+          • Massenimport aus CSV                         → printix_bulk_import_cards
+          • Karte ohne Transform direkt registrieren     → printix_register_card
+          • Profil ermitteln vor dem Enrolment           → printix_suggest_profile
+
+        Returns dict mit:
+          - ok:                          bool
+          - user:                        {id, email}
+          - card_uid_raw:                Eingabe (zur Verifikation)
+          - card_value_after_transform:  Ergebnis nach Profil-Transform
+          - profile_id:                  "default" oder die uebergebene ID
+          - register_response:           Printix-API-Antwort mit card_id
+
+        Args:
+          user_email:    Email des User dem die Karte gehoert.
+          card_uid_raw:  Rohe UID als HEX, z.B. "04A1B2C3D4E5F6".
+                         Trennzeichen werden im Transform automatisch entfernt.
+          profile_id:    Card-Transform-Profil. Leer = Default-Profil des Tenants.
+                         Suche per printix_suggest_profile bei unbekannter Karte.
+
     """
     try:
         c = client()
@@ -6476,13 +6677,34 @@ def printix_card_enrol_assist(
 @mcp.tool()
 def printix_describe_user_print_pattern(user_email: str, days: int = 30) -> str:
     """
-    Profiliert das Druck-Verhalten eines Users: bevorzugte Drucker, Tageszeit,
-    Farb-Quote, durchschnittliche Seitenzahl. Nutzbar fuer Onboarding-Tipps
-    ("Du druckst meistens Drucker X — die Karte funktioniert auch dort").
+        Profiliert das Druck-Verhalten eines Users: Top-Drucker, Farb-Quote,
+        Ø-Seitenzahl. Versucht zuerst SQL-Reports, faellt auf API-Job-Scan zurueck.
 
-    Args:
-        user_email: E-Mail des Users.
-        days:       Analyse-Zeitraum in Tagen (default 30).
+        Wann nutzen — typische User-Prompts:
+          • "Wie druckt Marcus normalerweise?"
+          • "Show me Anna's print pattern"
+          • "Welche Drucker nutzt User X meistens?"
+          • "Print habits for marcus@firma.de"
+
+        Wann NICHT — stattdessen:
+          • Letzte Jobs als Liste                        → printix_print_history_natural
+          • Tenant-weite Top-Listen                      → printix_top_users
+          • Komplette User-Sicht                         → printix_user_360
+
+        Returns dict mit:
+          - user_email:        Eingabe
+          - method:            "sql_report" oder "api_scan_fallback"
+          - jobs_found:        int (bei API-Scan)
+          - top_printers:      Liste [(name, count)]  (bei API-Scan)
+          - color_breakdown:   {"color": n, "bw": m}
+          - average_pages:     float
+          - stats:             SQL-Block (bei sql_report)
+
+        Args:
+          user_email:  "marcus@firma.de"
+          days:        Zeitraum in Tagen (Default 30).
+                       Bei API-Scan begrenzt durch Rolling-Window von Printix.
+
     """
     try:
         # Wir benutzen die existierende SQL-basierte Reports-Pipeline.
@@ -6533,16 +6755,36 @@ def printix_session_print(
     expires_in_hours: int = 24,
 ) -> str:
     """
-    Erzeugt einen Druckjob mit Time-Bomb: der Job wird sofort an den
-    angegebenen User submitted, und nach `expires_in_hours` automatisch
-    geloescht falls noch nicht released. Nuetzlich fuer Gaeste/Externe
-    oder zeitkritische Dokumente.
+        Druckjob mit Time-Bomb: Job geht sofort an den Empfaenger raus, und
+        nach `expires_in_hours` wird ein Audit-Log-Eintrag erzeugt
+        (tatsaechliches Auto-Delete erfordert manuell printix_delete_job).
+        Praktisch fuer zeitkritische Dokumente / Gaeste / Externe.
 
-    Args:
-        user_email:        E-Mail des Empfaengers.
-        file_b64:          Base64-Inhalt.
-        filename:          Anzeigename.
-        expires_in_hours:  Lifetime des Jobs (default 24h).
+        Wann nutzen — typische User-Prompts:
+          • "Schick X an Y, soll aber nach 4 Stunden weg"
+          • "Send this with auto-expire"
+          • "Gast bekommt das Dokument fuer 2h"
+          • "Time-limited print for guest"
+
+        Wann NICHT — stattdessen:
+          • Normaler Druck ohne Expire                   → printix_send_to_user
+          • An sich selbst                               → printix_print_self
+          • Mehrere Empfaenger                           → printix_print_to_recipients
+
+        Returns dict mit:
+          - ok:           bool
+          - job_id:       Printix-Job-UUID
+          - user_email:   bestaetigter Empfaenger
+          - expires_at:   ISO-Timestamp
+          - timebomb_id:  numerische ID (→ printix_defuse_timebomb falls verfrueht)
+          - note:         Hinweis dass Auto-Delete manuell erfolgen muss
+
+        Args:
+          user_email:        Empfaenger-Email.
+          file_b64:          Base64-Datei.
+          filename:          Anzeigename.
+          expires_in_hours:  Lifetime in Stunden (Default 24, Beispiel 4).
+
     """
     import json as _json
     from datetime import datetime, timezone, timedelta
@@ -6595,15 +6837,34 @@ def printix_quota_guard(
     max_jobs: int = 10,
 ) -> str:
     """
-    Pre-flight-Check fuer Print-Bursts: schaut wie viele Jobs der User in
-    den letzten X Minuten gesendet hat. Liefert eine Empfehlung
-    (allow/throttle/block) damit der AI-Assistent VOR dem naechsten
-    Submit Bescheid weiss.
+        Pre-flight-Burst-Check vor Print-Submits: schaut wie viele Jobs ein User
+        in den letzten X Minuten gesendet hat und gibt verdict allow/throttle/block
+        zurueck. Defensive AI-Funktion gegen Bot-Loops oder Cost-Bursts.
 
-    Args:
-        user_email:      Default = aktueller MCP-User aus Tenant-Email.
-        window_minutes:  Zeitfenster fuer den Burst-Check.
-        max_jobs:        Schwellwert fuer "throttle".
+        Wann nutzen — typische User-Prompts:
+          • "Vor dem naechsten Druck pruefen"
+          • "Check user X's print rate"
+          • "Hat User X zu viele Jobs in letzter Zeit?"
+          • "Quota check before submitting"
+
+        Wann NICHT — stattdessen:
+          • Tenant-weite Top-Volumen                     → printix_top_users
+          • Druckhistorie eines Users mit Details        → printix_print_history_natural
+          • Anomalie-Erkennung allgemein                  → printix_query_anomalies
+
+        Returns dict mit:
+          - user_email:        aufgeloester User
+          - recent_count:      Jobs im Window
+          - window_minutes, max_jobs: Eingabe-Parameter (zur Diagnose)
+          - verdict:           "allow" | "throttle" | "block"
+          - recommendation:    Klartext-Hinweis fuer den AI-Assistenten
+
+        Args:
+          user_email:      Default leer = Self-User aus Tenant-Email.
+          window_minutes:  Zeitfenster, Default 5.
+          max_jobs:        Block-Schwelle, Default 10.
+                           Throttle-Schwelle = max_jobs / 2.
+
     """
     from datetime import datetime, timezone, timedelta
     try:
@@ -6668,22 +6929,42 @@ def printix_print_history_natural(
     limit: int = 50,
 ) -> str:
     """
-    Druckhistorie mit natuerlich-sprachlichen Zeitangaben.
+        Druckhistorie mit natuerlich-sprachlichen Zeitangaben — kein expliziter
+        ISO-Datums-Range noetig.
 
-    Akzeptierte `when`-Werte:
-      - "today" | "heute"
-      - "yesterday" | "gestern"
-      - "this_week" | "diese_woche"
-      - "last_week" | "letzte_woche"
-      - "this_month" | "diesen_monat"
-      - "last_month" | "letzten_monat"
-      - "Q1" | "Q2" | "Q3" | "Q4"  (jeweils des aktuellen Jahres)
-      - "<n>d"  (z.B. "7d" = letzte 7 Tage)
+        Wann nutzen — typische User-Prompts:
+          • "Was hat Anna heute gedruckt?"
+          • "Show me Marcus's prints last week"
+          • "Druckverlauf fuer Q1"
+          • "Was wurde gestern gedruckt?"
+          • "Last 7 days of print history"
 
-    Args:
-        user_email: Default = aktueller MCP-User.
-        when:       Zeitangabe (siehe oben).
-        limit:      Max. Eintraege.
+        Wann NICHT — stattdessen:
+          • Aggregate Statistiken (top, count)           → printix_query_print_stats /
+                                                           printix_top_users
+          • Druck-Profil eines Users (Pattern)           → printix_describe_user_print_pattern
+          • Spezifische Job-IDs                          → printix_get_job
+
+        Returns dict mit:
+          - user_email
+          - when:              Eingabe-Wert
+          - interpreted_as:    {start, end} ISO-Timestamps zur Verifikation
+          - count:             int
+          - jobs:              Liste {job_id, title, printer, pages, color_mode, submitted}
+
+        Args:
+          user_email:  Default leer = Self-User aus Tenant-Email.
+          when:        Akzeptierte Werte (case-insensitive):
+                         "today" / "heute"
+                         "yesterday" / "gestern"
+                         "this_week" / "diese_woche"
+                         "last_week" / "letzte_woche"
+                         "this_month" / "diesen_monat"
+                         "last_month" / "letzten_monat"
+                         "Q1" | "Q2" | "Q3" | "Q4"   (aktuelles Jahr)
+                         "<n>d"  z.B. "7d" = letzte 7 Tage, "30d", "90d"
+          limit:       Max. Eintraege (Default 50).
+
     """
     from datetime import datetime, timezone, timedelta
     try:

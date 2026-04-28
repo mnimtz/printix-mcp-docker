@@ -2,6 +2,26 @@
 
 This project follows [Semantic Versioning](https://semver.org/).
 
+## 7.2.9 (2026-04-28) — Tool-picking optimization: 16 v6.8.x workflow tools with structured docstrings
+
+### Changed
+- **All 16 v6.8.x workflow tools now have expanded docstrings** in a new format:
+  - **One-liner** — single clear sentence on what the tool does
+  - **When to use** — 4-6 typical user prompts (mixed DE + EN)
+  - **When NOT** — negative disambiguation with cross-refs to related tools
+  - **Returns** — what comes back plus follow-up tools (e.g. job_id → printix_get_job)
+  - **Args** — value examples and accepted formats including defaults
+
+  Effect: AI models (claude.ai, ChatGPT, etc.) pick the right tool more reliably; fewer *"which of the three print tools do you mean?"* clarification rounds; better multi-step plans because the model knows which tools chain together.
+
+- Function code is UNCHANGED — only docstrings were reworked. No breaking changes.
+
+### Background
+AI tool picking is driven by tool name + description + parameter descriptions + conversation context. Concrete example prompts in the description work especially well because the model picks them up as trigger phrases. Negative disambiguation (*"NOT for X — use Y instead"*) resolves overlaps between similar tools (`print_self` vs `send_to_user` vs `print_to_recipients`).
+
+### Affected Tools (all v6.8.x)
+print_self, send_to_capture, describe_capture_profile, get_group_members, get_user_groups, resolve_recipients, print_to_recipients, welcome_user, list_timebombs, defuse_timebomb, sync_entra_group_to_printix, card_enrol_assist, describe_user_print_pattern, session_print, quota_guard, print_history_natural
+
 ## 7.2.8 (2026-04-28) — Auto-PDL-Conversion: hieroglyph print fix
 
 ### Fixed
