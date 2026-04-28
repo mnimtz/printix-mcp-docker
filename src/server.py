@@ -5051,7 +5051,7 @@ def _resolve_capture_profile(profile: str, tenant_id: str) -> dict | None:
 
 
 @mcp.tool()
-def printix_send_to_capture(
+async def printix_send_to_capture(
     profile: str,
     file_b64: str,
     filename: str,
@@ -5077,7 +5077,6 @@ def printix_send_to_capture(
                         Beispiel Paperless: {"tags":["Q1","Vertrag"],
                         "correspondent":"Acme","document_type":"Vertrag"}.
     """
-    import asyncio
     import base64 as _b64
     import json as _json
     try:
@@ -5119,10 +5118,8 @@ def printix_send_to_capture(
         if not ok_cfg:
             return _ok({"error": f"plugin config invalid: {err_cfg}"})
 
-        # 5) Direct-Ingest (async → in sync-tool gewrappt)
-        async def _run():
-            return await plugin.ingest_bytes(data, filename, meta)
-        ok, msg = asyncio.run(_run())
+        # 5) Direct-Ingest — Plugin liefert async, wir sind selbst async
+        ok, msg = await plugin.ingest_bytes(data, filename, meta)
 
         return _ok({
             "ok": bool(ok),

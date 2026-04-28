@@ -2,6 +2,11 @@
 
 This project follows [Semantic Versioning](https://semver.org/).
 
+## 7.2.3 (2026-04-28) — Workflow-Tools: send_to_capture asyncio.run error
+
+### Fixed
+- **`send_to_capture` failed with `asyncio.run() cannot be called from a running event loop`**: FastMCP runs in its own asyncio loop, `asyncio.run()` is not allowed there. Tool is now `async def` and uses `await plugin.ingest_bytes(...)` directly.
+
 ## 7.2.2 (2026-04-28) — Workflow-Tools: 3 Bugfixes nach Live-Test
 
 ### Fixed
