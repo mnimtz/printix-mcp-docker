@@ -2,6 +2,15 @@
 
 This project follows [Semantic Versioning](https://semver.org/).
 
+## 7.2.1 (2026-04-28) — Hotfix: NameError 'Any' on import
+
+### Fixed
+- **Container boot loop**: v7.2.0 used `Any | None` as a type hint in
+  `_follow_hal_link` without importing `Any` from `typing`. On module
+  load this raised `NameError: name 'Any' is not defined`, putting the
+  Docker container into a restart loop. `Any` is now imported alongside
+  `Optional`. No other code changes.
+
 ## 7.2.0 — 2026-04-27
 
 Workflow-Tools layer ported from the HA-Addon side (v6.8.0). Tool

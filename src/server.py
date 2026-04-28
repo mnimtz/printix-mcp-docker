@@ -25,7 +25,7 @@ import re
 import sys
 import json
 import logging
-from typing import Optional
+from typing import Any, Optional
 from collections import OrderedDict
 
 from mcp.server.fastmcp import FastMCP
