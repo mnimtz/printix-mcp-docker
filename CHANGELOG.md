@@ -2,6 +2,11 @@
 
 This project follows [Semantic Versioning](https://semver.org/).
 
+## 7.2.6 (2026-04-28) — upload_file_to_url: invalid `filename` parameter
+
+### Fixed
+- **Right after v7.2.5 the submit path crashed at the next step** with `PrintixClient.upload_file_to_url() got an unexpected keyword argument 'filename'`. Real signature: `upload_file_to_url(upload_url, file_bytes, content_type='application/pdf', extra_headers=None)`. Removed `filename=` kwarg from all three call sites (print_self, print_to_recipients, legacy send_to_user). `filename` is already passed to `submit_print_job(title=...)`.
+
 ## 7.2.5 (2026-04-28) — submit_print_job: nested response shape
 
 ### Fixed

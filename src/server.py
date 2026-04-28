@@ -4600,7 +4600,7 @@ def printix_send_to_user(
         if not (job_id and upload_url):
             return _ok({"error": "submit_print_job missing job_id or upload_url", "raw": job})
 
-        c.upload_file_to_url(upload_url, file_bytes, filename=filename)
+        c.upload_file_to_url(upload_url, file_bytes)
         c.complete_upload(job_id)
         c.change_job_owner(job_id, user_email)
         return _ok({
@@ -5044,7 +5044,7 @@ def printix_print_self(
         job_id, upload_url = _extract_job_id_and_upload(job)
         if not (job_id and upload_url):
             return _ok({"error": "submit_print_job missing job_id or upload_url", "raw": job})
-        c.upload_file_to_url(upload_url, file_bytes, filename=filename)
+        c.upload_file_to_url(upload_url, file_bytes)
         c.complete_upload(job_id)
         if my_email:
             try:
@@ -5766,7 +5766,7 @@ def printix_print_to_recipients(
                     results.append({"recipient": email, "ok": False,
                                      "error": "no job_id/upload_url in response"})
                     continue
-                c.upload_file_to_url(upload_url, file_bytes, filename=filename)
+                c.upload_file_to_url(upload_url, file_bytes)
                 c.complete_upload(job_id)
                 if email:
                     try:
