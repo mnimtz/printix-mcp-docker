@@ -2,7 +2,7 @@
 
 > **Version:** 6.8.10 · **Tool inventory:** 127 tools · **As of:** April 2026
 > **Audience:** Administrators, helpdesk and power users who interact with the Printix MCP Server through an AI assistant (claude.ai, ChatGPT, Claude Desktop, Cursor, etc.).
-> **Language:** English · German version see `MCP_MANUAL_DE.pdf`
+> **Language:** English · German: `MCP_MANUAL_DE.pdf` · Norwegian: `MCP_MANUAL_NO.pdf`
 
 ---
 

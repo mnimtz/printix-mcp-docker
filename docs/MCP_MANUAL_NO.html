@@ -1,0 +1,1248 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="no" xml:lang="no">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>Printix MCP — Brukerhåndbok</title>
+  <style>
+    /* Default styles provided by pandoc.
+    ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+    */
+    html {
+      color: #1a1a1a;
+      background-color: #fdfdfd;
+    }
+    body {
+      margin: 0 auto;
+      max-width: 36em;
+      padding-left: 50px;
+      padding-right: 50px;
+      padding-top: 50px;
+      padding-bottom: 50px;
+      hyphens: auto;
+      overflow-wrap: break-word;
+      text-rendering: optimizeLegibility;
+      font-kerning: normal;
+    }
+    @media (max-width: 600px) {
+      body {
+        font-size: 0.9em;
+        padding: 12px;
+      }
+      h1 {
+        font-size: 1.8em;
+      }
+    }
+    @media print {
+      html {
+        background-color: white;
+      }
+      body {
+        background-color: transparent;
+        color: black;
+        font-size: 12pt;
+      }
+      p, h2, h3 {
+        orphans: 3;
+        widows: 3;
+      }
+      h2, h3, h4 {
+        page-break-after: avoid;
+      }
+    }
+    p {
+      margin: 1em 0;
+    }
+    a {
+      color: #1a1a1a;
+    }
+    a:visited {
+      color: #1a1a1a;
+    }
+    img {
+      max-width: 100%;
+    }
+    svg {
+      height: auto;
+      max-width: 100%;
+    }
+    h1, h2, h3, h4, h5, h6 {
+      margin-top: 1.4em;
+    }
+    h5, h6 {
+      font-size: 1em;
+      font-style: italic;
+    }
+    h6 {
+      font-weight: normal;
+    }
+    ol, ul {
+      padding-left: 1.7em;
+      margin-top: 1em;
+    }
+    li > ol, li > ul {
+      margin-top: 0;
+    }
+    blockquote {
+      margin: 1em 0 1em 1.7em;
+      padding-left: 1em;
+      border-left: 2px solid #e6e6e6;
+      color: #606060;
+    }
+    code {
+      white-space: pre-wrap;
+      font-family: Menlo, Monaco, Consolas, 'Lucida Console', monospace;
+      font-size: 85%;
+      margin: 0;
+      hyphens: manual;
+    }
+    pre {
+      margin: 1em 0;
+      overflow: auto;
+    }
+    pre code {
+      padding: 0;
+      overflow: visible;
+      overflow-wrap: normal;
+    }
+    .sourceCode {
+     background-color: transparent;
+     overflow: visible;
+    }
+    hr {
+      border: none;
+      border-top: 1px solid #1a1a1a;
+      height: 1px;
+      margin: 1em 0;
+    }
+    table {
+      margin: 1em 0;
+      border-collapse: collapse;
+      width: 100%;
+      overflow-x: auto;
+      display: block;
+      font-variant-numeric: lining-nums tabular-nums;
+    }
+    table caption {
+      margin-bottom: 0.75em;
+    }
+    tbody {
+      margin-top: 0.5em;
+      border-top: 1px solid #1a1a1a;
+      border-bottom: 1px solid #1a1a1a;
+    }
+    th {
+      border-top: 1px solid #1a1a1a;
+      padding: 0.25em 0.5em 0.25em 0.5em;
+    }
+    td {
+      padding: 0.125em 0.5em 0.25em 0.5em;
+    }
+    header {
+      margin-bottom: 4em;
+      text-align: center;
+    }
+    #TOC li {
+      list-style: none;
+    }
+    #TOC ul {
+      padding-left: 1.3em;
+    }
+    #TOC > ul {
+      padding-left: 0;
+    }
+    #TOC a:not(:hover) {
+      text-decoration: none;
+    }
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+  </style>
+<style>
+@page { size: A4; margin: 18mm 15mm 20mm 15mm; }
+body {
+  font-family: -apple-system, "Helvetica Neue", "Segoe UI", Arial, sans-serif;
+  color: #1f2937; line-height: 1.55;
+  max-width: 1040px; margin: 2em auto; padding: 0 1.8em;
+  font-size: 10.5pt;
+}
+h1 {
+  color: #0b5394; border-bottom: 3px solid #0b5394;
+  padding-bottom: 0.3em; font-size: 24pt; margin-top: 0.2em;
+  page-break-after: avoid;
+}
+h2 {
+  color: #0b5394; border-bottom: 1px solid #cfe2f3;
+  padding-bottom: 0.2em; margin-top: 1.8em; font-size: 16pt;
+  page-break-after: avoid;
+  page-break-before: auto;
+}
+h3 { color: #1c4587; margin-top: 1.4em; font-size: 12.5pt; page-break-after: avoid; }
+h4 { color: #38761d; margin-top: 1.1em; font-size: 11pt; }
+p  { margin: 0.5em 0; }
+ul, ol { margin: 0.35em 0 0.75em 1.4em; }
+li { margin: 0.12em 0; }
+blockquote {
+  border-left: 4px solid #0b5394; background: #f3f6fa;
+  margin: 1em 0; padding: 0.6em 1em; color: #334155;
+  border-radius: 0 4px 4px 0;
+}
+table {
+  border-collapse: collapse; width: 100%;
+  margin: 0.7em 0 1.2em 0; font-size: 9.5pt;
+  page-break-inside: avoid;
+}
+th, td { padding: 6px 9px; border: 1px solid #e5e7eb; vertical-align: top; }
+th { background: #f3f6fa; color: #0b5394; text-align: left; font-weight: 600; }
+tr:nth-child(even) td { background: #fafbfc; }
+code {
+  background: #f3f6fa; color: #be185d;
+  padding: 1px 5px; border-radius: 3px;
+  font-family: "SFMono-Regular", Consolas, "Courier New", monospace;
+  font-size: 9.5pt;
+}
+pre {
+  background: #1f2937; color: #e5e7eb;
+  padding: 0.85em 1em; border-radius: 6px;
+  overflow-x: auto;
+  font-family: "SFMono-Regular", Consolas, "Courier New", monospace;
+  font-size: 9pt; line-height: 1.45;
+  page-break-inside: avoid;
+}
+pre code { background: none; color: inherit; padding: 0; }
+hr { border: 0; border-top: 1px solid #e5e7eb; margin: 1.6em 0; }
+a { color: #0b5394; text-decoration: none; border-bottom: 1px dotted #0b5394; }
+strong { color: #111827; }
+</style></head>
+<body>
+<header id="title-block-header">
+<h1 class="title">Printix MCP — Brukerhåndbok</h1>
+</header>
+<h1 id="printix-mcp--brukerhåndbok">Printix MCP — Brukerhåndbok</h1>
+<blockquote>
+<p><strong>Versjon:</strong> 6.8.10 · <strong>Verktøykatalog:</strong>
+127 verktøy · <strong>Per:</strong> April 2026
+<strong>Målgruppe:</strong> Administratorer, helpdesk og superbrukere
+som bruker Printix MCP-serveren via en AI-assistent (claude.ai, ChatGPT,
+Claude Desktop, Cursor osv.). <strong>Språk:</strong> Norsk (bokmål) ·
+Engelsk versjon: <code>MCP_MANUAL_EN.pdf</code> · Tysk:
+<code>MCP_MANUAL_DE.pdf</code></p>
+</blockquote>
+<hr />
+<h2 id="warning-viktig-hold-ai-assistentens-verktøyliste-oppdatert">⚠️
+Viktig: hold AI-assistentens verktøyliste oppdatert</h2>
+<p>Når MCP-serveren får en ny versjon, kommer det som regel <strong>nye
+verktøy</strong> med. For at AI-assistenten din faktisk skal bruke dem,
+må verktøylisten lastes på nytt. <strong>En oppgradering av serveren
+alene er ikke nok</strong> — klienten cacher verktøydefinisjonene.</p>
+<table>
+<thead>
+<tr>
+<th>Klient</th>
+<th>Slik oppdaterer du verktøylisten</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>claude.ai (web)</strong></td>
+<td><em>Settings → Connectors → Printix MCP → koble fra → koble til på
+nytt</em>. Eller bare start en <strong>ny samtale</strong> —
+verktøylisten hentes på første melding.</td>
+</tr>
+<tr>
+<td><strong>ChatGPT (custom connector)</strong></td>
+<td>I <em>Custom GPT-editor</em> trykk <em>Disconnect</em> på
+MCP-serveren, deretter <em>Connect</em>. Lukk og åpne fanen — det
+fungerer som regel også.</td>
+</tr>
+<tr>
+<td><strong>Claude Desktop</strong></td>
+<td><strong>Full restart</strong> av appen (<code>Cmd+Q</code>, så start
+på nytt — <em>ikke</em> bare lukk vinduet). Verktøy lastes ved
+oppstart.</td>
+</tr>
+<tr>
+<td><strong>Cursor / Continue / andre</strong></td>
+<td>Slå connector av og på, eller bruk klientens
+<code>/mcp reload</code> (varierer per klient).</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Rask test</strong> for å se om et nytt verktøy har kommet:
+spør assistenten <em>«Hvilke Printix-verktøy har du?»</em>. Ser du
+f.eks. <code>printix_print_self</code> eller
+<code>printix_welcome_user</code> i listen, er du oppdatert. Hvis ikke:
+gjør oppdateringen over.</p>
+<hr />
+<h2 id="hva-er-printix-mcp">Hva er Printix MCP?</h2>
+<p>Printix MCP-serveren er broen mellom moderne AI-assistenter og
+Printix Cloud Print API. Den eksponerer <strong>127 verktøy</strong> som
+lar deg styre Printix på naturlig språk — fra det enkle <em>«Hvilke
+skrivere har vi i Oslo?»</em> til komplekse arbeidsflyter som <em>«Send
+meg ukerapporten som PDF til skriveren min, og arkiver en kopi i
+Paperless med taggen ‚Q1-rapport'.»</em></p>
+<p>Du <strong>trenger ikke å huske verktøynavnene</strong>. Assistenten
+velger riktig verktøy basert på spørsmålet ditt. Denne håndboken viser
+deg <em>hva som er mulig</em>, slik at du kan stille fokuserte
+spørsmål.</p>
+<hr />
+<h2 id="hvordan-lese-denne-håndboken">Hvordan lese denne håndboken</h2>
+<p>Hver kategori har en kort introduksjon, en verktøytabell med
+formålsbeskrivelser og flere <strong>eksempeldialoger</strong> med
+konkrete prompts og verktøykall. Du kan bruke promptene ordrett eller
+som inspirasjon.</p>
+<p>🆕 markerer verktøy som er lagt til i v6.8.0–v6.8.10 (April
+2026).</p>
+<hr />
+<h2 id="innholdsfortegnelse">Innholdsfortegnelse</h2>
+<ol type="1">
+<li><a href="#1-system--egendiagnose">System &amp; egendiagnose</a></li>
+<li><a href="#2-skrivere-sites--nettverk">Skrivere, sites &amp;
+nettverk</a></li>
+<li><a href="#3-utskriftsjobber--cloud-print">Utskriftsjobber &amp;
+Cloud Print</a></li>
+<li><a href="#4-brukere-grupper--arbeidsstasjoner">Brukere, grupper
+&amp; arbeidsstasjoner</a></li>
+<li><a href="#5-kort--kortprofiler">Kort &amp; kortprofiler</a></li>
+<li><a href="#6-rapporter--analyser">Rapporter &amp; analyser</a></li>
+<li><a href="#7-rapportmaler--planlegging">Rapportmaler &amp;
+planlegging</a></li>
+<li><a href="#8-capture--dokumentarbeidsflyt">Capture &amp;
+dokumentarbeidsflyt</a></li>
+<li><a href="#9-onboarding-time-bombs--entra-synk-">Onboarding,
+Time-Bombs &amp; Entra-synk 🆕</a></li>
+<li><a href="#10-drift-vedlikehold--revisjon">Drift, vedlikehold &amp;
+revisjon</a></li>
+<li><a href="#11-tips-for-produktive-ai-dialoger">Tips for produktive
+AI-dialoger</a></li>
+</ol>
+<hr />
+<h2 id="1-system--egendiagnose">1. System &amp; egendiagnose</h2>
+<p>Metaspørsmål: <em>Hvem er jeg? Fungerer alt? Hvilken rolle har jeg?
+Hva bør jeg gjøre nå?</em> Perfekt som åpning av en ny økt — eller når
+noe ikke fungerer og du må vite <strong>hvorfor</strong>.</p>
+<table>
+<thead>
+<tr>
+<th>Verktøy</th>
+<th>Formål</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>printix_status</code></td>
+<td>Helsesjekk: server oppe, tenant tilgjengelig, hvilke
+credential-områder er konfigurert.</td>
+</tr>
+<tr>
+<td><code>printix_whoami</code></td>
+<td>Aktuell tenant + egen Printix-bruker + admin-status.</td>
+</tr>
+<tr>
+<td><code>printix_tenant_summary</code></td>
+<td>Kompakt oversikt: skrivere, brukere, sites, kort, åpne jobber.</td>
+</tr>
+<tr>
+<td><code>printix_explain_error</code></td>
+<td>Oversetter en Printix-feilkode eller -melding til klartekst +
+løsningstips.</td>
+</tr>
+<tr>
+<td><code>printix_suggest_next_action</code></td>
+<td>Foreslår et fornuftig neste steg ut fra en kontekststreng.</td>
+</tr>
+<tr>
+<td><code>printix_natural_query</code></td>
+<td>Tar imot et naturlig-språklig spørsmål og foreslår passende
+rapport-verktøy.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="eksempeldialoger">Eksempeldialoger</h3>
+<p><strong>Prompt:</strong> <em>«Fungerer Printix?»</em> →
+<code>printix_status</code> rapporterer API-tilkobling, tenant-ID og
+konfigurerte credential-områder.</p>
+<p><strong>Prompt:</strong> <em>«Hvem er jeg innlogget som i
+Printix?»</em> → <code>printix_whoami</code> returnerer tenant, e-post
+og admin-flagg.</p>
+<p><strong>Prompt:</strong> <em>«Gi meg en oversikt over tenanten
+min.»</em> → <code>printix_tenant_summary</code> returnerer alle
+nøkkeltall i én blokk.</p>
+<p><strong>Prompt:</strong> <em>«Hva betyr feilen 'AADSTS700025'?»</em>
+→ <code>printix_explain_error("AADSTS700025")</code> forklarer det
+(public client / ingen client_secret med PKCE) og foreslår
+løsninger.</p>
+<p><strong>Prompt:</strong> <em>«Hva bør jeg gjøre nå? Jeg har akkurat
+installert en ny skriver.»</em> →
+<code>printix_suggest_next_action("ny skriver installert")</code>
+foreslår SNMP-konfig-sjekk, testutskrift, helsetest.</p>
+<hr />
+<h2 id="2-skrivere-sites--nettverk">2. Skrivere, sites &amp;
+nettverk</h2>
+<p>Fysisk og logisk infrastruktur: skrivere, køer, sites, nettverk,
+SNMP-konfigurasjoner. Lese- og skriveoperasjoner.
+<code>*_context</code>-verktøyene gir aggregerte visninger (kø + skriver
++ nyeste jobber i ett kall).</p>
+<table>
+<thead>
+<tr>
+<th>Verktøy</th>
+<th>Formål</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>printix_list_printers</code></td>
+<td>Alle skrivere (valgfritt søk).</td>
+</tr>
+<tr>
+<td><code>printix_get_printer</code></td>
+<td>Detaljer + funksjoner for en spesifikk skriver.</td>
+</tr>
+<tr>
+<td><code>printix_resolve_printer</code></td>
+<td>Fuzzy-match (navn + plassering + modell + site).</td>
+</tr>
+<tr>
+<td><code>printix_network_printers</code></td>
+<td>Alle skrivere i et nettverk eller på en site.</td>
+</tr>
+<tr>
+<td><code>printix_get_queue_context</code></td>
+<td>Kø + skriverobjekt + nyeste jobber i ett kall.</td>
+</tr>
+<tr>
+<td><code>printix_printer_health_report</code></td>
+<td>Status gruppert: online / offline / feiltilstander.</td>
+</tr>
+<tr>
+<td><code>printix_top_printers</code></td>
+<td>Topp-N skrivere etter volum.</td>
+</tr>
+<tr>
+<td><code>printix_list_sites</code> / <code>printix_get_site</code></td>
+<td>Site-liste / -detaljer.</td>
+</tr>
+<tr>
+<td><code>printix_create_site</code> / <code>printix_update_site</code>
+/ <code>printix_delete_site</code></td>
+<td>Site-administrasjon.</td>
+</tr>
+<tr>
+<td><code>printix_site_summary</code></td>
+<td>Site + nettverk + skrivere i én aggregert blokk.</td>
+</tr>
+<tr>
+<td><code>printix_list_networks</code> /
+<code>printix_get_network</code></td>
+<td>Nettverksliste / -detaljer.</td>
+</tr>
+<tr>
+<td><code>printix_create_network</code> /
+<code>printix_update_network</code> /
+<code>printix_delete_network</code></td>
+<td>Nettverksadministrasjon.</td>
+</tr>
+<tr>
+<td><code>printix_get_network_context</code></td>
+<td>Nettverk + site + skrivere i én blokk.</td>
+</tr>
+<tr>
+<td><code>printix_list_snmp_configs</code> /
+<code>printix_get_snmp_config</code></td>
+<td>SNMP-konfigurasjoner.</td>
+</tr>
+<tr>
+<td><code>printix_create_snmp_config</code> /
+<code>printix_delete_snmp_config</code></td>
+<td>SNMP-konfig opprett/slett.</td>
+</tr>
+<tr>
+<td><code>printix_get_snmp_context</code></td>
+<td>SNMP-konfig + berørte skrivere + nettverk.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="eksempeldialoger-1">Eksempeldialoger</h3>
+<p><strong>Prompt:</strong> <em>«Hvilke Brother-skrivere står i
+Oslo?»</em> → <code>printix_resolve_printer("Brother Oslo")</code>
+token-fuzzy match på navn/plassering/leverandør/site.</p>
+<p><strong>Prompt:</strong> <em>«Vis meg alle skrivere i nettverk
+9cfa4bf0.»</em> →
+<code>printix_network_printers(network_id="9cfa4bf0")</code> løser site
+(når direkte network→printer-mapping ikke finnes) og returnerer
+relevante skrivere.</p>
+<p><strong>Prompt:</strong> <em>«Gi meg en komplett oversikt over site
+DACH.»</em> → <code>printix_site_summary(site_id=…)</code> — site-meta +
+nettverk + alle skrivere.</p>
+<p><strong>Prompt:</strong> <em>«Hvilke skrivere er offline akkurat
+nå?»</em> → <code>printix_printer_health_report</code> grupperer etter
+status, problemer øverst.</p>
+<p><strong>Prompt:</strong> <em>«Topp 5 skrivere etter sideantall
+forrige uke?»</em> →
+<code>printix_top_printers(days=7, limit=5, metric="pages")</code>.</p>
+<p><strong>Prompt:</strong> <em>«Opprett en ny site 'Bergen' på Bryggen
+5.»</em> →
+<code>printix_create_site(name="Bergen", address="Bryggen 5", ...)</code>.</p>
+<hr />
+<h2 id="3-utskriftsjobber--cloud-print">3. Utskriftsjobber &amp; Cloud
+Print</h2>
+<p>Vis, send og deleger utskriftsjobber. <strong>🆕 v6.8.x</strong>: tre
+nye høynivå-verktøy (<code>print_self</code>,
+<code>print_to_recipients</code>, <code>session_print</code>) for
+AI-arbeidsflyter med innebygd PDF/PCL-konvertering.</p>
+<blockquote>
+<p>🆕 <strong>Auto PDL-konvertering (v6.8.8+)</strong>: Alle
+utskriftsverktøyene konverterer automatisk PDF/PostScript/tekst til PCL
+XL via Ghostscript før innsending til skriverkøen. Uten dette ville
+skrivere uten PDF-RIP skrive ut hieroglyfer (rå PDF-kildekode som
+ASCII). Standard <code>pdl="auto"</code> (= PCL XL farge). Bruk
+<code>pdl="passthrough"</code> for å sende filen uendret.</p>
+</blockquote>
+<table>
+<thead>
+<tr>
+<th>Verktøy</th>
+<th>Formål</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>printix_list_jobs</code></td>
+<td>Alle jobber, valgfritt køfilter.</td>
+</tr>
+<tr>
+<td><code>printix_get_job</code></td>
+<td>Jobbdetaljer.</td>
+</tr>
+<tr>
+<td><code>printix_submit_job</code></td>
+<td>Lavnivå jobb-submit (steg 1 av 5-stegs flow).</td>
+</tr>
+<tr>
+<td><code>printix_complete_upload</code></td>
+<td>Fullfør opplasting.</td>
+</tr>
+<tr>
+<td><code>printix_delete_job</code></td>
+<td>Avbryt jobb.</td>
+</tr>
+<tr>
+<td><code>printix_change_job_owner</code></td>
+<td>Deleger jobb til annen bruker.</td>
+</tr>
+<tr>
+<td><code>printix_jobs_stuck</code></td>
+<td>Jobber som henger mer enn N minutter.</td>
+</tr>
+<tr>
+<td><code>printix_quick_print</code></td>
+<td>Kort-form: URL + mottaker → ferdig.</td>
+</tr>
+<tr>
+<td><code>printix_send_to_user</code></td>
+<td>Send dokument (URL eller base64) til bruker X. v6.8.8+: med
+auto-konvertering.</td>
+</tr>
+<tr>
+<td>🆕 <code>printix_print_self</code></td>
+<td>Skriv ut til <strong>egen</strong> secure-print-kø (AI genererer PDF
+inline).</td>
+</tr>
+<tr>
+<td>🆕 <code>printix_print_to_recipients</code></td>
+<td>Multi-mottaker: én PDF til mange (også via <code>group:Navn</code>
+eller <code>entra:OID</code>).</td>
+</tr>
+<tr>
+<td>🆕 <code>printix_resolve_recipients</code></td>
+<td>Diagnose: viser hvilke mottakere som ville blitt løst før
+<code>print_to_recipients</code>.</td>
+</tr>
+<tr>
+<td>🆕 <code>printix_session_print</code></td>
+<td>Jobb med time-bomb (auto-utløper etter N timer).</td>
+</tr>
+</tbody>
+</table>
+<h3 id="eksempeldialoger-2">Eksempeldialoger</h3>
+<p><strong>Prompt:</strong> <em>«Send denne PDF-en som Secure Print til
+<a href="mailto:marcus@firma.no">marcus@firma.no</a>.»</em> →
+<code>printix_send_to_user(user_email="marcus@firma.no", file_content_b64=..., filename="kontrakt.pdf")</code>
+— serveren konverterer PDF→PCL XL og legger jobben i køen.</p>
+<p><strong>Prompt:</strong> <em>«Hvilke jobber har hengt i mer enn 30
+minutter?»</em> → <code>printix_jobs_stuck(minutes=30)</code>.</p>
+<p><strong>Prompt:</strong> <em>«Overfør jobb 4711 til <a
+href="mailto:marcus@firma.no">marcus@firma.no</a> — jeg drar på
+ferie.»</em> →
+<code>printix_change_job_owner(job_id="4711", new_owner_email="marcus@firma.no")</code>.</p>
+<p>🆕 <strong>Prompt:</strong> <em>«Lag en A4-utskriftsmal med
+kvartalstallene og legg den i køen min.»</em> → AI genererer PDF inline
+→ <code>printix_print_self(file_b64=..., filename="Q1.pdf")</code>
+legger jobben i din egen kø. Hent på skriveren med kort/kode.</p>
+<p>🆕 <strong>Prompt:</strong> <em>«Send dette notatet til alle i
+markedsgruppen som Secure Print.»</em> →
+<code>printix_print_to_recipients(recipients_csv="group:Marketing", file_b64=..., filename="notat.pdf")</code>
+— én jobb per medlem.</p>
+<p>🆕 <strong>Prompt:</strong> <em>«Før jeg sender: hvem er på
+listen?»</em> →
+<code>printix_resolve_recipients("group:Marketing, alice@firma.no, entra:abc-uuid")</code>
+viser oppløste mottakere uten å skrive ut. Tvetydigheter + ikke-funne
+inputs listes separat.</p>
+<p>🆕 <strong>Prompt:</strong> <em>«Send denne kontraktutkastet til <a
+href="mailto:externer-gjest@partner.no">externer-gjest@partner.no</a> —
+skal auto-utløpe etter 4 timer.»</em> →
+<code>printix_session_print(user_email="externer-gjest@partner.no", file_b64=..., filename="kontrakt.pdf", expires_in_hours=4)</code>
+— sender jobben og setter en cleanup-time-bomb.</p>
+<p>🆕 <strong>Prompt:</strong> <em>«Skriv kun monokromt — vi trenger
+ikke farge her.»</em> → Sett <code>color=False</code> på ethvert
+utskriftsverktøy (standard <code>True</code>).</p>
+<p>🆕 <strong>Prompt:</strong> <em>«Skriveren min gjør PDF-RIP selv —
+bare send filen som den er.»</em> → Sett <code>pdl="passthrough"</code>
+for å deaktivere serverside-konvertering.</p>
+<hr />
+<h2 id="4-brukere-grupper--arbeidsstasjoner">4. Brukere, grupper &amp;
+arbeidsstasjoner</h2>
+<p>Full livssyklus: opprett, rediger, deaktiver, diagnostiser.
+<code>user_360</code>- og <code>diagnose_user</code>-verktøyene er
+allroundere for helpdesk. <strong>🆕 v6.8.x</strong>: detaljert
+gruppemedlemskap + utskriftsmønsteranalyse + quota-vakt.</p>
+<table>
+<thead>
+<tr>
+<th>Verktøy</th>
+<th>Formål</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>printix_list_users</code></td>
+<td>Alle brukere, med paginering + rolle-filter.</td>
+</tr>
+<tr>
+<td><code>printix_get_user</code></td>
+<td>Brukerdetaljer.</td>
+</tr>
+<tr>
+<td><code>printix_find_user</code></td>
+<td>Fuzzy-søk på e-post eller navn.</td>
+</tr>
+<tr>
+<td><code>printix_user_360</code></td>
+<td>360°-visning: bruker + kort + grupper + arbeidsstasjoner + nyeste
+jobber.</td>
+</tr>
+<tr>
+<td><code>printix_diagnose_user</code></td>
+<td>Helpdesk-diagnose: hva fungerer, hva ikke, hvorfor.</td>
+</tr>
+<tr>
+<td><code>printix_create_user</code> /
+<code>printix_delete_user</code></td>
+<td>Brukeradministrasjon.</td>
+</tr>
+<tr>
+<td><code>printix_generate_id_code</code></td>
+<td>Ny ID-kode for en bruker.</td>
+</tr>
+<tr>
+<td><code>printix_onboard_user</code> /
+<code>printix_offboard_user</code></td>
+<td>Veiledet on-/offboarding (flere steg i ett kall).</td>
+</tr>
+<tr>
+<td><code>printix_list_admins</code></td>
+<td>Alle admins.</td>
+</tr>
+<tr>
+<td><code>printix_permission_matrix</code></td>
+<td>Matrise: bruker × tilganger.</td>
+</tr>
+<tr>
+<td><code>printix_inactive_users</code></td>
+<td>Brukere som har vært inaktive i N dager.</td>
+</tr>
+<tr>
+<td><code>printix_sso_status</code></td>
+<td>Sjekk SSO-mapping.</td>
+</tr>
+<tr>
+<td><code>printix_list_groups</code> /
+<code>printix_get_group</code></td>
+<td>Gruppeliste / -detaljer.</td>
+</tr>
+<tr>
+<td><code>printix_create_group</code> /
+<code>printix_delete_group</code></td>
+<td>Gruppeadministrasjon.</td>
+</tr>
+<tr>
+<td>🆕 <code>printix_get_group_members</code></td>
+<td>Medlemmer av en gruppe per UUID eller navn (sikkert mot
+tvetydighet).</td>
+</tr>
+<tr>
+<td>🆕 <code>printix_get_user_groups</code></td>
+<td>Omvendt oppslag: hvilke grupper er bruker X i?</td>
+</tr>
+<tr>
+<td>🆕 <code>printix_describe_user_print_pattern</code></td>
+<td>Utskriftsprofil: foretrukne skrivere, fargeandel, sideantall.</td>
+</tr>
+<tr>
+<td>🆕 <code>printix_quota_guard</code></td>
+<td>Pre-flight-burst-sjekk før innsending (verdict
+allow/throttle/block).</td>
+</tr>
+<tr>
+<td>🆕 <code>printix_print_history_natural</code></td>
+<td>Historikk med naturlig-språklige tidsvinduer (<code>heute</code>,
+<code>last week</code>, <code>Q1</code>, <code>7d</code>).</td>
+</tr>
+<tr>
+<td><code>printix_list_workstations</code> /
+<code>printix_get_workstation</code></td>
+<td>Arbeidsstasjoner.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="eksempeldialoger-3">Eksempeldialoger</h3>
+<p><strong>Prompt:</strong> <em>«Fortell meg alt du vet om <a
+href="mailto:marcus@firma.no">marcus@firma.no</a>.»</em> →
+<code>printix_user_360(query="marcus@firma.no")</code> returnerer full
+360°-visning.</p>
+<p><strong>Prompt:</strong> <em>«Hvorfor kan ikke Anna skrive ut
+lenger?»</em> →
+<code>printix_diagnose_user(email="anna@firma.no")</code> sjekker
+status, SSO, kort, grupper, blokkere — og foreslår løsninger.</p>
+<p><strong>Prompt:</strong> <em>«Hvilke brukere har vært inaktive i 180
+dager?»</em> → <code>printix_inactive_users(days=180)</code> —
+kandidatliste for offboarding.</p>
+<p><strong>Prompt:</strong> <em>«Onboard ny ansatt: <a
+href="mailto:peter@firma.no">peter@firma.no</a>, Peter Hansen, gruppe
+'Finance'.»</em> → <code>printix_onboard_user(...)</code> kjører alle
+steg i riktig rekkefølge.</p>
+<p>🆕 <strong>Prompt:</strong> <em>«Hvem er i markedsgruppen?»</em> →
+<code>printix_get_group_members("Marketing")</code> — for tvetydige navn
+får du en kandidatliste med UUID-er.</p>
+<p>🆕 <strong>Prompt:</strong> <em>«Hvilke grupper er Anna i?»</em> →
+<code>printix_get_user_groups("anna@firma.no")</code> — sjekker
+brukerobjektet først, faller tilbake til gruppeskanning.</p>
+<p>🆕 <strong>Prompt:</strong> <em>«Hva har Marcus skrevet ut i
+dag?»</em> →
+<code>printix_print_history_natural(user_email="marcus@firma.no", when="today")</code>.</p>
+<p>🆕 <strong>Prompt:</strong> <em>«Marcus' utskriftsmønster siste 30
+dager?»</em> →
+<code>printix_describe_user_print_pattern(user_email="marcus@firma.no", days=30)</code>
+— toppskrivere, fargeandel, gj.snittlig sideantall.</p>
+<p>🆕 <strong>Prompt:</strong> <em>«Før jeg sender enda en PDF: har
+brukeren ikke sendt for mange de siste 5 minuttene?»</em> →
+<code>printix_quota_guard(user_email="marcus@firma.no", window_minutes=5, max_jobs=10)</code>
+— verdict
+<code>allow</code>/<code>throttle</code>/<code>block</code>.</p>
+<hr />
+<h2 id="5-kort--kortprofiler">5. Kort &amp; kortprofiler</h2>
+<p>Alt rundt RFID/Mifare/HID-kort: registrering, mapping, profiler,
+masseimport. <strong>🆕 v6.8.x</strong>: AI-wrapper
+<code>card_enrol_assist</code> som gjør UID + profile-transform +
+register i ett verktøy.</p>
+<table>
+<thead>
+<tr>
+<th>Verktøy</th>
+<th>Formål</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>printix_list_cards</code></td>
+<td>Kort til en bruker.</td>
+</tr>
+<tr>
+<td><code>printix_list_cards_by_tenant</code></td>
+<td>Alle kort i tenant (filter:
+<code>all</code>/<code>registered</code>/<code>orphaned</code>).</td>
+</tr>
+<tr>
+<td><code>printix_search_card</code></td>
+<td>Søk kort etter ID/nummer.</td>
+</tr>
+<tr>
+<td><code>printix_register_card</code></td>
+<td>Tilordne kort til bruker (lavnivå).</td>
+</tr>
+<tr>
+<td><code>printix_delete_card</code></td>
+<td>Fjern korttilordning.</td>
+</tr>
+<tr>
+<td><code>printix_get_card_details</code></td>
+<td>Kort + lokal mapping + eier i én blokk.</td>
+</tr>
+<tr>
+<td><code>printix_decode_card_value</code></td>
+<td>Dekod rå kortverdi (Base64/Hex/YSoft/Konica-varianter).</td>
+</tr>
+<tr>
+<td><code>printix_transform_card_value</code></td>
+<td>Kjør verdi gjennom transformasjonspipeline (hex↔︎dec, reverse,
+prefix/suffix …).</td>
+</tr>
+<tr>
+<td><code>printix_get_user_card_context</code></td>
+<td>Bruker + alle kort + profiler i én blokk.</td>
+</tr>
+<tr>
+<td><code>printix_list_card_profiles</code> /
+<code>printix_get_card_profile</code></td>
+<td>Profilliste/-detaljer.</td>
+</tr>
+<tr>
+<td><code>printix_search_card_mappings</code></td>
+<td>Søk lokal mapping-DB.</td>
+</tr>
+<tr>
+<td><code>printix_bulk_import_cards</code></td>
+<td>CSV-masseimport (med profil + dry-run).</td>
+</tr>
+<tr>
+<td><code>printix_suggest_profile</code></td>
+<td>Foreslå profil ut fra eksempel-UID (topp-10).</td>
+</tr>
+<tr>
+<td><code>printix_card_audit</code></td>
+<td>Revisjonslogg over alle kortendringer for en bruker.</td>
+</tr>
+<tr>
+<td><code>printix_find_orphaned_mappings</code></td>
+<td>Lokale mappinger uten matchende Printix-bruker.</td>
+</tr>
+<tr>
+<td>🆕 <code>printix_card_enrol_assist</code></td>
+<td>AI-onboarding: UID + profile-transform + register i ett kall.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="eksempeldialoger-4">Eksempeldialoger</h3>
+<p><strong>Prompt:</strong> <em>«Hvilke kort har Marcus?»</em> →
+<code>printix_get_user_card_context(email="marcus@firma.no")</code> —
+bruker + alle kort + profiler.</p>
+<p><strong>Prompt:</strong> <em>«Hva er kort UID
+<code>04:5F:F0:02:AB:3C</code>?»</em> →
+<code>printix_decode_card_value(card_value="04:5F:F0:02:AB:3C")</code>
+gjenkjenner hex med skilletegn, returnerer dekodede bytes +
+profile-hint.</p>
+<p><strong>Prompt:</strong> <em>«Importer 500 kort fra denne CSV-en —
+først som dry-run.»</em> →
+<code>printix_bulk_import_cards(csv=..., profile=..., dry_run=True)</code>
+validerer hver rad og viser forhåndsvisning uten å skrive.</p>
+<p><strong>Prompt:</strong> <em>«For UID <code>045FF002</code> — hvilken
+profil passer?»</em> →
+<code>printix_suggest_profile(sample_uid="045FF002")</code> topp-10 med
+score + <code>best_match</code>.</p>
+<p>🆕 <strong>Prompt:</strong> <em>«Marcus tappet ID-kortet på iPhone.
+UID er <code>04A1B2C3D4E5F6</code>. Vennligst registrer det for
+ham.»</em> →
+<code>printix_card_enrol_assist(user_email="marcus@firma.no", card_uid_raw="04A1B2C3D4E5F6")</code>
+— kjøres gjennom standard kortprofil og registreres via
+<code>register_card</code>.</p>
+<hr />
+<h2 id="6-rapporter--analyser">6. Rapporter &amp; analyser</h2>
+<p>Rapporter kjører mot SQL Server-warehouse. Du får nøkkeltall,
+trender, anomalier og ad-hoc-spørringer via et enhetlig grensesnitt.
+<code>query_any</code> er det universelle inngangspunktet; spesialiserte
+verktøy er raskere snarveier for vanlige spørsmål.</p>
+<table>
+<thead>
+<tr>
+<th>Verktøy</th>
+<th>Formål</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>printix_reporting_status</code></td>
+<td>Status av rapportmotoren (DB-tilkobling, siste nightlies,
+preset-antall).</td>
+</tr>
+<tr>
+<td><code>printix_query_any</code></td>
+<td>Universelt: preset + filtre → tabell.</td>
+</tr>
+<tr>
+<td><code>printix_query_print_stats</code></td>
+<td>Utskriftsvolum etter dimensjon.</td>
+</tr>
+<tr>
+<td><code>printix_query_cost_report</code></td>
+<td>Kostnader, valgfritt etter avdeling/bruker.</td>
+</tr>
+<tr>
+<td><code>printix_query_top_users</code> /
+<code>printix_query_top_printers</code></td>
+<td>Topp-N med tidsvindu.</td>
+</tr>
+<tr>
+<td><code>printix_query_anomalies</code></td>
+<td>Anomali-deteksjon.</td>
+</tr>
+<tr>
+<td><code>printix_query_trend</code></td>
+<td>Trendlinjer over tid.</td>
+</tr>
+<tr>
+<td><code>printix_query_audit_log</code></td>
+<td>Strukturert revisjonsspor av MCP-serveren (handlinger, objekter,
+aktør).</td>
+</tr>
+<tr>
+<td><code>printix_top_printers</code> /
+<code>printix_top_users</code></td>
+<td>Kort-form-wrappers.</td>
+</tr>
+<tr>
+<td><code>printix_print_trends</code></td>
+<td>Trend etter dag/uke/måned.</td>
+</tr>
+<tr>
+<td><code>printix_cost_by_department</code></td>
+<td>Kostnader aggregert per avdeling.</td>
+</tr>
+<tr>
+<td><code>printix_compare_periods</code></td>
+<td>Periode A vs periode B.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="eksempeldialoger-5">Eksempeldialoger</h3>
+<p><strong>Prompt:</strong> <em>«Hvem skrev ut mest forrige måned?»</em>
+→ <code>printix_top_users(days=30, limit=10, metric="pages")</code>.</p>
+<p><strong>Prompt:</strong> <em>«Vis utskriftstrenden de siste 90
+dagene, månedlig.»</em> →
+<code>printix_print_trends(group_by="month", days=90)</code>.</p>
+<p><strong>Prompt:</strong> <em>«Sammenlign de siste 30 dagene med de 30
+dagene før — hva har endret seg?»</em> →
+<code>printix_compare_periods(days_a=30, days_b=30)</code> returnerer
+delta-KPI-er.</p>
+<p><strong>Prompt:</strong> <em>«Hvilken avdeling har høyeste
+utskriftskostnader?»</em> →
+<code>printix_cost_by_department(days=30)</code>.</p>
+<p><strong>Prompt:</strong> <em>«Hva gjorde bruker X i MCP den 15.
+april?»</em> →
+<code>printix_query_audit_log(start_date="2026-04-15", end_date="2026-04-15", actor_email="x@firma.no")</code>.</p>
+<p><strong>Prompt:</strong> <em>«Er det noen anomalier i
+utskriftsadferden de siste 14 dagene?»</em> →
+<code>printix_query_anomalies(days=14)</code> — f.eks. plutselige
+volumtopper eller uvanlige skrivermønstre.</p>
+<hr />
+<h2 id="7-rapportmaler--planlegging">7. Rapportmaler &amp;
+planlegging</h2>
+<p>For analyser du trenger regelmessig: lagre som mal, planlegg
+gjentakende levering, send på e-post. Designvalg via
+<code>list_design_options</code>; <code>preview_report</code> rendrer en
+PDF-forhåndsvisning uten å sende.</p>
+<table>
+<thead>
+<tr>
+<th>Verktøy</th>
+<th>Formål</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>printix_save_report_template</code></td>
+<td>Lagre query + design som mal.</td>
+</tr>
+<tr>
+<td><code>printix_list_report_templates</code></td>
+<td>Alle lagrede maler.</td>
+</tr>
+<tr>
+<td><code>printix_get_report_template</code></td>
+<td>Maldetaljer.</td>
+</tr>
+<tr>
+<td><code>printix_delete_report_template</code></td>
+<td>Slett mal.</td>
+</tr>
+<tr>
+<td><code>printix_run_report_now</code></td>
+<td>Kjør mal én gang, lever.</td>
+</tr>
+<tr>
+<td><code>printix_send_test_email</code></td>
+<td>Test-e-post (SMTP-sjekk).</td>
+</tr>
+<tr>
+<td><code>printix_schedule_report</code></td>
+<td>Planlegg mal som cron-jobb.</td>
+</tr>
+<tr>
+<td><code>printix_list_schedules</code></td>
+<td>Alle aktive planer.</td>
+</tr>
+<tr>
+<td><code>printix_update_schedule</code> /
+<code>printix_delete_schedule</code></td>
+<td>Plan modifiser/slett.</td>
+</tr>
+<tr>
+<td><code>printix_list_design_options</code></td>
+<td>Tilgjengelige fargeskjemaer, logoer, layouter.</td>
+</tr>
+<tr>
+<td><code>printix_preview_report</code></td>
+<td>PDF-forhåndsvisning av en rapport uten å sende.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="eksempeldialoger-6">Eksempeldialoger</h3>
+<p><strong>Prompt:</strong> <em>«Lagre nåværende topp-10-bruker-rapport
+som mal 'Månedlig utskrift Top10'.»</em> →
+<code>printix_save_report_template(...)</code>.</p>
+<p><strong>Prompt:</strong> <em>«Send denne malen den 1. virkedagen hver
+måned til <a href="mailto:ledelse@firma.no">ledelse@firma.no</a>.»</em>
+→
+<code>printix_schedule_report(report_id=…, cron="0 8 1 * *", recipients=["ledelse@firma.no"])</code>.</p>
+<p><strong>Prompt:</strong> <em>«Vis meg en PDF-forhåndsvisning av mal
+XY.»</em> → <code>printix_preview_report(report_id=…)</code>.</p>
+<p><strong>Prompt:</strong> <em>«Hvilke fargeskjemaer kan jeg bruke for
+rapporter?»</em> → <code>printix_list_design_options()</code>.</p>
+<hr />
+<h2 id="8-capture--dokumentarbeidsflyt">8. Capture &amp;
+dokumentarbeidsflyt</h2>
+<p>Capture kobler skannede eller AI-genererte dokumenter til målsystemer
+(Paperless-ngx, SharePoint, DMS …) via plugins. <strong>🆕
+v6.8.x</strong>: to nye verktøy som lar AI mate filer direkte inn i en
+capture-arbeidsflyt — ikke bare via klassisk webhook.</p>
+<table>
+<thead>
+<tr>
+<th>Verktøy</th>
+<th>Formål</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>printix_list_capture_profiles</code></td>
+<td>Alle capture-profiler i tenant.</td>
+</tr>
+<tr>
+<td><code>printix_capture_status</code></td>
+<td>Status: server-port, webhook-base-URL, tilgjengelige plugins,
+konfigurerte profiler.</td>
+</tr>
+<tr>
+<td>🆕 <code>printix_describe_capture_profile</code></td>
+<td>Plugin-skjema for en profil: hvilke metadata-felt godtas, pluss
+aktuell konfig (secrets maskert).</td>
+</tr>
+<tr>
+<td>🆕 <code>printix_send_to_capture</code></td>
+<td>Mat fil direkte inn i capture-arbeidsflyt — samme kodevei som
+webhook, men uten skriver/blob-omvei.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="eksempeldialoger-7">Eksempeldialoger</h3>
+<p><strong>Prompt:</strong> <em>«Er capture aktiv og hvilke plugins er
+installert?»</em> → <code>printix_capture_status</code> — pluginliste
+(f.eks. paperless_ngx) + antall konfigurerte profiler.</p>
+<p><strong>Prompt:</strong> <em>«Hvilke capture-profiler har jeg?»</em>
+→ <code>printix_list_capture_profiles</code> — liste med målsystem,
+webhook-URL og siste kjøringer.</p>
+<p>🆕 <strong>Prompt:</strong> <em>«Hvilke metadata godtar
+Paperless-profilen?»</em> →
+<code>printix_describe_capture_profile("Paperless (Marcus)")</code> —
+plugin-skjema (<code>tags</code>, <code>correspondent</code>,
+<code>document_type</code> osv.) pluss aktuelle standardverdier.</p>
+<p>🆕 <strong>Prompt:</strong> <em>«Lagre denne AI-genererte kontrakten
+i Paperless med tagger 'Q1', 'Kontrakt' og korrespondent 'Acme
+Corp'.»</em> →
+<code>printix_send_to_capture(profile="Paperless (Marcus)", file_b64=..., filename="kontrakt_acme.pdf", metadata_json='{"tags":["Q1","Kontrakt"], "correspondent":"Acme Corp", "document_type":"Kontrakt"}')</code>.</p>
+<p>🆕 <strong>Prompt:</strong> <em>«Ukerapporten min er klar — legg den
+i Paperless og send en utskriftskopi til skriveren min også.»</em> → To
+kall: <code>printix_send_to_capture(...)</code> +
+<code>printix_print_self(...)</code> — assistenten kjeder begge
+automatisk.</p>
+<hr />
+<h2 id="9-onboarding-time-bombs--entra-synk-new">9. Onboarding,
+Time-Bombs &amp; Entra-synk 🆕</h2>
+<p>Alt i denne seksjonen er <strong>nytt i v6.8.x</strong>. Det handler
+om automatiserte brukerlivsyklus-arbeidsflyter: en nyopprettet bruker
+får en velkomst-PDF, påminnelses-time-bombs planlegges, og 7 dager
+senere følger vi opp automatisk hvis ingen handling er gjort. Pluss:
+synkronisering av Entra/AD-grupper med Printix-grupper.</p>
+<table>
+<thead>
+<tr>
+<th>Verktøy</th>
+<th>Formål</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>🆕 <code>printix_welcome_user</code></td>
+<td>Onboarding-følgesvenn: velkomst-PDF + time-bombs for
+<code>card_enrol</code>, <code>first_print_reminder</code>.</td>
+</tr>
+<tr>
+<td>🆕 <code>printix_list_timebombs</code></td>
+<td>Vis aktive/historiske time-bombs i tenant.</td>
+</tr>
+<tr>
+<td>🆕 <code>printix_defuse_timebomb</code></td>
+<td>Manuelt deaktivere en time-bomb (med revisjonsbegrunnelse).</td>
+</tr>
+<tr>
+<td>🆕 <code>printix_sync_entra_group_to_printix</code></td>
+<td>Diff Entra/AD-gruppemedlemmer vs Printix-gruppe (standard
+<code>report_only</code>).</td>
+</tr>
+</tbody>
+</table>
+<h3 id="eksempeldialoger-8">Eksempeldialoger</h3>
+<p>🆕 <strong>Prompt:</strong> <em>«Onboard ny ansatt <a
+href="mailto:peter@firma.no">peter@firma.no</a> og kjør
+velkomst-arbeidsflyten med påminnelser.»</em> →
+<code>printix_onboard_user(...)</code> (for DB-/kontooppretting) +
+<code>printix_welcome_user(user_email="peter@firma.no")</code> legger en
+velkomst-PDF i hans secure-print-kø OG setter to time-bombs: 3-dagers
+påminnelse hvis ingen første utskrift, 7-dagers påminnelse hvis ingen
+kort registrert.</p>
+<p>🆕 <strong>Prompt:</strong> <em>«Hvilke onboarding-påminnelser er
+aktive nå?»</em> →
+<code>printix_list_timebombs(status="pending")</code>.</p>
+<p>🆕 <strong>Prompt:</strong> <em>«Peter sa han er på ferie til neste
+uke. Deaktiver påminnelsene hans.»</em> →
+<code>printix_list_timebombs(user_email="peter@firma.no")</code> viser
+bombene med ID-er, deretter
+<code>printix_defuse_timebomb(bomb_id=42, reason="på ferie til 2026-05-12")</code>.</p>
+<p>🆕 <strong>Prompt:</strong> <em>«Synk Entra-gruppen
+<code>Marketing-DACH</code> (OID <code>abc-123</code>) med
+Printix-gruppen vår — men bare rapport, ingen skriving.»</em> →
+<code>printix_sync_entra_group_to_printix(entra_group_oid="abc-123", printix_group_id="def-456", sync_mode="report_only")</code>
+returnerer diff: <code>to_add</code> (i Entra men ikke Printix) og
+<code>to_remove</code> (i Printix men ikke Entra).</p>
+<blockquote>
+<p>ℹ️ <strong>Forutsetning for
+<code>sync_entra_group_to_printix</code></strong>: MCP-serverens
+Entra-app-registrering trenger applikasjonstilgangen
+<code>Group.Read.All</code> (Application, ikke Delegated) +
+admin-samtykke. Legg til i Azure-portalen.</p>
+</blockquote>
+<h3 id="time-bomb-konseptet">Time-bomb-konseptet</h3>
+<p>Time-bombs er <strong>betingede, utsatte handlinger</strong>. En
+cron-jobb kjører hver time (<code>minute=7</code>) og sjekker for hver
+pending bomb:</p>
+<ol type="1">
+<li>Er betingelsen fortsatt oppfylt? (f.eks. <em>«bruker har ikke
+registrert kort ennå»</em>)</li>
+<li>Hvis ja → kjør handlingen (legg en påminnelses-PDF i kø,
+loggoppføring osv.).</li>
+<li>Hvis nei → bomb auto-merkes <code>defused</code>.</li>
+</ol>
+<p>Så <code>first_print_reminder_3d</code>-bomben forblir pending etter
+3 dager — hvis brukeren faktisk har skrevet ut i mellomtiden, defuses
+den automatisk. Bare hvis brukeren virkelig ikke har gjort noe, fyrer
+påminnelsen.</p>
+<hr />
+<h2 id="10-drift-vedlikehold--revisjon">10. Drift, vedlikehold &amp;
+revisjon</h2>
+<p>Backups, demo-data, feature-tracking. Mix av drift og meta.</p>
+<table>
+<thead>
+<tr>
+<th>Verktøy</th>
+<th>Formål</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>printix_list_backups</code></td>
+<td>Alle eksisterende backups.</td>
+</tr>
+<tr>
+<td><code>printix_create_backup</code></td>
+<td>Ny backup (DB + konfig + metadata).</td>
+</tr>
+<tr>
+<td><code>printix_demo_setup_schema</code></td>
+<td>Opprett demo-skjema i rapport-DB.</td>
+</tr>
+<tr>
+<td><code>printix_demo_generate</code></td>
+<td>Generer syntetiske demo-data.</td>
+</tr>
+<tr>
+<td><code>printix_demo_rollback</code></td>
+<td>Fjern demo-data (per demo-tag).</td>
+</tr>
+<tr>
+<td><code>printix_demo_status</code></td>
+<td>Hvilke demo-sett er aktive?</td>
+</tr>
+<tr>
+<td><code>printix_list_feature_requests</code> /
+<code>printix_get_feature_request</code></td>
+<td>Ticket-system for feature-ønsker.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="eksempeldialoger-9">Eksempeldialoger</h3>
+<p><strong>Prompt:</strong> <em>«Lag en backup før jeg endrer noe.»</em>
+→ <code>printix_create_backup</code>.</p>
+<p><strong>Prompt:</strong> <em>«Sett opp et demo-miljø med 50 brukere
+og 500 jobber.»</em> → <code>printix_demo_setup_schema</code> (én gang)
++ <code>printix_demo_generate(users=50, jobs=500)</code>.</p>
+<p><strong>Prompt:</strong> <em>«Vis meg alle åpne feature-ønsker.»</em>
+→ <code>printix_list_feature_requests(status="open")</code>.</p>
+<hr />
+<h2 id="11-tips-for-produktive-ai-dialoger">11. Tips for produktive
+AI-dialoger</h2>
+<ol type="1">
+<li><strong>Tenk i mål, ikke verktøy.</strong> <em>«Hvem skriver ut for
+mye?»</em> slår <em>«kall query_top_users med days=30»</em>. Assistenten
+velger riktig verktøy.</li>
+<li><strong>Gi kontekst.</strong> <em>«Marcus fra finans»</em> er
+klarere enn bare <em>«Marcus»</em>.</li>
+<li><strong>Bruk 360°-verktøyene.</strong>
+<code>printix_user_360</code>, <code>printix_get_queue_context</code>,
+<code>printix_site_summary</code> sparer oppfølgingsspørsmål.</li>
+<li><strong>Spør «hvorfor» ved feil.</strong> <em>«Hvorfor feilet
+dette?»</em> trigger <code>printix_explain_error</code> eller
+<code>printix_diagnose_user</code>.</li>
+<li><strong>Dry-run før masseoperasjoner.</strong>
+<code>printix_bulk_import_cards(dry_run=True)</code>,
+<code>printix_resolve_recipients</code> (før
+<code>print_to_recipients</code>),
+<code>printix_sync_entra_group_to_printix(sync_mode="report_only")</code>.</li>
+<li><strong>🆕 Multi-step-arbeidsflyter i én prompt.</strong>
+Assistenten kan kjede verktøykall: <em>«Generer en ukerapport-PDF,
+arkiver i Paperless, og skriv ut en kopi til meg.»</em></li>
+<li><strong>🆕 Stol på auto-konvertering i
+<code>print_*</code>-verktøy.</strong> Standard <code>pdl="auto"</code>
+gjør det rette i 99% av tilfellene (PCL XL farge). Override bare når
+skriverkøen din konverterer serverside (<code>passthrough</code>) eller
+du eksplisitt trenger PostScript.</li>
+<li><strong>🆕 Oppfrisk verktøylisten regelmessig</strong> (se varsel
+øverst). Ellers bruker assistenten utdaterte verktøydefinisjoner.</li>
+</ol>
+<hr />
+<p><em>Dokument generert fra Printix MCP Server v6.8.10 · April 2026 ·
+127 verktøy · <a
+href="https://github.com/mnimtz/Printix-MCP">Repository</a></em></p>
+</body>
+</html>

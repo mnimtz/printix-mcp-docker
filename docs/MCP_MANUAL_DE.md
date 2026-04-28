@@ -2,7 +2,7 @@
 
 > **Version:** 6.8.10 · **Tool-Inventar:** 127 Tools · **Stand:** April 2026
 > **Zielgruppe:** Administratoren, Helpdesk und Power-User, die den Printix MCP Server über einen AI-Assistenten (claude.ai, ChatGPT, Claude Desktop, Cursor o. ä.) ansprechen.
-> **Sprache:** Deutsch · Englische Version siehe `MCP_MANUAL_EN.pdf`
+> **Sprache:** Deutsch · Englisch: `MCP_MANUAL_EN.pdf` · Norsk: `MCP_MANUAL_NO.pdf`
 
 ---
 
