@@ -4596,8 +4596,7 @@ def printix_send_to_user(
         # Historischer Bug — niemals getestet. Wir nutzen jetzt nur die akzeptierten Felder.
         job = c.submit_print_job(printer_id=printer_id, queue_id=queue_id,
                                   title=filename, copies=copies)
-        job_id = job.get("jobId") or job.get("id") or ""
-        upload_url = (job.get("_links") or {}).get("upload", {}).get("href") or job.get("uploadUrl") or ""
+        job_id, upload_url = _extract_job_id_and_upload(job)
         if not (job_id and upload_url):
             return _ok({"error": "submit_print_job missing job_id or upload_url", "raw": job})
 
@@ -4896,6 +4895,43 @@ def printix_natural_query(question: str) -> str:
 # unter der Haube, alles laeuft ueber printix_client.py / capture/plugins/.
 
 
+# ─── v6.8.5 Helpers fuer Submit-Job Response-Extraktion ─────────────────────
+
+def _extract_job_id_and_upload(job: Any) -> tuple[str, str]:
+    """Holt job_id + upload_url aus einer submit_print_job-Response.
+
+    Echte Printix-API-Response (v1.1):
+      {
+        "job":         {"id": "...", "_links": {...}, ...},
+        "_links":      {"uploadCompleted": {...}, "changeOwner": {...}},
+        "uploadLinks": [{"url": "https://...blob..."}],
+        ...
+      }
+
+    Wir akzeptieren auch alternative Shapes (flat 'id', 'jobId',
+    '_links.upload.href') als Fallback — falls Printix die Antwort
+    irgendwann normalisiert.
+    """
+    if not isinstance(job, dict):
+        return "", ""
+    inner = job.get("job") if isinstance(job.get("job"), dict) else {}
+    job_id = (inner.get("id")
+              or inner.get("jobId")
+              or job.get("jobId")
+              or job.get("id")
+              or "")
+    upload_url = ""
+    ul = job.get("uploadLinks")
+    if isinstance(ul, list) and ul and isinstance(ul[0], dict):
+        upload_url = ul[0].get("url", "") or ul[0].get("href", "")
+    if not upload_url:
+        # alternativer Pfad falls API normalisiert wird
+        links = job.get("_links") or {}
+        upload_url = ((links.get("upload") or {}).get("href")
+                      or job.get("uploadUrl") or "")
+    return str(job_id), str(upload_url)
+
+
 # ─── Phase 1a: print_self ────────────────────────────────────────────────────
 
 def _resolve_self_user(c: PrintixClient) -> dict | None:
@@ -5005,8 +5041,7 @@ def printix_print_self(
         # 4) 5-Stage-Submit
         job = c.submit_print_job(printer_id=printer_id, queue_id=queue_id,
                                   title=title or filename, copies=copies)
-        job_id = job.get("jobId") or job.get("id") or ""
-        upload_url = (job.get("_links") or {}).get("upload", {}).get("href") or job.get("uploadUrl") or ""
+        job_id, upload_url = _extract_job_id_and_upload(job)
         if not (job_id and upload_url):
             return _ok({"error": "submit_print_job missing job_id or upload_url", "raw": job})
         c.upload_file_to_url(upload_url, file_bytes, filename=filename)
@@ -5726,9 +5761,7 @@ def printix_print_to_recipients(
             try:
                 job = c.submit_print_job(printer_id=printer_id, queue_id=queue_id,
                                           title=filename, copies=copies)
-                job_id = job.get("jobId") or job.get("id") or ""
-                upload_url = (job.get("_links") or {}).get("upload", {}).get("href") \
-                              or job.get("uploadUrl") or ""
+                job_id, upload_url = _extract_job_id_and_upload(job)
                 if not (job_id and upload_url):
                     results.append({"recipient": email, "ok": False,
                                      "error": "no job_id/upload_url in response"})

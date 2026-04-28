@@ -2,6 +2,17 @@
 
 This project follows [Semantic Versioning](https://semver.org/).
 
+## 7.2.5 (2026-04-28) — submit_print_job: nested response shape
+
+### Fixed
+- **All print tools (print_self / print_to_recipients / session_print + the legacy send_to_user) extracted job_id and upload_url from the wrong fields.** Live probe via `printix_submit_job` showed Printix returns
+  ```
+  {"job":{"id":"...","_links":{...}}, "uploadLinks":[{"url":"https://...blob..."}],
+   "_links":{"uploadCompleted":{...}, "changeOwner":{...}}, "success":true}
+  ```
+  i.e. `job.id` is nested under `"job"` and the upload URL is in `uploadLinks[0].url` (list). The old code read `job.id` flat and `_links.upload.href` — both empty -> "no job_id/upload_url in response".
+- New helper `_extract_job_id_and_upload(job)` with the nested path plus fallbacks for alternate shapes (future-proof). Wired into all 3 new tools + the legacy `send_to_user`.
+
 ## 7.2.4 (2026-04-28) — submit_print_job: invalid parameter `size_bytes`
 
 ### Fixed
