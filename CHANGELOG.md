@@ -2,6 +2,21 @@
 
 This project follows [Semantic Versioning](https://semver.org/).
 
+## 7.2.17 (2026-04-28) — Toggle persistence bug: two more missing links
+
+### Fixed
+Save path was made correct in v7.2.14/15/16 (form fields received, DB column added, `update_tenant_credentials(notify_events=...)` writes the JSON). But the reload still shows the toggle as inactive. User repro confirmed.
+
+Two more bugs along the read path:
+
+1. **`get_tenant_full_by_user_id` doesn't return `notify_events`** — the column is read from the DB row but the field is missing from the final result dict. Template gets `tenant.notify_events = Undefined`, falls back to `["log_error"]` default.
+
+2. **Jinja filter `from_json` is not registered.** Template uses `tenant.notify_events | from_json` — filter doesn't exist, returns Undefined or template error.
+
+### Fix
+- `db.get_tenant_full_by_user_id` now includes `notify_events` with fallback `'["log_error"]'`.
+- `web/app.py` registers the `from_json` filter (None-tolerant: empty / None / already-a-list all handled). 
+
 ## 7.2.16 (2026-04-28) — Settings save: diagnostic log for toggle states
 
 ### Improved
