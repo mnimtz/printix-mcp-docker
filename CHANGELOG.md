@@ -2,6 +2,13 @@
 
 This project follows [Semantic Versioning](https://semver.org/).
 
+## 7.2.15 (2026-04-28) — DB migration: `tenants.notify_events` (was claimed in v7.2.14 but never created)
+
+### Fixed
+- **`no such column: notify_events`** when saving settings in v7.2.14. The previous CHANGELOG entry claimed the column already existed — it did not. First save crashed with sqlite3 OperationalError.
+- **Fix**: idempotent ALTER migration in `init_db()`, in line with the existing alert_recipients / alert_min_level / mail_from_name migrations. Default value `'["log_error"]'` keeps existing tenants compatible with pre-v7.2.x code (`reporting/log_alert_handler` falls back to log_error when notify_events is empty).
+- Runs once on next container start. No data loss.
+
 ## 7.2.14 (2026-04-28) — Settings save: notification toggles were never persisted
 
 ### Fixed

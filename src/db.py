@@ -205,6 +205,16 @@ def init_db() -> None:
         # Leer = kein Default gesetzt → Client zeigt Picker "Ohne Profil".
         if "default_card_profile_id" not in existing_t:
             conn.execute("ALTER TABLE tenants ADD COLUMN default_card_profile_id TEXT NOT NULL DEFAULT ''")
+        # v7.2.15: notify_events — JSON-Array der aktivierten Notification-
+        # Event-Typen (z.B. ["log_error","user_registered"]). Wird vom
+        # /settings POST-Handler aus den 6 Toggle-Checkboxen gebaut. Default
+        # `["log_error"]` matcht das Verhalten der Pre-Migration-Fallbacks
+        # in `reporting/log_alert_handler` und `notify_helper.DEFAULT_EVENTS`.
+        if "notify_events" not in existing_t:
+            conn.execute(
+                "ALTER TABLE tenants ADD COLUMN notify_events TEXT "
+                "NOT NULL DEFAULT '[\"log_error\"]'"
+            )
     # v3.9.1: bearer_token_hash — indexierter SHA-256-Lookup (O(1) statt
     # Full-Table-Scan über alle Tenants bei jedem authenticated Request).
     # Der Hash ist nicht sensitiv: der Bearer-Token hat 48 Bytes Zufall (>384 Bit),
