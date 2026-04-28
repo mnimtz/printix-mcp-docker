@@ -4900,13 +4900,22 @@ def _resolve_self_user(c: PrintixClient) -> dict | None:
     """Loest den aufrufenden MCP-User auf seine Printix-Identitaet.
 
     Strategie:
-    1) `current_tenant` ContextVar liefert tenant.email (das ist die Printix-
-       Login-Email) und tenant.printix_user_id falls schon mal gemappt.
-    2) Wenn nicht gesetzt: list_users mit query=email, erster Match.
-    3) Letzter Fallback: erster USER im Tenant (selten korrekt — nur Demo).
+    1) `current_tenant` ContextVar liefert tenant.email/username (Printix-
+       Login). Falls nicht: tenant.user_id → users-Tabelle joinen.
+    2) Mit Email: list_users mit query=email, exakter Match.
+    3) Wenn `printix_user_id` schon gemappt: get_user(uuid) direkt.
     """
     t = current_tenant.get() or {}
     email = (t.get("email") or t.get("username") or "").strip()
+    # Tenant-Row hat kein email-Feld; ueber user_id auf users-Tabelle joinen.
+    if not email and t.get("user_id"):
+        try:
+            from db import get_user_by_id
+            urow = get_user_by_id(t["user_id"])
+            if urow:
+                email = (urow.get("email") or urow.get("username") or "").strip()
+        except Exception:
+            pass
     pre_id = t.get("printix_user_id") or ""
     if pre_id:
         try:
@@ -5095,6 +5104,11 @@ def printix_send_to_capture(
             return _ok({"error": f"invalid metadata_json: {e}"})
 
         # 4) Plugin laden
+        # WICHTIG: capture.plugins importieren, damit das Auto-Discovery
+        # in capture/plugins/__init__.py laeuft und @register_plugin
+        # alle Plugins im _PLUGINS-Registry eintraegt. Sonst ist
+        # get_plugin_class(...) immer None.
+        import capture.plugins  # noqa: F401  triggers auto-discovery
         from capture.base_plugin import get_plugin_class
         plugin_id = prof.get("plugin_type") or prof.get("plugin_id") or ""
         cls = get_plugin_class(plugin_id)
@@ -5141,6 +5155,8 @@ def printix_describe_capture_profile(profile: str) -> str:
         if not prof:
             return _ok({"error": "capture profile not found", "profile": profile})
 
+        # Auto-discovery anstossen (siehe Kommentar in send_to_capture)
+        import capture.plugins  # noqa: F401
         from capture.base_plugin import get_plugin_class
         plugin_id = prof.get("plugin_type") or prof.get("plugin_id") or ""
         cls = get_plugin_class(plugin_id)
@@ -5221,6 +5237,19 @@ def _group_members_from_obj(c: PrintixClient, group_obj: dict) -> list[dict]:
     return []
 
 
+def _group_id(g: dict) -> str:
+    """Holt die Group-UUID. Printix-API liefert die ID nicht im Body
+    sondern nur als HAL-Link `_links.self.href` — Body-`id` ist meist
+    None. Wir probieren beides der Reihe nach."""
+    if not isinstance(g, dict):
+        return ""
+    return (g.get("id")
+            or _extract_resource_id_from_href(
+                ((g.get("_links") or {}).get("self") or {}).get("href", "")
+            )
+            or "")
+
+
 @mcp.tool()
 def printix_get_group_members(group_id_or_name: str) -> str:
     """
@@ -5247,11 +5276,18 @@ def printix_get_group_members(group_id_or_name: str) -> str:
                        if (g.get("name") or "").lower() == group_id_or_name.lower()]
             if not matches:
                 return _ok({"error": "group not found", "query": group_id_or_name,
-                            "candidates": [{"id": g.get("id"), "name": g.get("name")} for g in groups[:10]]})
-            if len(matches) > 1:
+                            "candidates": [{"id": _group_id(g), "name": g.get("name")} for g in groups[:10]]})
+            # Bei mehreren Treffern mit gleicher Group-UUID = nur ein Eintrag
+            unique_by_id = {}
+            for g in matches:
+                _gid = _group_id(g)
+                if _gid and _gid not in unique_by_id:
+                    unique_by_id[_gid] = g
+            if len(unique_by_id) > 1:
                 return _ok({"error": "ambiguous group name",
-                            "candidates": [{"id": g.get("id"), "name": g.get("name")} for g in matches]})
-            gid = matches[0].get("id") or ""
+                            "candidates": [{"id": _gid, "name": g.get("name")}
+                                              for _gid, g in unique_by_id.items()]})
+            gid = next(iter(unique_by_id.keys()), "") if unique_by_id else _group_id(matches[0])
         if not gid:
             return _ok({"error": "could not resolve group_id"})
 
@@ -5332,7 +5368,7 @@ def printix_get_user_groups(user_email_or_id: str) -> str:
                 "user": {"id": uid, "email": uobj.get("email", email)},
                 "group_count": len(direct_groups),
                 "groups": [
-                    {"id": g.get("id", ""), "name": g.get("name", "")}
+                    {"id": _group_id(g), "name": g.get("name", "")}
                     for g in direct_groups
                 ],
                 "method": "user_object_direct",
@@ -5345,7 +5381,9 @@ def printix_get_user_groups(user_email_or_id: str) -> str:
         matched: list[dict] = []
         for g in groups[:50]:  # safety cap
             try:
-                gid = g.get("id", "")
+                gid = _group_id(g)
+                if not gid:
+                    continue
                 gobj = c.get_group(gid)
                 members = _group_members_from_obj(c, gobj if isinstance(gobj, dict) else {})
                 if any((m.get("id") or "") == uid or
@@ -5424,13 +5462,24 @@ def _resolve_recipients_internal(c: PrintixClient,
                 if not matches:
                     not_found.append(item)
                     continue
-                if len(matches) > 1:
+                # Dedupliziere ueber tatsaechliche Group-UUID (Printix
+                # liefert id=null im Body, ID nur in _links.self.href).
+                unique_by_id: dict[str, dict] = {}
+                for g in matches:
+                    _gid = _group_id(g)
+                    if _gid and _gid not in unique_by_id:
+                        unique_by_id[_gid] = g
+                if len(unique_by_id) > 1:
                     ambiguous.append({
                         "input": item,
-                        "candidates": [{"id": g.get("id"), "name": g.get("name")} for g in matches],
+                        "candidates": [{"id": _gid, "name": g.get("name")}
+                                         for _gid, g in unique_by_id.items()],
                     })
                     continue
-                gid = matches[0].get("id", "")
+                if not unique_by_id:
+                    not_found.append(item + " (no resolvable group_id)")
+                    continue
+                gid = next(iter(unique_by_id.keys()))
                 gobj = c.get_group(gid)
                 members = _group_members_from_obj(c, gobj if isinstance(gobj, dict) else {})
                 if not members:
@@ -6437,6 +6486,14 @@ def printix_quota_guard(
         if not user_email:
             t = current_tenant.get() or {}
             user_email = t.get("email") or t.get("username") or ""
+            if not user_email and t.get("user_id"):
+                try:
+                    from db import get_user_by_id
+                    urow = get_user_by_id(t["user_id"])
+                    if urow:
+                        user_email = urow.get("email") or urow.get("username") or ""
+                except Exception:
+                    pass
         if not user_email:
             return _ok({"error": "user_email required and could not be inferred"})
 
@@ -6507,7 +6564,15 @@ def printix_print_history_natural(
     try:
         if not user_email:
             t = current_tenant.get() or {}
-            user_email = t.get("email") or ""
+            user_email = t.get("email") or t.get("username") or ""
+            if not user_email and t.get("user_id"):
+                try:
+                    from db import get_user_by_id
+                    urow = get_user_by_id(t["user_id"])
+                    if urow:
+                        user_email = urow.get("email") or urow.get("username") or ""
+                except Exception:
+                    pass
         now = datetime.now(timezone.utc)
         w = (when or "today").lower()
         if w in ("today", "heute"):

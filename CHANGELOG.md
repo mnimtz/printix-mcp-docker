@@ -2,6 +2,34 @@
 
 This project follows [Semantic Versioning](https://semver.org/).
 
+## 7.2.2 (2026-04-28) — Workflow-Tools: 3 Bugfixes nach Live-Test
+
+### Fixed
+- **`describe_capture_profile` / `send_to_capture` returned "plugin not found"**
+  even when `plugin_id` was correct. Root cause: `capture/plugins/__init__.py`
+  does auto-discovery on package import via `pkgutil.walk_packages`, but
+  the tools only imported `capture.base_plugin`, not the `capture.plugins`
+  package — the `_PLUGINS` registry stayed empty. Fix: explicit
+  `import capture.plugins` before the `get_plugin_class()` call to trigger
+  discovery.
+- **Group resolvers couldn't find groups (`could not resolve group_id`,
+  `id: null`)**. Printix API returns group-UUIDs only in
+  `_links.self.href`, never as `id` in the body. New `_group_id(g)`
+  helper falls back to `_extract_resource_id_from_href(...)`. Wired into
+  `get_group_members`, `get_user_groups` (fallback path) and
+  `_resolve_recipients_internal`. Duplicates now collapse on the real
+  UUID instead of the always-`None` `id` field.
+- **Self-user resolution** (`print_self`, `quota_guard`,
+  `print_history_natural`) read `tenant.email` — but the tenant row
+  doesn't carry that field. Now falls back to
+  `db.get_user_by_id(tenant.user_id)` and reads `email` from the joined
+  user row.
+
+### Test status
+- Phase A (read-only) fully exercised pre-fix; bugs reproduced.
+- Phase A post-fix: plugin lookup, group resolution, self-user functional.
+- Phase B (write paths) tested in the next round.
+
 ## 7.2.1 (2026-04-28) — Hotfix: NameError 'Any' on import
 
 ### Fixed
