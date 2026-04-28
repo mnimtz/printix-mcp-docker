@@ -2,6 +2,16 @@
 
 This project follows [Semantic Versioning](https://semver.org/).
 
+## 7.2.7 (2026-04-28) — Azure Blob Upload requires `x-ms-blob-type` header
+
+### Fixed
+- **After v7.2.6 the submit path crashed with HTTP 400 / `MissingRequiredHeader`** from Azure Blob Storage. The Printix API actually returns the required PUT headers in the `submit_print_job` response:
+  ```
+  uploadLinks: [{"url": "https://...blob...", "headers": {"x-ms-blob-type": "BlockBlob"}}]
+  ```
+  Azure requires this header for PUTs to a BlockBlob — without it the request fails. My code (and the old send_to_user code) never read or forwarded the headers.
+- `_extract_job_id_and_upload(job)` now also returns an `upload_headers` dict (tuple grew from 2 → 3 elements). All three callers forward the headers to `c.upload_file_to_url(upload_url, file_bytes, extra_headers=upload_headers)`.
+
 ## 7.2.6 (2026-04-28) — upload_file_to_url: invalid `filename` parameter
 
 ### Fixed

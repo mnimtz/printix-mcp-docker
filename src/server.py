@@ -4596,11 +4596,11 @@ def printix_send_to_user(
         # Historischer Bug — niemals getestet. Wir nutzen jetzt nur die akzeptierten Felder.
         job = c.submit_print_job(printer_id=printer_id, queue_id=queue_id,
                                   title=filename, copies=copies)
-        job_id, upload_url = _extract_job_id_and_upload(job)
+        job_id, upload_url, upload_headers = _extract_job_id_and_upload(job)
         if not (job_id and upload_url):
             return _ok({"error": "submit_print_job missing job_id or upload_url", "raw": job})
 
-        c.upload_file_to_url(upload_url, file_bytes)
+        c.upload_file_to_url(upload_url, file_bytes, extra_headers=upload_headers)
         c.complete_upload(job_id)
         c.change_job_owner(job_id, user_email)
         return _ok({
@@ -4897,23 +4897,32 @@ def printix_natural_query(question: str) -> str:
 
 # ─── v6.8.5 Helpers fuer Submit-Job Response-Extraktion ─────────────────────
 
-def _extract_job_id_and_upload(job: Any) -> tuple[str, str]:
-    """Holt job_id + upload_url aus einer submit_print_job-Response.
+def _extract_job_id_and_upload(job: Any) -> tuple[str, str, dict]:
+    """Holt job_id + upload_url + Pflicht-Headers aus einer
+    submit_print_job-Response.
 
     Echte Printix-API-Response (v1.1):
       {
         "job":         {"id": "...", "_links": {...}, ...},
         "_links":      {"uploadCompleted": {...}, "changeOwner": {...}},
-        "uploadLinks": [{"url": "https://...blob..."}],
+        "uploadLinks": [
+          {
+            "url":     "https://prodenv2printjobs.blob.core.windows.net/...",
+            "headers": {"x-ms-blob-type": "BlockBlob"}   ← Pflicht beim PUT
+          }
+        ],
         ...
       }
 
-    Wir akzeptieren auch alternative Shapes (flat 'id', 'jobId',
-    '_links.upload.href') als Fallback — falls Printix die Antwort
-    irgendwann normalisiert.
+    Azure-Blob-Storage verlangt fuer PUT auf einen BlockBlob den Header
+    `x-ms-blob-type: BlockBlob` — sonst HTTP 400 "MissingRequiredHeader".
+    Die API gibt uns die noetigen Headers im Response, wir muessen sie
+    nur an upload_file_to_url(extra_headers=...) durchreichen.
+
+    Returns: (job_id, upload_url, upload_headers).
     """
     if not isinstance(job, dict):
-        return "", ""
+        return "", "", {}
     inner = job.get("job") if isinstance(job.get("job"), dict) else {}
     job_id = (inner.get("id")
               or inner.get("jobId")
@@ -4921,15 +4930,19 @@ def _extract_job_id_and_upload(job: Any) -> tuple[str, str]:
               or job.get("id")
               or "")
     upload_url = ""
+    upload_headers: dict = {}
     ul = job.get("uploadLinks")
     if isinstance(ul, list) and ul and isinstance(ul[0], dict):
         upload_url = ul[0].get("url", "") or ul[0].get("href", "")
+        h = ul[0].get("headers")
+        if isinstance(h, dict):
+            upload_headers = {str(k): str(v) for k, v in h.items()}
     if not upload_url:
         # alternativer Pfad falls API normalisiert wird
         links = job.get("_links") or {}
         upload_url = ((links.get("upload") or {}).get("href")
                       or job.get("uploadUrl") or "")
-    return str(job_id), str(upload_url)
+    return str(job_id), str(upload_url), upload_headers
 
 
 # ─── Phase 1a: print_self ────────────────────────────────────────────────────
@@ -5041,10 +5054,10 @@ def printix_print_self(
         # 4) 5-Stage-Submit
         job = c.submit_print_job(printer_id=printer_id, queue_id=queue_id,
                                   title=title or filename, copies=copies)
-        job_id, upload_url = _extract_job_id_and_upload(job)
+        job_id, upload_url, upload_headers = _extract_job_id_and_upload(job)
         if not (job_id and upload_url):
             return _ok({"error": "submit_print_job missing job_id or upload_url", "raw": job})
-        c.upload_file_to_url(upload_url, file_bytes)
+        c.upload_file_to_url(upload_url, file_bytes, extra_headers=upload_headers)
         c.complete_upload(job_id)
         if my_email:
             try:
@@ -5761,12 +5774,12 @@ def printix_print_to_recipients(
             try:
                 job = c.submit_print_job(printer_id=printer_id, queue_id=queue_id,
                                           title=filename, copies=copies)
-                job_id, upload_url = _extract_job_id_and_upload(job)
+                job_id, upload_url, upload_headers = _extract_job_id_and_upload(job)
                 if not (job_id and upload_url):
                     results.append({"recipient": email, "ok": False,
                                      "error": "no job_id/upload_url in response"})
                     continue
-                c.upload_file_to_url(upload_url, file_bytes)
+                c.upload_file_to_url(upload_url, file_bytes, extra_headers=upload_headers)
                 c.complete_upload(job_id)
                 if email:
                     try:
