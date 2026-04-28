@@ -2,6 +2,11 @@
 
 This project follows [Semantic Versioning](https://semver.org/).
 
+## 7.2.4 (2026-04-28) — submit_print_job: invalid parameter `size_bytes`
+
+### Fixed
+- **`print_self`, `print_to_recipients`, `send_to_user` crashed on submit** with `PrintixClient.submit_print_job() got an unexpected keyword argument 'size_bytes'`. The real client signature has no `size_bytes` — the param was carried forward from an old code generation. Existing `send_to_user` had the same bug for a long time but apparently was never exercised. All three call-sites cleaned up.
+
 ## 7.2.3 (2026-04-28) — Workflow-Tools: send_to_capture asyncio.run error
 
 ### Fixed
