@@ -1896,6 +1896,10 @@ def create_app(session_secret: str) -> FastAPI:
         # v6.8.14: aus den 6 Toggle-Checkboxen ein JSON-Array fuer
         # `tenants.notify_events` bauen. Die DB speichert eine Liste der
         # AKTIVIERTEN Event-Typen — nicht-aktivierte fehlen einfach.
+        # v6.8.16: Diagnose-Logs damit man im Container-Log sieht
+        # welche Toggle-Werte beim POST tatsaechlich ankamen + was gespeichert wird.
+        # Hilft den klassischen Fehler "ich glaube ich hab's angehakt, aber Save
+        # hat's verworfen" eindeutig aufzuloesen.
         import json as _json
         _enabled_events = []
         if notify_log_error:        _enabled_events.append("log_error")
@@ -1905,6 +1909,17 @@ def create_app(session_secret: str) -> FastAPI:
         if notify_report_sent:      _enabled_events.append("report_sent")
         if notify_user_registered:  _enabled_events.append("user_registered")
         notify_events_json = _json.dumps(_enabled_events)
+        logger.info(
+            "settings_post: user=%s — notify-toggle-state vom Form: "
+            "log_error=%r new_printer=%r new_queue=%r new_guest=%r "
+            "report_sent=%r user_registered=%r → notify_events=%s, "
+            "alert_recipients=%r, alert_min_level=%r",
+            user.get("username"),
+            bool(notify_log_error), bool(notify_new_printer),
+            bool(notify_new_queue), bool(notify_new_guest_user),
+            bool(notify_report_sent), bool(notify_user_registered),
+            notify_events_json, alert_recipients, alert_min_level,
+        )
 
         try:
             from db import update_tenant_credentials, get_tenant_full_by_user_id, audit

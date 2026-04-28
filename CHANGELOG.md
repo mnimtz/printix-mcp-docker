@@ -2,6 +2,11 @@
 
 This project follows [Semantic Versioning](https://semver.org/).
 
+## 7.2.16 (2026-04-28) — Settings save: diagnostic log for toggle states
+
+### Improved
+- `settings_post` now logs the exact toggle state that arrived from the browser + what gets persisted as `notify_events`. Enables clear A/B distinction between "user didn't tick" vs "save didn't persist".
+
 ## 7.2.15 (2026-04-28) — DB migration: `tenants.notify_events` (was claimed in v7.2.14 but never created)
 
 ### Fixed
