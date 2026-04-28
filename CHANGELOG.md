@@ -2,6 +2,26 @@
 
 This project follows [Semantic Versioning](https://semver.org/).
 
+## 7.2.11 (2026-04-28) — Tool annotations: 82 read-only tools marked (fewer permission prompts)
+
+### Changed
+- **All 126 MCP tools now have `ToolAnnotations` set** (previously bare = every tool call defensively permission-prompted by clients). Classification:
+
+  | Category | Count | Annotation |
+  |----------|-------|------------|
+  | **Read-only** | **82** | `readOnlyHint=True, idempotentHint=True` |
+  | **Destructive** (delete/offboard/demo_rollback) | **11** | `destructiveHint=True, idempotentHint=True` |
+  | **Write idempotent** | **18** | `idempotentHint=True` |
+  | **Write non-idempotent** (print/send/submit/welcome/generate_id_code/...) | **14** | defaults |
+  | **Open-world** (all) | **126** | `openWorldHint=True` |
+
+- Effect: MCP clients that respect annotations (Cursor, Claude Code, Continue, Anthropic Console) skip the permission prompt for read-only tools. Real destructive tools still prompt.
+
+- claude.ai web UI: not all versions evaluate annotations consistently — for that case the eventual answer is the in-app chat (planned).
+
+### Implementation
+- Refactor script classifies into 4 buckets, rewrites `@mcp.tool()` -> `@mcp.tool(annotations=ToolAnnotations(...))`, adds `from mcp.types import ToolAnnotations` import. Function code unchanged.
+
 ## 7.2.10 (2026-04-28) — Tool-picking optimization phase 2: all 126 MCP tools with structured docstrings
 
 ### Changed

@@ -28,6 +28,7 @@ import logging
 from typing import Any, Optional
 from collections import OrderedDict
 
+from mcp.types import ToolAnnotations
 from mcp.server.fastmcp import FastMCP
 from printix_client import PrintixClient, PrintixAPIError
 from auth import BearerAuthMiddleware, current_tenant
@@ -348,7 +349,7 @@ def _extract_printer_queue_ids(printer_obj: dict) -> tuple[str, str]:
 
 # ─── Status / Info ────────────────────────────────────────────────────────────
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=True))
 def printix_status() -> str:
     """
         Health-Check des MCP-Servers — laeuft alles, ist Tenant erreichbar?
@@ -371,7 +372,7 @@ def printix_status() -> str:
 
 # ─── Drucker / Print Queues ───────────────────────────────────────────────────
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=True))
 def printix_list_printers(search: str = "", page: int = 0, size: int = 50) -> str:
     """
         Listet alle Drucker-Queues. Pro physischem Drucker oft mehrere Queues!
@@ -392,7 +393,7 @@ def printix_list_printers(search: str = "", page: int = 0, size: int = 50) -> st
         return _err(e)
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=True))
 def printix_get_printer(printer_id: str, queue_id: str) -> str:
     """
         Details + Faehigkeiten einer konkreten Drucker-Queue.
@@ -414,7 +415,7 @@ def printix_get_printer(printer_id: str, queue_id: str) -> str:
 
 # ─── Print Jobs ───────────────────────────────────────────────────────────────
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=True))
 def printix_list_jobs(queue_id: str = "", page: int = 0, size: int = 50) -> str:
     """
         Druckjobs auflisten, optional nach Queue gefiltert.
@@ -433,7 +434,7 @@ def printix_list_jobs(queue_id: str = "", page: int = 0, size: int = 50) -> str:
         return _err(e)
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=True))
 def printix_get_job(job_id: str) -> str:
     """
         Details zu einem konkreten Druckjob.
@@ -452,7 +453,7 @@ def printix_get_job(job_id: str) -> str:
         return _err(e)
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=False, openWorldHint=True))
 def printix_submit_job(
     printer_id: str,
     queue_id: str,
@@ -497,7 +498,7 @@ def printix_submit_job(
         return _err(e)
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True, openWorldHint=True))
 def printix_complete_upload(job_id: str) -> str:
     """
         Schritt 3 des Submit-Flows: Upload als komplett markieren, Drucken triggern.
@@ -515,7 +516,7 @@ def printix_complete_upload(job_id: str) -> str:
         return _err(e)
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True, idempotentHint=True, openWorldHint=True))
 def printix_delete_job(job_id: str) -> str:
     """
         Druckjob stornieren / loeschen.
@@ -533,7 +534,7 @@ def printix_delete_job(job_id: str) -> str:
         return _err(e)
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True, openWorldHint=True))
 def printix_change_job_owner(job_id: str, new_owner_email: str) -> str:
     """
         Job-Owner wechseln — Druckjob delegieren an anderen User.
@@ -554,7 +555,7 @@ def printix_change_job_owner(job_id: str, new_owner_email: str) -> str:
 
 # ─── Card Management ──────────────────────────────────────────────────────────
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=True))
 def printix_list_cards(user_id: str) -> str:
     """
         Karten eines bestimmten Users.
@@ -582,7 +583,7 @@ def printix_list_cards(user_id: str) -> str:
         return _err(e)
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=True))
 def printix_search_card(card_id: str = "", card_number: str = "") -> str:
     """
         Karte per ID oder Kartennummer suchen.
@@ -604,7 +605,7 @@ def printix_search_card(card_id: str = "", card_number: str = "") -> str:
         return _ok({"error": str(e)})
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True, openWorldHint=True))
 def printix_register_card(user_id: str, card_number: str) -> str:
     """
         Karte einem User zuordnen (low-level). Card-Number wird base64-encodiert.
@@ -623,7 +624,7 @@ def printix_register_card(user_id: str, card_number: str) -> str:
         return _err(e)
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True, idempotentHint=True, openWorldHint=True))
 def printix_delete_card(card_id: str) -> str:
     """
         Karten-Zuordnung entfernen.
@@ -643,7 +644,7 @@ def printix_delete_card(card_id: str) -> str:
 
 # ─── User Management ──────────────────────────────────────────────────────────
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=True))
 def printix_list_users(
     role: str = "USER",
     query: str = "",
@@ -674,7 +675,7 @@ def printix_list_users(
         return _err(e)
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=True))
 def printix_get_user(user_id: str) -> str:
     """
         Details eines konkreten Users.
@@ -693,7 +694,7 @@ def printix_get_user(user_id: str) -> str:
         return _err(e)
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True, openWorldHint=True))
 def printix_create_user(
     email: str,
     display_name: str,
@@ -722,7 +723,7 @@ def printix_create_user(
         return _err(e)
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True, idempotentHint=True, openWorldHint=True))
 def printix_delete_user(user_id: str) -> str:
     """
         User loeschen (USER oder GUEST_USER).
@@ -740,7 +741,7 @@ def printix_delete_user(user_id: str) -> str:
         return _err(e)
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=False, openWorldHint=True))
 def printix_generate_id_code(user_id: str) -> str:
     """
         Neuen 6-stelligen ID-Code fuer einen User erzeugen (Self-Service-Token).
@@ -760,7 +761,7 @@ def printix_generate_id_code(user_id: str) -> str:
 
 # ─── Groups ───────────────────────────────────────────────────────────────────
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=True))
 def printix_list_groups(search: str = "", page: int = 0, size: int = 50) -> str:
     """
         Alle Gruppen des Tenants.
@@ -780,7 +781,7 @@ def printix_list_groups(search: str = "", page: int = 0, size: int = 50) -> str:
         return _err(e)
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=True))
 def printix_get_group(group_id: str) -> str:
     """
         Details einer Gruppe.
@@ -799,7 +800,7 @@ def printix_get_group(group_id: str) -> str:
         return _err(e)
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True, openWorldHint=True))
 def printix_create_group(name: str, external_id: str) -> str:
     """
         Neue Printix-Gruppe anlegen. VORAUSSETZUNG: Tenant hat Directory-Anbindung (Entra/AD).
@@ -822,7 +823,7 @@ def printix_create_group(name: str, external_id: str) -> str:
         return _err(e)
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True, idempotentHint=True, openWorldHint=True))
 def printix_delete_group(group_id: str) -> str:
     """
         Gruppe loeschen.
@@ -842,7 +843,7 @@ def printix_delete_group(group_id: str) -> str:
 
 # ─── Workstation Monitoring ───────────────────────────────────────────────────
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=True))
 def printix_list_workstations(
     search: str = "",
     site_id: str = "",
@@ -870,7 +871,7 @@ def printix_list_workstations(
         return _err(e)
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=True))
 def printix_get_workstation(workstation_id: str) -> str:
     """
         Details einer Workstation.
@@ -890,7 +891,7 @@ def printix_get_workstation(workstation_id: str) -> str:
 
 # ─── Sites ────────────────────────────────────────────────────────────────────
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=True))
 def printix_list_sites(search: str = "", page: int = 0, size: int = 50) -> str:
     """
         Alle Standorte des Tenants.
@@ -909,7 +910,7 @@ def printix_list_sites(search: str = "", page: int = 0, size: int = 50) -> str:
         return _err(e)
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=True))
 def printix_get_site(site_id: str) -> str:
     """
         Details einer einzelnen Site.
@@ -928,7 +929,7 @@ def printix_get_site(site_id: str) -> str:
         return _err(e)
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True, openWorldHint=True))
 def printix_create_site(
     name: str,
     path: str,
@@ -961,7 +962,7 @@ def printix_create_site(
         return _err(e)
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True, openWorldHint=True))
 def printix_update_site(
     site_id: str,
     name: str = "",
@@ -996,7 +997,7 @@ def printix_update_site(
         return _err(e)
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True, idempotentHint=True, openWorldHint=True))
 def printix_delete_site(site_id: str) -> str:
     """
         Site loeschen — VORSICHT, betrifft auch zugehoerige Networks.
@@ -1016,7 +1017,7 @@ def printix_delete_site(site_id: str) -> str:
 
 # ─── Networks ─────────────────────────────────────────────────────────────────
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=True))
 def printix_list_networks(site_id: str = "", page: int = 0, size: int = 50) -> str:
     """
         Alle Netzwerke, optional nach Site gefiltert.
@@ -1035,7 +1036,7 @@ def printix_list_networks(site_id: str = "", page: int = 0, size: int = 50) -> s
         return _err(e)
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=True))
 def printix_get_network(network_id: str) -> str:
     """
         Details eines einzelnen Netzwerks.
@@ -1054,7 +1055,7 @@ def printix_get_network(network_id: str) -> str:
         return _err(e)
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True, openWorldHint=True))
 def printix_create_network(
     name: str,
     home_office: bool = False,
@@ -1088,7 +1089,7 @@ def printix_create_network(
         return _err(e)
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True, openWorldHint=True))
 def printix_update_network(
     network_id: str,
     name: str = "",
@@ -1122,7 +1123,7 @@ def printix_update_network(
         return _err(e)
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True, idempotentHint=True, openWorldHint=True))
 def printix_delete_network(network_id: str) -> str:
     """
         Netzwerk loeschen.
@@ -1142,7 +1143,7 @@ def printix_delete_network(network_id: str) -> str:
 
 # ─── SNMP Configurations ──────────────────────────────────────────────────────
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=True))
 def printix_list_snmp_configs(page: int = 0, size: int = 50) -> str:
     """
         Alle SNMP-Konfigurationen (v1/v2c/v3) des Tenants.
@@ -1160,7 +1161,7 @@ def printix_list_snmp_configs(page: int = 0, size: int = 50) -> str:
         return _err(e)
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=True))
 def printix_get_snmp_config(config_id: str) -> str:
     """
         Details einer SNMP-Konfiguration.
@@ -1178,7 +1179,7 @@ def printix_get_snmp_config(config_id: str) -> str:
         return _err(e)
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True, openWorldHint=True))
 def printix_create_snmp_config(
     name: str,
     get_community_name: str = "",
@@ -1223,7 +1224,7 @@ def printix_create_snmp_config(
         return _err(e)
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True, idempotentHint=True, openWorldHint=True))
 def printix_delete_snmp_config(config_id: str) -> str:
     """
         SNMP-Konfiguration loeschen.
@@ -1274,7 +1275,7 @@ def _reporting_check() -> str | None:
 
 # ─── Reporting: Datenabfrage-Tools ────────────────────────────────────────────
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=True))
 def printix_reporting_status() -> str:
     """
         Status der Reports-Engine — DB-Verbindung, letzter Nightly-Run, Preset-Count.
@@ -1333,7 +1334,7 @@ def printix_reporting_status() -> str:
     return _ok(status)
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=True))
 def printix_query_print_stats(
     start_date: str,
     end_date: str,
@@ -1367,7 +1368,7 @@ def printix_query_print_stats(
         return _ok({"error": str(e)})
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=True))
 def printix_query_cost_report(
     start_date: str,
     end_date: str,
@@ -1411,7 +1412,7 @@ def printix_query_cost_report(
         return _ok({"error": str(e)})
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=True))
 def printix_query_top_users(
     start_date: str,
     end_date: str,
@@ -1446,7 +1447,7 @@ def printix_query_top_users(
         return _ok({"error": str(e)})
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=True))
 def printix_query_top_printers(
     start_date: str,
     end_date: str,
@@ -1481,7 +1482,7 @@ def printix_query_top_printers(
         return _ok({"error": str(e)})
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=True))
 def printix_query_anomalies(
     start_date: str,
     end_date: str,
@@ -1510,7 +1511,7 @@ def printix_query_anomalies(
         return _ok({"error": str(e)})
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=True))
 def printix_query_trend(
     period1_start: str,
     period1_end: str,
@@ -1547,7 +1548,7 @@ def printix_query_trend(
 
 # ─── Reporting: Template-Management ───────────────────────────────────────────
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True, openWorldHint=True))
 def printix_save_report_template(
     name: str,
     query_type: str,
@@ -1689,7 +1690,7 @@ def _next_run_info(report_id: str) -> str | None:
     return None
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=True))
 def printix_list_report_templates() -> str:
     """
         Alle gespeicherten Report-Templates des Tenants.
@@ -1722,7 +1723,7 @@ def printix_list_report_templates() -> str:
         return _ok({"error": str(e)})
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=True))
 def printix_get_report_template(report_id: str) -> str:
     """
         Details eines gespeicherten Report-Templates.
@@ -1745,7 +1746,7 @@ def printix_get_report_template(report_id: str) -> str:
         return _ok({"error": str(e)})
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True, idempotentHint=True, openWorldHint=True))
 def printix_delete_report_template(report_id: str) -> str:
     """
         Report-Template loeschen.
@@ -1768,7 +1769,7 @@ def printix_delete_report_template(report_id: str) -> str:
         return _ok({"error": str(e)})
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=False, openWorldHint=True))
 def printix_run_report_now(report_id: str = "", report_name: str = "") -> str:
     """
         Template einmalig ausfuehren und sofort zustellen (Test-Run oder Ad-hoc).
@@ -1823,7 +1824,7 @@ def printix_run_report_now(report_id: str = "", report_name: str = "") -> str:
 # ─── Reporting: Schedule-Management ───────────────────────────────────────────
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=False, openWorldHint=True))
 def printix_send_test_email(recipient: str) -> str:
     """
         Schickt eine Test-Mail an eine Adresse — prueft SMTP/Resend-Konfig.
@@ -1852,7 +1853,7 @@ def printix_send_test_email(recipient: str) -> str:
         return _ok({"error": str(e)})
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=False, openWorldHint=True))
 def printix_schedule_report(
     report_id: str,
     frequency: str,
@@ -1909,7 +1910,7 @@ def printix_schedule_report(
         return _ok({"error": str(e)})
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=True))
 def printix_list_schedules() -> str:
     """
         Alle aktiven Schedules.
@@ -1930,7 +1931,7 @@ def printix_list_schedules() -> str:
         return _ok({"error": str(e)})
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True, idempotentHint=True, openWorldHint=True))
 def printix_delete_schedule(report_id: str) -> str:
     """
         Schedule entfernen — Template bleibt.
@@ -1966,7 +1967,7 @@ def printix_delete_schedule(report_id: str) -> str:
         return _ok({"error": str(e)})
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True, openWorldHint=True))
 def printix_update_schedule(
     report_id: str,
     frequency: str = "",
@@ -2028,7 +2029,7 @@ def printix_update_schedule(
 
 # ─── Reporting: Design & Preview ─────────────────────────────────────────────
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=True))
 def printix_list_design_options() -> str:
     """
         Verfuegbare Farbschemata, Logos, Layout-Varianten fuer Reports.
@@ -2086,7 +2087,7 @@ def printix_list_design_options() -> str:
     })
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=True))
 def printix_preview_report(
     query_type: str,
     start_date: str = "last_month_start",
@@ -2238,7 +2239,7 @@ def printix_preview_report(
     })
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=True))
 def printix_query_any(
     query_type: str,
     start_date: str = "last_month_start",
@@ -2309,7 +2310,7 @@ def _demo_check() -> str | None:
     return None
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True, openWorldHint=True))
 def printix_demo_setup_schema() -> str:
     """
         Erzeugt Demo-Schema in der Reports-DB (Sandbox-Tabellen) — einmaliger Setup.
@@ -2330,7 +2331,7 @@ def printix_demo_setup_schema() -> str:
         return _ok({"error": str(e)})
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=False, openWorldHint=True))
 def printix_demo_generate(
     user_count: int = 15,
     printer_count: int = 6,
@@ -2373,7 +2374,7 @@ def printix_demo_generate(
         return _ok({"error": str(e)})
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True, idempotentHint=True, openWorldHint=True))
 def printix_demo_rollback(demo_tag: str) -> str:
     """
         Entfernt Demo-Daten anhand des demo_tag — wieder cleane Datenbank.
@@ -2397,7 +2398,7 @@ def printix_demo_rollback(demo_tag: str) -> str:
         return _ok({"error": str(e)})
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=True))
 def printix_demo_status() -> str:
     """
         Welche Demo-Sets sind aktuell aktiv?
@@ -2427,7 +2428,7 @@ def _get_card_tenant_id() -> str:
     return t.get("id", "") if t else ""
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=True))
 def printix_list_card_profiles() -> str:
     """
         Alle Card-Profile (Transform-Regeln) des Tenants.
@@ -2448,7 +2449,7 @@ def printix_list_card_profiles() -> str:
         return _ok({"error": str(e)})
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=True))
 def printix_get_card_profile(profile_id: str) -> str:
     """
         Details eines Card-Profils inkl. Transform-Regeln.
@@ -2471,7 +2472,7 @@ def printix_get_card_profile(profile_id: str) -> str:
         return _ok({"error": str(e)})
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=True))
 def printix_search_card_mappings(search: str = "", printix_user_id: str = "") -> str:
     """
         Lokale Card-Mapping-DB durchsuchen.
@@ -2493,7 +2494,7 @@ def printix_search_card_mappings(search: str = "", printix_user_id: str = "") ->
         return _ok({"error": str(e)})
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=True))
 def printix_get_card_details(card_id: str = "", card_number: str = "") -> str:
     """
         Karte + lokales Mapping + Owner-Details in einem Block.
@@ -2523,7 +2524,7 @@ def printix_get_card_details(card_id: str = "", card_number: str = "") -> str:
         return _ok({"error": str(e)})
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=True))
 def printix_decode_card_value(card_value: str) -> str:
     """
         Raw-Kartenwert dekodieren (Base64, Hex, YSoft/Konica-Varianten).
@@ -2543,7 +2544,7 @@ def printix_decode_card_value(card_value: str) -> str:
         return _ok({"error": str(e)})
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=True))
 def printix_transform_card_value(
     card_value: str,
     profile_id: str = "",
@@ -2585,7 +2586,7 @@ def printix_transform_card_value(
         return _ok({"error": str(e)})
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=True))
 def printix_get_user_card_context(user_id: str) -> str:
     """
         User + alle seine Karten + verwendete Profile in einem Block.
@@ -2629,7 +2630,7 @@ def printix_get_user_card_context(user_id: str) -> str:
 
 # ─── Audit Log & Feature Requests (Local SQLite) ────────────────────────────
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=True))
 def printix_query_audit_log(
     start_date: str = "",
     end_date: str = "",
@@ -2675,7 +2676,7 @@ def printix_query_audit_log(
         return _ok({"error": str(e)})
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=True))
 def printix_list_feature_requests(status: str = "", limit: int = 100) -> str:
     """
         Ticketsystem fuer Feature-Wuensche (interner Tracker).
@@ -2696,7 +2697,7 @@ def printix_list_feature_requests(status: str = "", limit: int = 100) -> str:
         return _ok({"error": str(e)})
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=True))
 def printix_get_feature_request(ticket_id: int) -> str:
     """
         Details eines Feature-Request-Tickets.
@@ -2719,7 +2720,7 @@ def printix_get_feature_request(ticket_id: int) -> str:
 
 # ─── Backup Management ──────────────────────────────────────────────────────
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=True))
 def printix_list_backups() -> str:
     """
         Alle vorhandenen Backups (DB + Konfig + Metadaten).
@@ -2738,7 +2739,7 @@ def printix_list_backups() -> str:
         return _ok({"error": str(e)})
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True, openWorldHint=True))
 def printix_create_backup() -> str:
     """
         Erzeugt ein Backup-Zip mit DB + Verschluesselungs-Key + Konfiguration.
@@ -2759,7 +2760,7 @@ def printix_create_backup() -> str:
 
 # ─── Capture Profile Management ─────────────────────────────────────────────
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=True))
 def printix_list_capture_profiles() -> str:
     """
         Alle Capture-Profile (Scan-Weiterleitungs-Regeln) des Tenants.
@@ -2798,7 +2799,7 @@ def printix_list_capture_profiles() -> str:
         return _ok({"error": str(e)})
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=True))
 def printix_capture_status() -> str:
     """
         Server-Status der Capture-Pipeline: Port, Webhook-URL, verfuegbare Plugins.
@@ -2875,7 +2876,7 @@ def printix_capture_status() -> str:
 
 # ─── Site & Network: Aggregierte Ansichten ───────────────────────────────────
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=True))
 def printix_site_summary(site_id: str) -> str:
     """
         Aggregierte Sicht: Site + Networks + Drucker in einem Block.
@@ -2932,7 +2933,7 @@ def printix_site_summary(site_id: str) -> str:
         return _ok({"error": str(e)})
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=True))
 def printix_network_printers(network_id: str = "", site_id: str = "") -> str:
     """
         Alle Drucker eines Netzwerks oder einer Site (mit Strategy-Fallbacks).
@@ -3126,7 +3127,7 @@ def printix_network_printers(network_id: str = "", site_id: str = "") -> str:
         return _ok({"error": str(e)})
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=True))
 def printix_get_queue_context(queue_id: str, printer_id: str = "") -> str:
     """
         Aggregierte Sicht: Queue + Drucker-Objekt + letzte Jobs in einem Aufruf.
@@ -3183,7 +3184,7 @@ def printix_get_queue_context(queue_id: str, printer_id: str = "") -> str:
         return _ok({"error": str(e)})
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=True))
 def printix_get_network_context(network_id: str) -> str:
     """
         Aggregierte Sicht: Network + Site + Drucker in einem Block.
@@ -3246,7 +3247,7 @@ def printix_get_network_context(network_id: str) -> str:
         return _ok({"error": str(e)})
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=True))
 def printix_get_snmp_context(config_id: str) -> str:
     """
         Aggregierte Sicht: SNMP-Config + Drucker die sie nutzen + Network.
@@ -3396,7 +3397,7 @@ def _collect_all_users(c: PrintixClient) -> list[dict]:
 
 # ─── Cross-Source Insights ────────────────────────────────────────────────────
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=True))
 def printix_find_user(query: str) -> str:
     """
         User-Fuzzy-Suche per Email-Fragment oder Name.
@@ -3423,7 +3424,7 @@ def printix_find_user(query: str) -> str:
         return _ok({"error": str(e)})
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=True))
 def printix_user_360(query: str) -> str:
     """
         360-Grad-Sicht eines Users: Stammdaten + Karten + Gruppen + Workstations + letzte Jobs.
@@ -3488,7 +3489,7 @@ def printix_user_360(query: str) -> str:
         return _ok({"error": str(e)})
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=True))
 def printix_printer_health_report() -> str:
     """
         Drucker-Status grupiert: online / offline / Fehlerzustaende.
@@ -3532,7 +3533,7 @@ def printix_printer_health_report() -> str:
         return _ok({"error": str(e)})
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=True))
 def printix_tenant_summary() -> str:
     """
         Kompakter Inventar-Overview: Drucker / User / Sites / Cards / offene Jobs.
@@ -3624,7 +3625,7 @@ def printix_tenant_summary() -> str:
         return _ok({"error": str(e)})
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=True))
 def printix_diagnose_user(email: str) -> str:
     """
         Helpdesk-Diagnose: warum funktioniert was bei User X nicht?
@@ -3717,7 +3718,7 @@ def printix_diagnose_user(email: str) -> str:
 
 # ─── Card Management (tenant-wide) ───────────────────────────────────────────
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=True))
 def printix_list_cards_by_tenant(status: str = "all") -> str:
     """
         Alle Karten des Tenants — quer ueber alle User.
@@ -3768,7 +3769,7 @@ def printix_list_cards_by_tenant(status: str = "all") -> str:
         return _ok({"error": str(e)})
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=True))
 def printix_find_orphaned_mappings() -> str:
     """
         Lokale Card-Mappings ohne zugehoerigen Printix-User — Cleanup-Kandidaten.
@@ -3814,7 +3815,7 @@ def printix_find_orphaned_mappings() -> str:
         return _ok({"error": str(e)})
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=False, openWorldHint=True))
 def printix_bulk_import_cards(
     csv_data: str,
     profile_id: str = "",
@@ -3895,7 +3896,7 @@ def printix_bulk_import_cards(
         return _ok({"error": str(e)})
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=True))
 def printix_suggest_profile(sample_uid: str) -> str:
     """
         Schlaegt anhand einer Beispiel-UID das passende Card-Profil vor (Top-10-Ranking).
@@ -3954,7 +3955,7 @@ def printix_suggest_profile(sample_uid: str) -> str:
         return _ok({"error": str(e)})
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=True))
 def printix_card_audit(user_email: str) -> str:
     """
         Audit-Trail aller Karten-Aenderungen fuer einen User.
@@ -4011,7 +4012,7 @@ def printix_card_audit(user_email: str) -> str:
 
 # ─── Print Jobs & Reporting (High-Level Wrapper) ─────────────────────────────
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=True))
 def printix_top_printers(days: int = 7, limit: int = 10, metric: str = "pages") -> str:
     """
         Top-N Drucker — Kurzform-Wrapper.
@@ -4039,7 +4040,7 @@ def printix_top_printers(days: int = 7, limit: int = 10, metric: str = "pages") 
         return _ok({"error": str(e)})
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=True))
 def printix_top_users(days: int = 7, limit: int = 10, metric: str = "pages") -> str:
     """
         Top-N User — Kurzform-Wrapper.
@@ -4067,7 +4068,7 @@ def printix_top_users(days: int = 7, limit: int = 10, metric: str = "pages") -> 
         return _ok({"error": str(e)})
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=True))
 def printix_jobs_stuck(minutes: int = 15) -> str:
     """
         Jobs die laenger als N Minuten haengen — Helpdesk-Diagnose.
@@ -4111,7 +4112,7 @@ def printix_jobs_stuck(minutes: int = 15) -> str:
         return _ok({"error": str(e)})
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=True))
 def printix_print_trends(group_by: str = "day", days: int = 30) -> str:
     """
         Druck-Trend nach Tag/Woche/Monat — Kurzform.
@@ -4140,7 +4141,7 @@ def printix_print_trends(group_by: str = "day", days: int = 30) -> str:
         return _ok({"error": str(e)})
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=True))
 def printix_cost_by_department(
     department_field: str = "department",
     days: int = 30,
@@ -4204,7 +4205,7 @@ def printix_cost_by_department(
         return _ok({"error": str(e)})
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=True))
 def printix_compare_periods(
     days_a: int = 30,
     days_b: int = 30,
@@ -4267,7 +4268,7 @@ def printix_compare_periods(
 
 # ─── Access & Governance ─────────────────────────────────────────────────────
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=True))
 def printix_list_admins() -> str:
     """
         Alle Admins des Tenants.
@@ -4301,7 +4302,7 @@ def printix_list_admins() -> str:
         return _ok({"error": str(e)})
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=True))
 def printix_permission_matrix() -> str:
     """
         Matrix User × Berechtigungen — wer darf was?
@@ -4346,7 +4347,7 @@ def printix_permission_matrix() -> str:
         return _ok({"error": str(e)})
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=True))
 def printix_inactive_users(days: int = 90) -> str:
     """
         User die seit N Tagen nicht mehr gedruckt haben — Offboarding-Kandidaten.
@@ -4389,7 +4390,7 @@ def printix_inactive_users(days: int = 90) -> str:
         return _ok({"error": str(e)})
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=True))
 def printix_sso_status(email: str) -> str:
     """
         Prueft SSO/Entra-Mapping fuer eine User-Email.
@@ -4439,7 +4440,7 @@ _ERROR_KB = {
 }
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=True))
 def printix_explain_error(code_or_message: str) -> str:
     """
         Uebersetzt einen Printix-Fehlercode oder Error-Message in Klartext + Loesungsvorschlag.
@@ -4466,7 +4467,7 @@ def printix_explain_error(code_or_message: str) -> str:
     return _ok({"input": code_or_message, "matches": matches})
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=True))
 def printix_suggest_next_action(context: str) -> str:
     """
         Schlaegt anhand eines Kontext-Strings einen sinnvollen naechsten Schritt vor.
@@ -4500,7 +4501,7 @@ def printix_suggest_next_action(context: str) -> str:
     return _ok({"context": context, "suggested_actions": suggestions})
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=False, openWorldHint=True))
 def printix_send_to_user(
     user_email: str,
     file_url: str = "",
@@ -4593,7 +4594,7 @@ def printix_send_to_user(
         return _ok({"error": str(e)})
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True, openWorldHint=True))
 def printix_onboard_user(
     email: str,
     display_name: str,
@@ -4639,7 +4640,7 @@ def printix_onboard_user(
         return _ok({"error": str(e)})
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True, idempotentHint=True, openWorldHint=True))
 def printix_offboard_user(email: str, force: bool = False) -> str:
     """
         Leaver-Flow: alle Karten loeschen + offene Jobs canceln + User deaktivieren/loeschen.
@@ -4708,7 +4709,7 @@ def printix_offboard_user(email: str, force: bool = False) -> str:
 
 # ─── Quality of Life ─────────────────────────────────────────────────────────
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=True))
 def printix_whoami() -> str:
     """
         Aktueller Tenant + eigener Printix-User + Admin-Status.
@@ -4740,7 +4741,7 @@ def printix_whoami() -> str:
         return _ok({"error": str(e)})
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=False, openWorldHint=True))
 def printix_quick_print(recipient_email: str, file_url: str, filename: str = "document.pdf") -> str:
     """
         Single-shot-Print: URL + Empfaenger → fertig (Wrapper um send_to_user).
@@ -4758,7 +4759,7 @@ def printix_quick_print(recipient_email: str, file_url: str, filename: str = "do
                                  filename=filename, target_printer="", copies=1)
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=True))
 def printix_resolve_printer(name_or_location: str) -> str:
     """
         Findet besten Drucker per Token-Fuzzy-Match (Name + Location + Vendor + Site).
@@ -4836,7 +4837,7 @@ def printix_resolve_printer(name_or_location: str) -> str:
         return _ok({"error": str(e)})
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=True))
 def printix_natural_query(question: str) -> str:
     """
         Nimmt natuerlich-sprachige Frage und schlaegt das passende Reports-Tool vor.
@@ -4976,7 +4977,7 @@ def _resolve_self_user(c: PrintixClient) -> dict | None:
     return None
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=False, openWorldHint=True))
 def printix_print_self(
     file_b64: str,
     filename: str,
@@ -5131,7 +5132,7 @@ def _resolve_capture_profile(profile: str, tenant_id: str) -> dict | None:
     return None
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=False, openWorldHint=True))
 async def printix_send_to_capture(
     profile: str,
     file_b64: str,
@@ -5234,7 +5235,7 @@ async def printix_send_to_capture(
         return _ok({"error": str(e)})
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=True))
 def printix_describe_capture_profile(profile: str) -> str:
     """
         Zeigt das Plugin-Schema eines Capture-Profils — welche metadata-Felder
@@ -5365,7 +5366,7 @@ def _group_id(g: dict) -> str:
             or "")
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=True))
 def printix_get_group_members(group_id_or_name: str) -> str:
     """
         Listet alle Mitglieder einer Printix-Gruppe (per UUID oder Anzeigename,
@@ -5454,7 +5455,7 @@ def printix_get_group_members(group_id_or_name: str) -> str:
         return _ok({"error": str(e)})
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=True))
 def printix_get_user_groups(user_email_or_id: str) -> str:
     """
         Reverse-Lookup: in welchen Gruppen ist User X Mitglied?
@@ -5767,7 +5768,7 @@ def _entra_group_members(group_oid: str) -> list[dict] | None:
     return members
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=True))
 def printix_resolve_recipients(recipients_csv: str) -> str:
     """
         Diagnose-Tool: loest eine gemischte Empfaengerliste zu einer flachen
@@ -5820,7 +5821,7 @@ def printix_resolve_recipients(recipients_csv: str) -> str:
 
 # ─── Phase 2c: print_to_recipients ───────────────────────────────────────────
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=False, openWorldHint=True))
 def printix_print_to_recipients(
     recipients_csv: str,
     file_b64: str,
@@ -6208,7 +6209,7 @@ def _ensure_timebomb_scheduler() -> None:
 
 # ─── Phase 3b: welcome_user + list/defuse timebombs ──────────────────────────
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=False, openWorldHint=True))
 def printix_welcome_user(
     user_email: str,
     template: str = "default",
@@ -6352,7 +6353,7 @@ def printix_welcome_user(
         return _ok({"error": str(e)})
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=True))
 def printix_list_timebombs(
     user_email: str = "",
     status: str = "pending",
@@ -6405,7 +6406,7 @@ def printix_list_timebombs(
         return _ok({"error": str(e)})
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True, openWorldHint=True))
 def printix_defuse_timebomb(bomb_id: int, reason: str = "manual") -> str:
     """
         Markiert eine geplante Time-Bomb als "defused" (deaktiviert), ohne ihre
@@ -6454,7 +6455,7 @@ def printix_defuse_timebomb(bomb_id: int, reason: str = "manual") -> str:
 
 # ─── Phase 3c: sync_entra_group_to_printix ───────────────────────────────────
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True, openWorldHint=True))
 def printix_sync_entra_group_to_printix(
     entra_group_oid: str,
     printix_group_id: str = "",
@@ -6549,7 +6550,7 @@ def printix_sync_entra_group_to_printix(
 
 # ─── Bonus: B1-B5 ────────────────────────────────────────────────────────────
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True, openWorldHint=True))
 def printix_card_enrol_assist(
     user_email: str,
     card_uid_raw: str,
@@ -6635,7 +6636,7 @@ def printix_card_enrol_assist(
         return _ok({"error": str(e)})
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=True))
 def printix_describe_user_print_pattern(user_email: str, days: int = 30) -> str:
     """
         Profiliert das Druck-Verhalten eines Users: Top-Drucker, Farb-Quote,
@@ -6708,7 +6709,7 @@ def printix_describe_user_print_pattern(user_email: str, days: int = 30) -> str:
         return _ok({"error": str(e)})
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=False, openWorldHint=True))
 def printix_session_print(
     user_email: str,
     file_b64: str,
@@ -6791,7 +6792,7 @@ def printix_session_print(
         return _ok({"error": str(e)})
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=True))
 def printix_quota_guard(
     user_email: str = "",
     window_minutes: int = 5,
@@ -6883,7 +6884,7 @@ def printix_quota_guard(
         return _ok({"error": str(e)})
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=True))
 def printix_print_history_natural(
     user_email: str = "",
     when: str = "today",
