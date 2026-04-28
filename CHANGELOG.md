@@ -2,6 +2,83 @@
 
 This project follows [Semantic Versioning](https://semver.org/).
 
+## 7.2.0 — 2026-04-27
+
+Workflow-Tools layer ported from the HA-Addon side (v6.8.0). Tool
+inventory grows from 111 → 127. No breaking changes; existing tools
+and endpoints are untouched.
+
+### Added — Phase 1: Native File Ingest
+
+- `printix_print_self(file_b64, filename, ...)` — AI generates a PDF
+  inline, the tool drops it into the calling MCP-user's own
+  secure-print queue. Self-user resolved from `current_tenant.email`.
+- `printix_send_to_capture(profile, file_b64, filename, metadata_json)`
+  — file straight into a capture pipeline (same code path as a
+  webhook), bypassing the Azure Blob round-trip. Calls
+  `plugin.ingest_bytes()` directly.
+- `printix_describe_capture_profile(profile)` — self-describing,
+  returns the plugin's `config_schema`, current config (secrets
+  masked), and which metadata fields are accepted.
+
+### Added — Phase 2: Multi-Recipient Print
+
+- `printix_get_group_members(group_id_or_name)` — follows
+  HAL `_links.users`, falls back to direct fields.
+- `printix_get_user_groups(user_email_or_id)` — reverse lookup.
+- `printix_resolve_recipients(recipients_csv)` — diagnose tool,
+  resolves `alice@firma.de`, `group:Marketing`, `entra:<oid>`,
+  `upn:...` to a flat printix-user list.
+- `printix_print_to_recipients(recipients_csv, file_b64, filename,
+  ...)` — per-recipient secure-print jobs (`individual` mode).
+  `shared_pickup` intentionally omitted.
+
+### Added — Phase 3: Onboarding + Time-Bomb Engine
+
+- `printix_welcome_user(user_email, ...)` — personalized welcome PDF
+  + scheduled reminders (`card_enrol_7d`, `first_print_reminder_3d`,
+  `card_enrol_30d`).
+- New table `user_timebombs` (idempotent CREATE on first call) with
+  hourly APScheduler tick (cron `minute=7`) that re-checks the
+  condition and auto-defuses if it's no longer true.
+- Embedded `_generate_reminder_pdf_b64` — dependency-free A4 mini-PDF
+  (~700 bytes) for reminders.
+- `printix_list_timebombs(user_email, status)` and
+  `printix_defuse_timebomb(bomb_id, reason)` for admin-side control.
+- `printix_sync_entra_group_to_printix(entra_group_oid, ...)` —
+  pulls Entra group members via Graph (App permission
+  `Group.Read.All`), shows diff to printix group. Default
+  `sync_mode="report_only"`; additive/mirror are wired but write
+  paths are `not implemented` until the Printix public API exposes
+  an add-member endpoint.
+
+### Added — Bonus
+
+- `printix_card_enrol_assist(user_email, card_uid_raw, profile_id)`
+  — runs UID through `apply_profile_transform` and registers via
+  `register_card`.
+- `printix_describe_user_print_pattern(user_email, days)` — top
+  printers, color quote, average pages. SQL preset first, falls
+  back to API job scan.
+- `printix_session_print(user_email, file_b64, filename,
+  expires_in_hours)` — submit + auto-expire timebomb.
+- `printix_quota_guard(user_email, window_minutes, max_jobs)` —
+  pre-flight burst-check, returns `allow|throttle|block` verdict.
+- `printix_print_history_natural(user_email, when, limit)` —
+  natural-language date windows: `today`, `yesterday`, `this_week`,
+  `last_month`, `Q1`-`Q4`, `7d`.
+
+### DB Migration
+
+Idempotent: `user_timebombs` is created via `_ensure_timebomb_table()`
+on first tool call. No existing tables touched.
+
+### Scheduler
+
+`reporting.scheduler._scheduler` gains a new cron job `timebomb_tick`
+(every hour, minute 7) when running. Idempotent — registered once on
+first timebomb-related tool call.
+
 ## 7.1.4 — 2026-04-27
 
 iOS Entra login migrated from Device Code Flow to native Authorization

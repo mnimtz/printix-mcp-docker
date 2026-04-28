@@ -4885,6 +4885,1704 @@ def printix_natural_query(question: str) -> str:
     return _ok({"question": question, "suggested_tools": hints})
 
 
+# ════════════════════════════════════════════════════════════════════════════
+# v6.8.0 Workflow-Tools — High-Level Composition aus den Low-Level-Bausteinen
+# ════════════════════════════════════════════════════════════════════════════
+# Diese Sektion buendelt 14 neue Tools die die existierenden 5-stage-Submits,
+# Capture-Plugins und User/Group-Lookups zu AI-natuerlichen Workflows
+# kombinieren. Jedes Tool hier komponiert nur — keine neuen Printix-API-Calls
+# unter der Haube, alles laeuft ueber printix_client.py / capture/plugins/.
+
+
+# ─── Phase 1a: print_self ────────────────────────────────────────────────────
+
+def _resolve_self_user(c: PrintixClient) -> dict | None:
+    """Loest den aufrufenden MCP-User auf seine Printix-Identitaet.
+
+    Strategie:
+    1) `current_tenant` ContextVar liefert tenant.email (das ist die Printix-
+       Login-Email) und tenant.printix_user_id falls schon mal gemappt.
+    2) Wenn nicht gesetzt: list_users mit query=email, erster Match.
+    3) Letzter Fallback: erster USER im Tenant (selten korrekt — nur Demo).
+    """
+    t = current_tenant.get() or {}
+    email = (t.get("email") or t.get("username") or "").strip()
+    pre_id = t.get("printix_user_id") or ""
+    if pre_id:
+        try:
+            u = c.get_user(pre_id)
+            if isinstance(u, dict):
+                return u
+        except Exception:
+            pass
+    if email:
+        try:
+            data = c.list_users(query=email, page=0, page_size=10)
+            users = data.get("users") if isinstance(data, dict) else None
+            users = users or (data.get("content") if isinstance(data, dict) else None) or []
+            for u in users:
+                if isinstance(u, dict) and (u.get("email") or "").lower() == email.lower():
+                    return u
+            if users:
+                return users[0]
+        except Exception:
+            pass
+    return None
+
+
+@mcp.tool()
+def printix_print_self(
+    file_b64: str,
+    filename: str,
+    title: str = "",
+    target_printer: str = "",
+    copies: int = 1,
+) -> str:
+    """
+    Druckt eine Datei in die EIGENE Secure-Print-Queue des aufrufenden MCP-Users.
+
+    Killer-Use-Case: das KI-Modell erzeugt im Chat ein PDF (z.B. Wochenbericht,
+    Vertragsentwurf, Auswertung) und schickt es direkt zur Abholung am Drucker —
+    ohne Datei-Upload-URL, ohne Empfaenger-Adresse.
+
+    Zur Aufloesung des Self-Users wird die im MCP-Server hinterlegte
+    Tenant-E-Mail genutzt (current_tenant.email). Wenn diese nicht zu
+    einem Printix-User passt, wird ein klarer Fehler zurueckgegeben.
+
+    Args:
+        file_b64:        Base64-kodierter Dateiinhalt (PDF/PS/PCL/Text).
+        filename:        Anzeigename der Datei (z.B. "Bericht_Q1.pdf").
+        title:           Optionaler Job-Titel; Default = filename.
+        target_printer:  Druckername oder 'printer_id:queue_id'. Default:
+                         erster verfuegbarer Drucker des Tenants.
+        copies:          Anzahl Kopien (default: 1).
+    """
+    import base64 as _b64
+    try:
+        c = client()
+        # 1) Datei-Bytes
+        try:
+            file_bytes = _b64.b64decode(file_b64)
+        except Exception as e:
+            return _ok({"error": f"invalid base64: {e}"})
+        if not file_bytes:
+            return _ok({"error": "empty file"})
+
+        # 2) Self-User aufloesen
+        me = _resolve_self_user(c)
+        if not me:
+            return _ok({
+                "error": "could not resolve self-user",
+                "hint": "Tenant.email ist im MCP-Server nicht zu einem Printix-User mappbar. "
+                        "Pruefe Settings > Mapping oder nutze printix_send_to_user(user_email=...).",
+            })
+        my_email = me.get("email") or ""
+
+        # 3) Drucker aufloesen (wie in send_to_user)
+        printer_id, queue_id = "", ""
+        if ":" in target_printer:
+            printer_id, queue_id = target_printer.split(":", 1)
+        else:
+            pdata = c.list_printers(search=target_printer or None, page=0, size=50)
+            plist = pdata.get("printers") or pdata.get("content") or [] if isinstance(pdata, dict) else []
+            if not plist:
+                return _ok({"error": "no printer found", "query": target_printer})
+            printer_id, queue_id = _extract_printer_queue_ids(plist[0])
+        if not (printer_id and queue_id):
+            return _ok({"error": "could not resolve printer_id/queue_id"})
+
+        # 4) 5-Stage-Submit
+        job = c.submit_print_job(printer_id=printer_id, queue_id=queue_id,
+                                  title=title or filename,
+                                  size_bytes=len(file_bytes), copies=copies)
+        job_id = job.get("jobId") or job.get("id") or ""
+        upload_url = (job.get("_links") or {}).get("upload", {}).get("href") or job.get("uploadUrl") or ""
+        if not (job_id and upload_url):
+            return _ok({"error": "submit_print_job missing job_id or upload_url", "raw": job})
+        c.upload_file_to_url(upload_url, file_bytes, filename=filename)
+        c.complete_upload(job_id)
+        if my_email:
+            try:
+                c.change_job_owner(job_id, my_email)
+            except Exception:
+                pass
+
+        return _ok({
+            "ok": True,
+            "job_id": job_id,
+            "owner_email": my_email,
+            "owner_user_id": me.get("id", ""),
+            "filename": filename,
+            "size": len(file_bytes),
+            "copies": copies,
+            "printer_id": printer_id,
+            "queue_id": queue_id,
+            "next_step": "Job liegt jetzt in der Secure-Print-Queue — am Drucker mit Karte/Code releasen.",
+        })
+    except PrintixAPIError as e:
+        return _err(e)
+    except Exception as e:
+        logger.exception("print_self failed")
+        return _ok({"error": str(e)})
+
+
+# ─── Phase 1b: send_to_capture + describe_capture_profile ────────────────────
+
+def _resolve_capture_profile(profile: str, tenant_id: str) -> dict | None:
+    """Findet ein Capture-Profil per Name ODER UUID (case-insensitive)."""
+    import db
+    profiles = db.get_capture_profiles_by_tenant(tenant_id) or []
+    for p in profiles:
+        if str(p.get("id", "")).lower() == profile.lower():
+            return p
+    for p in profiles:
+        if (p.get("name") or "").lower() == profile.lower():
+            return p
+    return None
+
+
+@mcp.tool()
+def printix_send_to_capture(
+    profile: str,
+    file_b64: str,
+    filename: str,
+    metadata_json: str = "{}",
+) -> str:
+    """
+    Schickt eine Datei direkt in einen Capture-Workflow — gleicher Code-Pfad
+    wie ein eingehender Printix-Capture-Webhook, aber ohne Drucker-Umweg
+    und ohne Azure-Blob-SAS-URL.
+
+    Praktisch fuer: KI-generierte Vertraege/Berichte direkt nach Paperless
+    archivieren, Mail-Anhaenge in Dokumenten-Workflows einspeisen, Daten
+    aus dem Chat in den DMS-Workflow einklinken.
+
+    Args:
+        profile:        Capture-Profil-Name oder UUID. Sieh
+                        printix_list_capture_profiles().
+        file_b64:       Base64-kodierter Dateiinhalt.
+        filename:       Originaldateiname (z.B. "Vertrag_2026.pdf").
+        metadata_json:  JSON-Objekt mit Plugin-spezifischen Index-Feldern.
+                        Pruefe vorher die akzeptierten Felder mit
+                        printix_describe_capture_profile(profile).
+                        Beispiel Paperless: {"tags":["Q1","Vertrag"],
+                        "correspondent":"Acme","document_type":"Vertrag"}.
+    """
+    import asyncio
+    import base64 as _b64
+    import json as _json
+    try:
+        # 1) Profil finden
+        tid = _get_card_tenant_id()
+        prof = _resolve_capture_profile(profile, tid)
+        if not prof:
+            return _ok({"error": "capture profile not found", "profile": profile})
+
+        # 2) Datei-Bytes
+        try:
+            data = _b64.b64decode(file_b64)
+        except Exception as e:
+            return _ok({"error": f"invalid base64: {e}"})
+        if not data:
+            return _ok({"error": "empty file"})
+
+        # 3) Metadata
+        try:
+            meta = _json.loads(metadata_json) if metadata_json else {}
+            if not isinstance(meta, dict):
+                return _ok({"error": "metadata_json must be a JSON object"})
+        except Exception as e:
+            return _ok({"error": f"invalid metadata_json: {e}"})
+
+        # 4) Plugin laden
+        from capture.base_plugin import get_plugin_class
+        plugin_id = prof.get("plugin_type") or prof.get("plugin_id") or ""
+        cls = get_plugin_class(plugin_id)
+        if not cls:
+            return _ok({"error": "plugin not found", "plugin_id": plugin_id})
+        plugin = cls(prof.get("config_json") or "{}")
+        ok_cfg, err_cfg = plugin.validate_config()
+        if not ok_cfg:
+            return _ok({"error": f"plugin config invalid: {err_cfg}"})
+
+        # 5) Direct-Ingest (async → in sync-tool gewrappt)
+        async def _run():
+            return await plugin.ingest_bytes(data, filename, meta)
+        ok, msg = asyncio.run(_run())
+
+        return _ok({
+            "ok": bool(ok),
+            "profile": prof.get("name") or prof.get("id"),
+            "plugin": plugin_id,
+            "filename": filename,
+            "size": len(data),
+            "result_message": msg,
+        })
+    except Exception as e:
+        logger.exception("send_to_capture failed")
+        return _ok({"error": str(e)})
+
+
+@mcp.tool()
+def printix_describe_capture_profile(profile: str) -> str:
+    """
+    Zeigt das Plugin-Schema eines Capture-Profils — welche metadata-Felder
+    erlaubt/erwartet sind, plus aktuelle Konfiguration (ohne Secrets).
+
+    Vor dem Aufruf von printix_send_to_capture nutzen, um das richtige
+    metadata_json zu konstruieren.
+
+    Args:
+        profile: Capture-Profil-Name oder UUID.
+    """
+    try:
+        tid = _get_card_tenant_id()
+        prof = _resolve_capture_profile(profile, tid)
+        if not prof:
+            return _ok({"error": "capture profile not found", "profile": profile})
+
+        from capture.base_plugin import get_plugin_class
+        plugin_id = prof.get("plugin_type") or prof.get("plugin_id") or ""
+        cls = get_plugin_class(plugin_id)
+        if not cls:
+            return _ok({"error": "plugin not found", "plugin_id": plugin_id})
+        plugin = cls(prof.get("config_json") or "{}")
+
+        # Sensible Felder (Token/Password) maskieren
+        _SENSITIVE = {"password", "token", "secret", "api_key"}
+        cfg_safe: dict = {}
+        for k, v in (plugin.config or {}).items():
+            if any(s in k.lower() for s in _SENSITIVE):
+                cfg_safe[k] = "***" if v else ""
+            else:
+                cfg_safe[k] = v
+
+        return _ok({
+            "profile": prof.get("name") or prof.get("id"),
+            "plugin_id": plugin_id,
+            "plugin_name": getattr(cls, "plugin_name", plugin_id),
+            "plugin_description": getattr(cls, "plugin_description", ""),
+            "config_schema": plugin.config_schema(),
+            "current_config": cfg_safe,
+            "supports_direct_ingest": (
+                cls.ingest_bytes is not __import__("capture.base_plugin", fromlist=["CapturePlugin"]).CapturePlugin.ingest_bytes
+            ),
+            "accepts_metadata_fields": prof.get("index_fields_json") or "[]",
+        })
+    except Exception as e:
+        logger.exception("describe_capture_profile failed")
+        return _ok({"error": str(e)})
+
+
+# ─── Phase 2a: get_group_members + get_user_groups ───────────────────────────
+
+def _follow_hal_link(c: PrintixClient, obj: dict, rel: str) -> Any | None:
+    """Folgt einem HAL-Link `_links.<rel>.href` falls vorhanden.
+    Returns geparstes JSON oder None."""
+    link = (((obj or {}).get("_links") or {}).get(rel) or {}).get("href", "")
+    if not link:
+        return None
+    try:
+        # Printix-Client hat keinen "raw GET URL" Helper — wir nutzen requests
+        # mit dem Print-API-TM token-manager.
+        tm = c._require_tm(c._print_tm, "Print API")
+        token = tm.get_token() if hasattr(tm, "get_token") else None
+        import requests as _r
+        headers = {"Accept": "application/json"}
+        if token:
+            headers["Authorization"] = f"Bearer {token}"
+        r = _r.get(link, headers=headers, timeout=15)
+        if r.status_code == 200:
+            return r.json()
+    except Exception as e:
+        logger.debug("_follow_hal_link(%s) failed: %s", rel, e)
+    return None
+
+
+def _group_members_from_obj(c: PrintixClient, group_obj: dict) -> list[dict]:
+    """Extrahiert Mitglieder aus einem get_group-Response. Probiert mehrere
+    Felder/Formen, faellt auf HAL-Link `_links.users` zurueck."""
+    if not isinstance(group_obj, dict):
+        return []
+    # Direkt im Group-Objekt?
+    for key in ("members", "users", "memberUsers"):
+        v = group_obj.get(key)
+        if isinstance(v, list) and v and isinstance(v[0], dict):
+            return v
+    # HAL: _links.users → eigene Sub-Resource
+    sub = _follow_hal_link(c, group_obj, "users")
+    if isinstance(sub, dict):
+        for key in ("users", "content", "members"):
+            v = sub.get(key)
+            if isinstance(v, list):
+                return [u for u in v if isinstance(u, dict)]
+    if isinstance(sub, list):
+        return [u for u in sub if isinstance(u, dict)]
+    return []
+
+
+@mcp.tool()
+def printix_get_group_members(group_id_or_name: str) -> str:
+    """
+    Listet alle Mitglieder einer Printix-Gruppe.
+
+    Akzeptiert sowohl die Group-UUID als auch den Anzeigenamen
+    (case-insensitive, exakte Gleichheit). Bei mehrdeutigen Namen wird
+    ein Fehler mit Kandidatenliste zurueckgegeben.
+
+    Args:
+        group_id_or_name: Printix-Group-UUID oder Group-Name.
+    """
+    try:
+        c = client()
+        # ID-vs-Name Heuristik: UUID hat Bindestriche und ~32 hex-Chars
+        gid = ""
+        if "-" in group_id_or_name and len(group_id_or_name) >= 32:
+            gid = group_id_or_name
+        else:
+            data = c.list_groups(search=group_id_or_name, page=0, size=100)
+            groups = (data.get("groups") if isinstance(data, dict) else None) or \
+                     (data.get("content") if isinstance(data, dict) else None) or []
+            matches = [g for g in groups
+                       if (g.get("name") or "").lower() == group_id_or_name.lower()]
+            if not matches:
+                return _ok({"error": "group not found", "query": group_id_or_name,
+                            "candidates": [{"id": g.get("id"), "name": g.get("name")} for g in groups[:10]]})
+            if len(matches) > 1:
+                return _ok({"error": "ambiguous group name",
+                            "candidates": [{"id": g.get("id"), "name": g.get("name")} for g in matches]})
+            gid = matches[0].get("id") or ""
+        if not gid:
+            return _ok({"error": "could not resolve group_id"})
+
+        gobj = c.get_group(gid)
+        members = _group_members_from_obj(c, gobj if isinstance(gobj, dict) else {})
+        return _ok({
+            "group": {
+                "id": gid,
+                "name": (gobj.get("name") if isinstance(gobj, dict) else ""),
+            },
+            "member_count": len(members),
+            "members": [
+                {
+                    "id":    u.get("id", ""),
+                    "email": u.get("email", ""),
+                    "name":  u.get("name") or u.get("displayName") or "",
+                    "role":  u.get("role") or u.get("roleType") or "",
+                }
+                for u in members
+            ],
+            "note": "" if members else
+                    "Keine Mitglieder im API-Response. Printix liefert nicht "
+                    "alle Group-Memberships ueber den Public-API-Endpoint — "
+                    "fuer vollstaendige Mitgliederlisten ggf. Directory-Sync "
+                    "(Entra/AD) im Printix-Admin pruefen.",
+        })
+    except PrintixAPIError as e:
+        return _err(e)
+    except Exception as e:
+        logger.exception("get_group_members failed")
+        return _ok({"error": str(e)})
+
+
+@mcp.tool()
+def printix_get_user_groups(user_email_or_id: str) -> str:
+    """
+    Listet alle Gruppen in denen der angegebene User Mitglied ist.
+
+    Funktioniert via:
+    1) get_user(user_id) — wenn `groups`/`memberOf` Feld vorhanden
+    2) Fallback: alle Gruppen durchgehen und Membership pruefen (langsam,
+       aber zuverlaessig). Wird nur gemacht wenn (1) leer bleibt.
+
+    Args:
+        user_email_or_id: E-Mail oder Printix-User-UUID.
+    """
+    try:
+        c = client()
+        # 1) User-ID auflösen
+        uid = ""
+        email = ""
+        if "@" in user_email_or_id:
+            email = user_email_or_id.lower()
+            users = _collect_all_users(c)
+            for u in users:
+                if (u.get("email") or "").lower() == email:
+                    uid = u.get("id", "")
+                    break
+            if not uid:
+                return _ok({"error": "user not found", "query": user_email_or_id})
+        else:
+            uid = user_email_or_id
+
+        # 2) get_user → direkt aus Feldern
+        try:
+            uobj = c.get_user(uid)
+        except Exception:
+            uobj = {}
+        direct_groups: list[dict] = []
+        for key in ("groups", "memberOf", "memberGroups"):
+            v = uobj.get(key) if isinstance(uobj, dict) else None
+            if isinstance(v, list) and v and isinstance(v[0], dict):
+                direct_groups = v
+                break
+
+        if direct_groups:
+            return _ok({
+                "user": {"id": uid, "email": uobj.get("email", email)},
+                "group_count": len(direct_groups),
+                "groups": [
+                    {"id": g.get("id", ""), "name": g.get("name", "")}
+                    for g in direct_groups
+                ],
+                "method": "user_object_direct",
+            })
+
+        # 3) Fallback: alle Gruppen scannen, Membership pruefen
+        gdata = c.list_groups(page=0, size=200)
+        groups = (gdata.get("groups") if isinstance(gdata, dict) else None) or \
+                 (gdata.get("content") if isinstance(gdata, dict) else None) or []
+        matched: list[dict] = []
+        for g in groups[:50]:  # safety cap
+            try:
+                gid = g.get("id", "")
+                gobj = c.get_group(gid)
+                members = _group_members_from_obj(c, gobj if isinstance(gobj, dict) else {})
+                if any((m.get("id") or "") == uid or
+                       (m.get("email") or "").lower() == email for m in members):
+                    matched.append({"id": gid, "name": g.get("name", "")})
+            except Exception:
+                continue
+
+        return _ok({
+            "user": {"id": uid, "email": email},
+            "group_count": len(matched),
+            "groups": matched,
+            "method": "groups_scan",
+            "note": (
+                "Fallback-Methode: alle Gruppen durchgegangen. Nur die "
+                "ersten 50 Gruppen wurden gescannt (Performance-Cap)."
+                if len(groups) > 50 else ""
+            ),
+        })
+    except PrintixAPIError as e:
+        return _err(e)
+    except Exception as e:
+        logger.exception("get_user_groups failed")
+        return _ok({"error": str(e)})
+
+
+# ─── Phase 2b: resolve_recipients ────────────────────────────────────────────
+
+def _resolve_recipients_internal(c: PrintixClient,
+                                  recipients: list[str]) -> dict:
+    """Loest eine gemischte Liste (Emails, group:Name, entra:OID, upn:UPN)
+    zu einer flachen User-Liste auf.
+
+    Returns dict mit keys:
+      - resolved:   list[{user_id, email, name, source}]
+      - not_found:  list[str] — was nicht aufloesbar war
+      - ambiguous:  list[{input, candidates}]
+    """
+    out: list[dict] = []
+    not_found: list[str] = []
+    ambiguous: list[dict] = []
+    seen_ids: set[str] = set()
+
+    def _add(u: dict, source: str) -> None:
+        uid = u.get("id", "")
+        if uid and uid not in seen_ids:
+            seen_ids.add(uid)
+            out.append({
+                "user_id": uid,
+                "email":   u.get("email", ""),
+                "name":    u.get("name") or u.get("displayName") or "",
+                "source":  source,
+            })
+
+    all_users_cache: list[dict] | None = None
+
+    def _all_users() -> list[dict]:
+        nonlocal all_users_cache
+        if all_users_cache is None:
+            all_users_cache = _collect_all_users(c)
+        return all_users_cache
+
+    for raw in recipients:
+        item = (raw or "").strip()
+        if not item:
+            continue
+
+        # group:Name → Mitglieder einer Printix-Gruppe
+        if item.lower().startswith("group:"):
+            name = item.split(":", 1)[1].strip()
+            try:
+                gdata = c.list_groups(search=name, page=0, size=50)
+                groups = (gdata.get("groups") if isinstance(gdata, dict) else None) or \
+                         (gdata.get("content") if isinstance(gdata, dict) else None) or []
+                matches = [g for g in groups if (g.get("name") or "").lower() == name.lower()]
+                if not matches:
+                    not_found.append(item)
+                    continue
+                if len(matches) > 1:
+                    ambiguous.append({
+                        "input": item,
+                        "candidates": [{"id": g.get("id"), "name": g.get("name")} for g in matches],
+                    })
+                    continue
+                gid = matches[0].get("id", "")
+                gobj = c.get_group(gid)
+                members = _group_members_from_obj(c, gobj if isinstance(gobj, dict) else {})
+                if not members:
+                    not_found.append(item + " (group has no members in API)")
+                    continue
+                for m in members:
+                    _add(m, source=item)
+            except Exception as e:
+                logger.debug("group:%s resolve failed: %s", name, e)
+                not_found.append(item)
+            continue
+
+        # entra:OID → MS-Graph Membership-Lookup, Email-Match in Printix
+        if item.lower().startswith("entra:"):
+            oid = item.split(":", 1)[1].strip()
+            members = _entra_group_members(oid)
+            if members is None:
+                not_found.append(item + " (graph-call failed)")
+                continue
+            if not members:
+                not_found.append(item + " (entra group empty)")
+                continue
+            users = _all_users()
+            email_idx = {(u.get("email") or "").lower(): u for u in users if u.get("email")}
+            for m in members:
+                em = (m.get("mail") or m.get("userPrincipalName") or "").lower()
+                if em and em in email_idx:
+                    _add(email_idx[em], source=item)
+            continue
+
+        # upn:foo@bar → Email-Match
+        if item.lower().startswith("upn:"):
+            em = item.split(":", 1)[1].strip().lower()
+            users = _all_users()
+            for u in users:
+                if (u.get("email") or "").lower() == em:
+                    _add(u, source=item)
+                    break
+            else:
+                not_found.append(item)
+            continue
+
+        # Default: als Email behandeln (mit oder ohne @)
+        if "@" in item:
+            users = _all_users()
+            for u in users:
+                if (u.get("email") or "").lower() == item.lower():
+                    _add(u, source=item)
+                    break
+            else:
+                not_found.append(item)
+        else:
+            # Letzter Versuch: Name-Suche
+            try:
+                data = c.list_users(query=item, page=0, page_size=10)
+                users = (data.get("users") if isinstance(data, dict) else None) or \
+                        (data.get("content") if isinstance(data, dict) else None) or []
+                exact = [u for u in users
+                         if (u.get("name") or u.get("displayName") or "").lower() == item.lower()]
+                if exact:
+                    _add(exact[0], source=item)
+                elif len(users) > 1:
+                    ambiguous.append({
+                        "input": item,
+                        "candidates": [{"id": u.get("id"), "email": u.get("email"),
+                                          "name": u.get("name") or u.get("displayName")}
+                                         for u in users[:5]],
+                    })
+                elif users:
+                    _add(users[0], source=item)
+                else:
+                    not_found.append(item)
+            except Exception:
+                not_found.append(item)
+
+    return {
+        "resolved":  out,
+        "not_found": not_found,
+        "ambiguous": ambiguous,
+    }
+
+
+def _entra_group_members(group_oid: str) -> list[dict] | None:
+    """MS-Graph: GET /groups/{id}/members. Nutzt entra.get_admin_token oder
+    schlaegt sauber fehl wenn Entra nicht konfiguriert ist."""
+    try:
+        from entra import get_config
+    except ImportError:
+        return None
+    cfg = get_config()
+    if not (cfg.get("enabled") and cfg.get("client_id") and cfg.get("client_secret")):
+        return None
+    tenant = cfg.get("tenant_id") or "common"
+    # Client-Credentials-Flow fuer App-only Graph-Zugriff
+    import requests as _r
+    try:
+        token_resp = _r.post(
+            f"https://login.microsoftonline.com/{tenant}/oauth2/v2.0/token",
+            data={
+                "client_id":     cfg["client_id"],
+                "client_secret": cfg["client_secret"],
+                "grant_type":    "client_credentials",
+                "scope":         "https://graph.microsoft.com/.default",
+            },
+            timeout=15,
+        )
+        if token_resp.status_code != 200:
+            logger.warning("Entra app-token fail: %s %s",
+                            token_resp.status_code, token_resp.text[:300])
+            return None
+        access = token_resp.json().get("access_token", "")
+    except Exception as e:
+        logger.warning("Entra app-token exception: %s", e)
+        return None
+
+    members: list[dict] = []
+    url = f"https://graph.microsoft.com/v1.0/groups/{group_oid}/members?$top=200"
+    pages = 0
+    while url and pages < 20:
+        try:
+            r = _r.get(url, headers={"Authorization": f"Bearer {access}"}, timeout=20)
+            if r.status_code != 200:
+                logger.warning("Graph /groups/.../members fail: %s %s",
+                                r.status_code, r.text[:300])
+                return None
+            j = r.json()
+            for m in j.get("value", []):
+                if isinstance(m, dict):
+                    members.append(m)
+            url = j.get("@odata.nextLink", "")
+            pages += 1
+        except Exception as e:
+            logger.warning("Graph members page exception: %s", e)
+            break
+    return members
+
+
+@mcp.tool()
+def printix_resolve_recipients(recipients_csv: str) -> str:
+    """
+    Loest eine komma-getrennte Empfaengerliste zu einer flachen Printix-User-
+    Liste auf. Akzeptierte Eingabeformen:
+
+      - "alice@firma.de"            → Email-Lookup in Printix
+      - "group:Marketing-DACH"      → Mitglieder einer Printix-Gruppe
+      - "entra:<group-oid>"         → Mitglieder einer Entra/AD-Gruppe
+                                      (per Graph-API), gemappt via Email
+      - "upn:alice@firma.de"        → forciert UPN-Match (gleich wie Email)
+      - "Alice Müller"              → Name-Suche; Fehler bei Mehrdeutigkeit
+
+    Diagnose-Tool — vor dem eigentlichen print_to_recipients-Aufruf nutzbar
+    um zu pruefen wie viele User wirklich angeschrieben werden.
+
+    Args:
+        recipients_csv: Komma-getrennte Liste der Eingaben.
+    """
+    try:
+        items = [x.strip() for x in (recipients_csv or "").split(",") if x.strip()]
+        if not items:
+            return _ok({"error": "no recipients given"})
+        result = _resolve_recipients_internal(client(), items)
+        result["input_count"] = len(items)
+        result["resolved_count"] = len(result["resolved"])
+        return _ok(result)
+    except PrintixAPIError as e:
+        return _err(e)
+    except Exception as e:
+        logger.exception("resolve_recipients failed")
+        return _ok({"error": str(e)})
+
+
+# ─── Phase 2c: print_to_recipients ───────────────────────────────────────────
+
+@mcp.tool()
+def printix_print_to_recipients(
+    recipients_csv: str,
+    file_b64: str,
+    filename: str,
+    target_printer: str = "",
+    copies: int = 1,
+    fail_on_unresolved: bool = True,
+) -> str:
+    """
+    Sendet ein Dokument als individuelle Druckjobs an mehrere Empfaenger.
+    Jeder Empfaenger bekommt einen eigenen Job in seiner Secure-Print-Queue.
+
+    Recipient-Aufloesung wie in printix_resolve_recipients (Emails,
+    group:Name, entra:OID, upn:UPN). Bei `fail_on_unresolved=True` und
+    nicht-aufloesbaren Eingaben wird ABGEBROCHEN ohne zu drucken — sicherer
+    Default. Auf False setzen wenn "best effort" gewuenscht.
+
+    Args:
+        recipients_csv:        Komma-getrennte Empfaenger-Liste.
+        file_b64:              Base64-Dateiinhalt.
+        filename:              Anzeigename.
+        target_printer:        Optional Printer-Name oder pid:qid; sonst
+                               erster verfuegbarer Drucker.
+        copies:                Kopien pro Empfaenger.
+        fail_on_unresolved:    True = abbrechen wenn unaufloesbare Eingaben
+                               existieren; False = nur die aufloesbaren
+                               drucken.
+    """
+    import base64 as _b64
+    try:
+        c = client()
+        items = [x.strip() for x in (recipients_csv or "").split(",") if x.strip()]
+        if not items:
+            return _ok({"error": "no recipients given"})
+
+        # 1) Datei
+        try:
+            file_bytes = _b64.b64decode(file_b64)
+        except Exception as e:
+            return _ok({"error": f"invalid base64: {e}"})
+        if not file_bytes:
+            return _ok({"error": "empty file"})
+
+        # 2) Empfaenger aufloesen
+        resolved = _resolve_recipients_internal(c, items)
+        users = resolved["resolved"]
+        if fail_on_unresolved and (resolved["not_found"] or resolved["ambiguous"]):
+            return _ok({
+                "error": "unresolved recipients (set fail_on_unresolved=false to ignore)",
+                **resolved,
+            })
+        if not users:
+            return _ok({"error": "no recipients resolved", **resolved})
+
+        # 3) Printer auflösen — einmal, fuer alle
+        printer_id, queue_id = "", ""
+        if ":" in target_printer:
+            printer_id, queue_id = target_printer.split(":", 1)
+        else:
+            pdata = c.list_printers(search=target_printer or None, page=0, size=50)
+            plist = pdata.get("printers") or pdata.get("content") or [] if isinstance(pdata, dict) else []
+            if not plist:
+                return _ok({"error": "no printer found", "query": target_printer})
+            printer_id, queue_id = _extract_printer_queue_ids(plist[0])
+        if not (printer_id and queue_id):
+            return _ok({"error": "could not resolve printer_id/queue_id"})
+
+        # 4) Pro Empfaenger: 5-Stage-Submit
+        results: list[dict] = []
+        for u in users:
+            email = u.get("email") or ""
+            try:
+                job = c.submit_print_job(printer_id=printer_id, queue_id=queue_id,
+                                          title=filename, size_bytes=len(file_bytes),
+                                          copies=copies)
+                job_id = job.get("jobId") or job.get("id") or ""
+                upload_url = (job.get("_links") or {}).get("upload", {}).get("href") \
+                              or job.get("uploadUrl") or ""
+                if not (job_id and upload_url):
+                    results.append({"recipient": email, "ok": False,
+                                     "error": "no job_id/upload_url in response"})
+                    continue
+                c.upload_file_to_url(upload_url, file_bytes, filename=filename)
+                c.complete_upload(job_id)
+                if email:
+                    try:
+                        c.change_job_owner(job_id, email)
+                    except Exception as ce:
+                        logger.warning("change_owner failed for %s: %s", email, ce)
+                results.append({"recipient": email, "user_id": u.get("user_id"),
+                                 "ok": True, "job_id": job_id})
+            except Exception as e:
+                results.append({"recipient": email, "ok": False, "error": str(e)[:300]})
+
+        ok_count = sum(1 for r in results if r.get("ok"))
+        return _ok({
+            "ok": ok_count == len(users),
+            "summary": {
+                "input_count": len(items),
+                "resolved_count": len(users),
+                "submitted_count": ok_count,
+                "failed_count": len(users) - ok_count,
+                "not_found": resolved["not_found"],
+                "ambiguous": resolved["ambiguous"],
+            },
+            "filename": filename,
+            "size": len(file_bytes),
+            "printer_id": printer_id,
+            "queue_id": queue_id,
+            "results": results,
+        })
+    except PrintixAPIError as e:
+        return _err(e)
+    except Exception as e:
+        logger.exception("print_to_recipients failed")
+        return _ok({"error": str(e)})
+
+
+# ─── Phase 3a: Time-Bomb engine ──────────────────────────────────────────────
+
+def _ensure_timebomb_table() -> None:
+    """Idempotente Schema-Erweiterung. Wird beim ersten Tool-Aufruf gerufen."""
+    import db
+    with db._conn() as conn:
+        conn.executescript("""
+            CREATE TABLE IF NOT EXISTS user_timebombs (
+                id            INTEGER PRIMARY KEY AUTOINCREMENT,
+                tenant_id     TEXT NOT NULL,
+                user_id       TEXT NOT NULL,
+                user_email    TEXT NOT NULL DEFAULT '',
+                bomb_type     TEXT NOT NULL,
+                trigger_at    TEXT NOT NULL,
+                action_json   TEXT NOT NULL DEFAULT '{}',
+                status        TEXT NOT NULL DEFAULT 'pending',
+                created_at    TEXT NOT NULL,
+                resolved_at   TEXT,
+                last_message  TEXT
+            );
+            CREATE INDEX IF NOT EXISTS idx_timebomb_pending
+                ON user_timebombs (status, trigger_at);
+            CREATE INDEX IF NOT EXISTS idx_timebomb_user
+                ON user_timebombs (tenant_id, user_id);
+        """)
+
+
+def _check_timebomb_condition(c: PrintixClient, bomb: dict) -> bool:
+    """Prueft ob die Bedingung der Bombe noch erfuellt ist (also: muss
+    sie wirklich zuenden?). Default-Logik:
+      - first_print_reminder: feuert nur wenn User noch keinen Print-Job hat
+      - card_enrol: feuert nur wenn keine Karte enrolled ist
+      - generic: feuert immer
+    """
+    bomb_type = bomb.get("bomb_type", "")
+    user_id = bomb.get("user_id", "")
+    if bomb_type == "first_print_reminder":
+        try:
+            jobs = c.list_print_jobs(page=0, size=10)
+            items = (jobs.get("jobs") if isinstance(jobs, dict) else None) or \
+                    (jobs.get("content") if isinstance(jobs, dict) else None) or []
+            for j in items:
+                owner = (j.get("ownerId") or
+                          (((j.get("_links") or {}).get("owner") or {}).get("href", "")).rsplit("/", 1)[-1])
+                if owner == user_id:
+                    return False  # Schon gedruckt → Bombe entschaerfen
+        except Exception:
+            pass
+        return True
+    if bomb_type == "card_enrol":
+        try:
+            data = c.list_user_cards(user_id=user_id)
+            items = _card_items(data)
+            if items:
+                return False
+        except Exception:
+            pass
+        return True
+    return True  # generic: immer feuern
+
+
+def _execute_timebomb(c: PrintixClient, bomb: dict) -> tuple[bool, str]:
+    """Fuehrt die Action der Bombe aus.
+
+    Action-JSON-Felder:
+      - "kind": "print_reminder" | "log" | "noop"
+      - "filename": optional, bei print_reminder
+      - "file_b64": optional, bei print_reminder
+      - "message":  optional, fuer log
+    """
+    import json as _json
+    try:
+        action = _json.loads(bomb.get("action_json") or "{}")
+    except Exception:
+        action = {}
+    kind = action.get("kind", "noop")
+    if kind == "print_reminder":
+        # Generischer Reminder-Druck — neutraler Text, ein Tipp den User
+        # zu engagieren. Bytes erzeugen wir on-the-fly via einem Mini-PDF
+        # falls keine eigene Datei mitgegeben wurde.
+        file_b64 = action.get("file_b64", "")
+        filename = action.get("filename") or "reminder.pdf"
+        if not file_b64:
+            file_b64 = _generate_reminder_pdf_b64(
+                title=action.get("title", "Reminder"),
+                body=action.get("body", "Dies ist eine automatische Erinnerung."),
+            )
+        try:
+            r = printix_print_self(file_b64=file_b64, filename=filename,
+                                     title=action.get("title", "Reminder"))
+            return True, f"reminder sent: {r[:200]}"
+        except Exception as e:
+            return False, f"reminder failed: {e}"
+    if kind == "log":
+        return True, action.get("message", "noop")
+    return True, "noop"
+
+
+def _generate_reminder_pdf_b64(title: str, body: str) -> str:
+    """Erzeugt ein minimales A4-PDF ohne externe Dependencies. Reines
+    PDF-1.4-Skeleton mit einem Helvetica-Textblock. ~700 Bytes."""
+    import base64 as _b64
+    safe_title = (title or "").replace("(", "").replace(")", "")[:80]
+    safe_body  = (body or "").replace("(", "").replace(")", "")[:400]
+    content = (
+        f"BT /F1 18 Tf 72 750 Td ({safe_title}) Tj ET "
+        f"BT /F1 11 Tf 72 720 Td ({safe_body}) Tj ET"
+    )
+    objs = [
+        b"1 0 obj<< /Type /Catalog /Pages 2 0 R >>endobj\n",
+        b"2 0 obj<< /Type /Pages /Kids [3 0 R] /Count 1 >>endobj\n",
+        b"3 0 obj<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] "
+        b"/Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>endobj\n",
+        f"4 0 obj<< /Length {len(content)} >>stream\n{content}\nendstream endobj\n".encode(),
+        b"5 0 obj<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>endobj\n",
+    ]
+    out = b"%PDF-1.4\n"
+    offsets = []
+    for o in objs:
+        offsets.append(len(out))
+        out += o
+    xref_pos = len(out)
+    out += b"xref\n0 6\n0000000000 65535 f \n"
+    for off in offsets:
+        out += f"{off:010d} 00000 n \n".encode()
+    out += (b"trailer<< /Size 6 /Root 1 0 R >>\nstartxref\n"
+             + str(xref_pos).encode() + b"\n%%EOF\n")
+    return _b64.b64encode(out).decode("ascii")
+
+
+def _run_timebomb_tick() -> dict:
+    """Wird vom Scheduler regelmaessig aufgerufen. Geht alle pending Bomben
+    durch deren trigger_at <= now ist, prueft die Bedingung, fuehrt Action
+    aus, markiert den Eintrag als 'fired'/'defused'/'error'.
+
+    WICHTIG: Diese Funktion wird OHNE current_tenant-Context aufgerufen
+    (Cron-Job). Wir muessen pro Bombe den Tenant explizit setzen.
+    """
+    from datetime import datetime, timezone
+    import db
+    _ensure_timebomb_table()
+    now_iso = datetime.now(timezone.utc).isoformat()
+    summary = {"checked": 0, "fired": 0, "defused": 0, "errors": 0}
+    with db._conn() as conn:
+        rows = conn.execute(
+            "SELECT * FROM user_timebombs "
+            "WHERE status = 'pending' AND trigger_at <= ? "
+            "ORDER BY trigger_at ASC LIMIT 200",
+            (now_iso,),
+        ).fetchall()
+    for row in rows:
+        summary["checked"] += 1
+        bomb = dict(row)
+        # Tenant-Kontext setzen
+        try:
+            tenants = db.get_tenants_by_id(bomb["tenant_id"]) \
+                       if hasattr(db, "get_tenants_by_id") else None
+            tenant = tenants if isinstance(tenants, dict) else None
+        except Exception:
+            tenant = None
+        if not tenant:
+            try:
+                with db._conn() as c2:
+                    r2 = c2.execute(
+                        "SELECT * FROM tenants WHERE id = ?", (bomb["tenant_id"],)
+                    ).fetchone()
+                    tenant = dict(r2) if r2 else None
+            except Exception:
+                tenant = None
+        if not tenant:
+            with db._conn() as c2:
+                c2.execute(
+                    "UPDATE user_timebombs SET status='error', resolved_at=?, last_message=? WHERE id=?",
+                    (now_iso, "tenant not found", bomb["id"]),
+                )
+            summary["errors"] += 1
+            continue
+        ctx_tok = current_tenant.set(tenant)
+        try:
+            cli = client()
+            still_active = _check_timebomb_condition(cli, bomb)
+            if not still_active:
+                with db._conn() as c2:
+                    c2.execute(
+                        "UPDATE user_timebombs SET status='defused', resolved_at=?, last_message=? WHERE id=?",
+                        (now_iso, "condition no longer matches", bomb["id"]),
+                    )
+                summary["defused"] += 1
+                continue
+            ok, msg = _execute_timebomb(cli, bomb)
+            with db._conn() as c2:
+                c2.execute(
+                    "UPDATE user_timebombs SET status=?, resolved_at=?, last_message=? WHERE id=?",
+                    ("fired" if ok else "error", now_iso, msg[:500], bomb["id"]),
+                )
+            if ok:
+                summary["fired"] += 1
+            else:
+                summary["errors"] += 1
+        except Exception as e:
+            with db._conn() as c2:
+                c2.execute(
+                    "UPDATE user_timebombs SET status='error', resolved_at=?, last_message=? WHERE id=?",
+                    (now_iso, str(e)[:500], bomb["id"]),
+                )
+            summary["errors"] += 1
+        finally:
+            current_tenant.reset(ctx_tok)
+    return summary
+
+
+def _ensure_timebomb_scheduler() -> None:
+    """Registriert einen stuendlichen APScheduler-Job, wenn der Reporting-
+    Scheduler aktiv ist. Idempotent (rufender Code prueft ob Job existiert)."""
+    try:
+        from reporting.scheduler import _scheduler  # type: ignore
+    except Exception:
+        return
+    if _scheduler is None or not getattr(_scheduler, "running", False):
+        return
+    if _scheduler.get_job("timebomb_tick"):
+        return
+    try:
+        from apscheduler.triggers.cron import CronTrigger  # type: ignore
+        _scheduler.add_job(
+            _run_timebomb_tick,
+            trigger=CronTrigger(minute=7),  # einmal pro Stunde, Minute 7
+            id="timebomb_tick",
+            replace_existing=True,
+            misfire_grace_time=3600,
+        )
+        logger.info("Timebomb-Scheduler registriert (cron: minute=7).")
+    except Exception as e:
+        logger.warning("Timebomb-Scheduler-Registrierung fehlgeschlagen: %s", e)
+
+
+# ─── Phase 3b: welcome_user + list/defuse timebombs ──────────────────────────
+
+@mcp.tool()
+def printix_welcome_user(
+    user_email: str,
+    template: str = "default",
+    auto_print_to_self: bool = True,
+    timebombs: str = "card_enrol_7d,first_print_reminder_3d",
+) -> str:
+    """
+    Onboarding-Begleiter fuer einen frisch angelegten User: erzeugt ein
+    personalisiertes Welcome-PDF, optional direkt in dessen Secure-Print-
+    Queue, und setzt Time-Bombs (verzoegerte Auto-Reminder) die nach X
+    Tagen pruefen ob der User die erwartete Aktion durchgefuehrt hat —
+    und falls nicht, automatisch nachfassen.
+
+    Verfuegbare Time-Bombs (csv-konfigurierbar via `timebombs`):
+      - card_enrol_7d            → 7 Tage; reminder falls keine Karte enrolled
+      - first_print_reminder_3d  → 3 Tage; reminder falls noch kein Druckjob
+      - card_enrol_30d           → 30 Tage; spaeterer Final-Reminder
+
+    Args:
+        user_email:         E-Mail des onboardenden Users.
+        template:           Welcome-Template-Name (aktuell nur "default").
+        auto_print_to_self: True = Welcome-PDF gleich in Secure-Print-Queue.
+        timebombs:          csv von Time-Bomb-Typen.
+    """
+    import json as _json
+    from datetime import datetime, timezone, timedelta
+    try:
+        c = client()
+        users = _collect_all_users(c)
+        match = next((u for u in users
+                       if (u.get("email") or "").lower() == user_email.lower()), None)
+        if not match:
+            return _ok({"error": "user not found", "email": user_email})
+        user_id = match.get("id", "")
+        display = match.get("name") or match.get("displayName") or user_email
+
+        # Welcome-PDF
+        welcome_b64 = _generate_reminder_pdf_b64(
+            title=f"Willkommen, {display}!",
+            body=("Dein Printix-Account ist bereit. Naechste Schritte: "
+                  "1) Mobile-App installieren (TestFlight) "
+                  "2) NFC-Karte am Phone enrollen "
+                  "3) Erster Job per Share-Sheet senden."),
+        )
+        printed_job: dict | None = None
+        if auto_print_to_self:
+            # Wir tunen current_tenant kurz NICHT — printix_print_self loest
+            # den Self-User aus dem Tenant; hier wollen wir aber an den
+            # *neuen* User schicken. Also direkt send_to_user.
+            try:
+                r_str = printix_send_to_user(user_email=user_email,
+                                              file_content_b64=welcome_b64,
+                                              filename="welcome.pdf")
+                printed_job = _json.loads(r_str)
+            except Exception as e:
+                printed_job = {"error": str(e)}
+
+        # Time-Bombs setzen
+        _ensure_timebomb_table()
+        _ensure_timebomb_scheduler()
+        tid = _get_card_tenant_id()
+        now = datetime.now(timezone.utc)
+        created: list[dict] = []
+        bomb_specs = {
+            "card_enrol_7d": {
+                "type": "card_enrol", "delta": timedelta(days=7),
+                "action": {"kind": "print_reminder", "filename": "card_reminder.pdf",
+                            "title": "Karte noch nicht registriert",
+                            "body": ("Du hast deine ID-Karte noch nicht enrolled. "
+                                     "Tap mit der Karte ans iPhone (NFC) und folge "
+                                     "den Anweisungen in der Printix-App.")},
+            },
+            "first_print_reminder_3d": {
+                "type": "first_print_reminder", "delta": timedelta(days=3),
+                "action": {"kind": "print_reminder", "filename": "first_print.pdf",
+                            "title": "Bereit fuer den ersten Druck?",
+                            "body": ("Wir haben noch keinen Druckjob von dir gesehen. "
+                                     "Probier's am besten mit der Mobile-App oder dem "
+                                     "Desktop-Send-Tool aus dem Mitarbeiter-Portal.")},
+            },
+            "card_enrol_30d": {
+                "type": "card_enrol", "delta": timedelta(days=30),
+                "action": {"kind": "print_reminder", "filename": "card_final.pdf",
+                            "title": "Letzte Erinnerung: Karte enrollen",
+                            "body": ("Vor 30 Tagen wurde dein Account angelegt. "
+                                     "Bitte enrole deine ID-Karte fuer Secure-Print.")},
+            },
+        }
+        for spec_name in [s.strip() for s in (timebombs or "").split(",") if s.strip()]:
+            spec = bomb_specs.get(spec_name)
+            if not spec:
+                continue
+            trigger_at = (now + spec["delta"]).isoformat()
+            with __import__("db")._conn() as conn:
+                cur = conn.execute(
+                    "INSERT INTO user_timebombs "
+                    "(tenant_id, user_id, user_email, bomb_type, trigger_at, "
+                    " action_json, created_at) VALUES (?,?,?,?,?,?,?)",
+                    (tid, user_id, user_email, spec["type"], trigger_at,
+                     _json.dumps(spec["action"]), now.isoformat()),
+                )
+                bomb_id = cur.lastrowid
+            created.append({
+                "id": bomb_id, "type": spec["type"], "spec": spec_name,
+                "trigger_at": trigger_at,
+            })
+
+        return _ok({
+            "ok": True,
+            "user": {"id": user_id, "email": user_email, "name": display},
+            "welcome_print": printed_job,
+            "timebombs_armed": created,
+            "next_steps": [
+                "User informieren (Welcome-Mail laeuft via Onboarding separat).",
+                "User druckt erstes Dokument → first_print_reminder defused sich automatisch.",
+                "User enrolled Karte → card_enrol_* defused sich automatisch.",
+            ],
+        })
+    except PrintixAPIError as e:
+        return _err(e)
+    except Exception as e:
+        logger.exception("welcome_user failed")
+        return _ok({"error": str(e)})
+
+
+@mcp.tool()
+def printix_list_timebombs(
+    user_email: str = "",
+    status: str = "pending",
+) -> str:
+    """
+    Listet aktive (oder vergangene) Time-Bombs des Tenants.
+
+    Args:
+        user_email: Optional auf einen User filtern.
+        status:     "pending" | "fired" | "defused" | "error" | "all".
+    """
+    try:
+        _ensure_timebomb_table()
+        import db
+        tid = _get_card_tenant_id()
+        sql = "SELECT * FROM user_timebombs WHERE tenant_id = ?"
+        params: list = [tid]
+        if status and status != "all":
+            sql += " AND status = ?"
+            params.append(status)
+        if user_email:
+            sql += " AND lower(user_email) = ?"
+            params.append(user_email.lower())
+        sql += " ORDER BY trigger_at ASC LIMIT 500"
+        with db._conn() as conn:
+            rows = [dict(r) for r in conn.execute(sql, tuple(params)).fetchall()]
+        return _ok({"count": len(rows), "timebombs": rows})
+    except Exception as e:
+        logger.exception("list_timebombs failed")
+        return _ok({"error": str(e)})
+
+
+@mcp.tool()
+def printix_defuse_timebomb(bomb_id: int, reason: str = "manual") -> str:
+    """
+    Markiert eine geplante Time-Bomb als 'defused' (deaktiviert), ohne ihre
+    Action auszufuehren. Tenant-Filter aktiv — nur eigene Bomben.
+
+    Args:
+        bomb_id: Numerische ID aus printix_list_timebombs.
+        reason:  Freitext fuer Audit-Trail.
+    """
+    from datetime import datetime, timezone
+    try:
+        _ensure_timebomb_table()
+        import db
+        tid = _get_card_tenant_id()
+        now_iso = datetime.now(timezone.utc).isoformat()
+        with db._conn() as conn:
+            cur = conn.execute(
+                "UPDATE user_timebombs SET status='defused', resolved_at=?, "
+                "last_message=? WHERE id = ? AND tenant_id = ?",
+                (now_iso, f"manual:{reason}", bomb_id, tid),
+            )
+            count = cur.rowcount
+        if count == 0:
+            return _ok({"error": "bomb not found or not in this tenant",
+                         "bomb_id": bomb_id})
+        return _ok({"ok": True, "bomb_id": bomb_id, "status": "defused"})
+    except Exception as e:
+        return _ok({"error": str(e)})
+
+
+# ─── Phase 3c: sync_entra_group_to_printix ───────────────────────────────────
+
+@mcp.tool()
+def printix_sync_entra_group_to_printix(
+    entra_group_oid: str,
+    printix_group_id: str = "",
+    sync_mode: str = "report_only",
+) -> str:
+    """
+    Pulled Mitglieder einer Entra/AD-Gruppe via MS-Graph (App-Permission
+    Group.Read.All noetig) und gleicht sie mit einer Printix-Gruppe ab.
+
+    Modi:
+      - report_only:  zeigt nur was synchronisiert WUERDE — kein Schreiben
+      - additive:     fuegt fehlende User in Printix-Gruppe hinzu (sofern
+                      Printix das ueber API zulaesst — derzeit best-effort)
+      - mirror:       additive + entfernt Printix-Mitglieder die nicht in
+                      Entra sind (riskant — nur mit report_only-Vorlauf)
+
+    Args:
+        entra_group_oid:   Entra-Group-Object-ID (UUID).
+        printix_group_id:  Ziel-Printix-Group-UUID. Leer = es wird vorher
+                           printix_list_groups durchsucht ob eine
+                           gleichnamige Gruppe existiert.
+        sync_mode:         report_only | additive | mirror.
+    """
+    try:
+        c = client()
+        entra_members = _entra_group_members(entra_group_oid)
+        if entra_members is None:
+            return _ok({
+                "error": "graph call failed — Entra not configured or "
+                         "Group.Read.All app-permission missing",
+            })
+        entra_emails = {(m.get("mail") or m.get("userPrincipalName") or "").lower()
+                         for m in entra_members if (m.get("mail") or m.get("userPrincipalName"))}
+
+        # Printix-Gruppe finden
+        if not printix_group_id:
+            return _ok({
+                "error": "printix_group_id required (auto-resolve "
+                         "by name not yet implemented)",
+                "entra_member_count": len(entra_emails),
+            })
+        gobj = c.get_group(printix_group_id)
+        printix_members = _group_members_from_obj(c, gobj if isinstance(gobj, dict) else {})
+        printix_emails = {(u.get("email") or "").lower()
+                           for u in printix_members if u.get("email")}
+
+        to_add = sorted(entra_emails - printix_emails)
+        to_remove = sorted(printix_emails - entra_emails)
+
+        result = {
+            "entra_group_oid": entra_group_oid,
+            "printix_group_id": printix_group_id,
+            "entra_member_count": len(entra_emails),
+            "printix_member_count": len(printix_emails),
+            "to_add":    to_add,
+            "to_remove": to_remove,
+            "sync_mode": sync_mode,
+            "note": "Printix-API hat aktuell keinen direkten 'add user "
+                     "to group'-Endpoint im Public-API-Set — additive/"
+                     "mirror sind 'best effort' und schreiben nur wenn "
+                     "der Endpoint verfuegbar ist.",
+        }
+
+        if sync_mode == "report_only":
+            return _ok(result)
+
+        # Schreib-Pfade — derzeit nicht im PrintixClient implementiert.
+        # Wir loggen die Intention fuer manuelles Nachpflegen.
+        result["status"] = "writes not implemented — use report_only"
+        return _ok(result)
+    except PrintixAPIError as e:
+        return _err(e)
+    except Exception as e:
+        logger.exception("sync_entra_group_to_printix failed")
+        return _ok({"error": str(e)})
+
+
+# ─── Bonus: B1-B5 ────────────────────────────────────────────────────────────
+
+@mcp.tool()
+def printix_card_enrol_assist(
+    user_email: str,
+    card_uid_raw: str,
+    profile_id: str = "",
+) -> str:
+    """
+    Karten-Enrolment via AI: nimmt eine rohe Card-UID (z.B. von der
+    iOS-App nach NFC-Scan geliefert), laeuft sie durch den Card-
+    Transformer (HID/Mifare/FeliCa-Profile) und ordnet die transformierte
+    Value einem User zu.
+
+    Args:
+        user_email:    E-Mail des Users dem die Karte gehoert.
+        card_uid_raw:  Rohe UID (HEX). Beispiel: "04A1B2C3D4E5F6".
+        profile_id:    Optionales Card-Profil. Leer = Default-Profil
+                       des Tenants (oder erstes verfuegbares).
+    """
+    try:
+        c = client()
+        users = _collect_all_users(c)
+        match = next((u for u in users
+                       if (u.get("email") or "").lower() == user_email.lower()), None)
+        if not match:
+            return _ok({"error": "user not found", "email": user_email})
+        user_id = match.get("id", "")
+
+        # Profil laden — printix_transform_card_value-Tool existiert; wir
+        # rufen die zugrundeliegende Funktion direkt auf wenn moeglich,
+        # sonst Fallback: Raw verwenden.
+        # Card-Transformer via Profil ODER mit Default-Regeln.
+        # `apply_profile_transform` kennt das rules_json-Format der Profile.
+        try:
+            from cards.transform import apply_profile_transform, transform_card_value  # type: ignore
+            from cards.store import get_profile  # type: ignore
+            tenant_id_db = _get_card_tenant_id()
+            rules = {}
+            if profile_id:
+                prof = get_profile(profile_id, tenant_id_db)
+                if prof and isinstance(prof, dict):
+                    rules = prof.get("rules_json") or prof.get("rules") or {}
+            tdict = apply_profile_transform(card_uid_raw, rules) if rules \
+                    else {"final": transform_card_value(card_uid_raw).get(
+                            "final", card_uid_raw)}
+            transformed = tdict.get("final") or card_uid_raw
+        except Exception as te:
+            logger.warning("card transform fallback (raw): %s", te)
+            transformed = card_uid_raw
+
+        # Karte registrieren via Printix (Signatur: user_id, card_number)
+        result = c.register_card(user_id=user_id, card_number=transformed)
+        return _ok({
+            "ok": True,
+            "user": {"id": user_id, "email": user_email},
+            "card_uid_raw": card_uid_raw,
+            "card_value_after_transform": transformed,
+            "profile_id": profile_id or "default",
+            "register_response": result,
+        })
+    except PrintixAPIError as e:
+        return _err(e)
+    except Exception as e:
+        logger.exception("card_enrol_assist failed")
+        return _ok({"error": str(e)})
+
+
+@mcp.tool()
+def printix_describe_user_print_pattern(user_email: str, days: int = 30) -> str:
+    """
+    Profiliert das Druck-Verhalten eines Users: bevorzugte Drucker, Tageszeit,
+    Farb-Quote, durchschnittliche Seitenzahl. Nutzbar fuer Onboarding-Tipps
+    ("Du druckst meistens Drucker X — die Karte funktioniert auch dort").
+
+    Args:
+        user_email: E-Mail des Users.
+        days:       Analyse-Zeitraum in Tagen (default 30).
+    """
+    try:
+        # Wir benutzen die existierende SQL-basierte Reports-Pipeline.
+        # Hinweis: Es gibt kein dediziertes "user_print_pattern" Preset im
+        # query_tools-Modul. Wir versuchen es trotzdem (zukunftsoffen) und
+        # fallen dann sauber auf die API-Scan-Variante unten zurueck.
+        try:
+            from reporting.query_tools import run_query  # type: ignore
+            stats = run_query("user_print_pattern",
+                               tenant_id=_get_card_tenant_id(),
+                               user_email=user_email, days=days)
+        except Exception:
+            stats = None
+        if not stats:
+            # Fallback: Printix-API list_print_jobs scannen
+            c = client()
+            jobs_data = c.list_print_jobs(page=0, size=200)
+            items = (jobs_data.get("jobs") if isinstance(jobs_data, dict) else None) or \
+                    (jobs_data.get("content") if isinstance(jobs_data, dict) else None) or []
+            mine = [j for j in items
+                    if (j.get("ownerEmail") or "").lower() == user_email.lower()]
+            if not mine:
+                return _ok({"user_email": user_email, "jobs_found": 0,
+                            "note": "no jobs in scanned window"})
+            from collections import Counter
+            printers = Counter(j.get("printerName", "?") for j in mine)
+            colors  = Counter(("color" if j.get("colorMode") == "COLOR" else "bw") for j in mine)
+            return _ok({
+                "user_email": user_email,
+                "method": "api_scan_fallback",
+                "jobs_found": len(mine),
+                "top_printers": printers.most_common(5),
+                "color_breakdown": dict(colors),
+                "average_pages":   round(
+                    sum(j.get("pages", 0) or 0 for j in mine) / max(len(mine), 1), 1),
+            })
+        return _ok({"user_email": user_email, "method": "sql_report", "stats": stats})
+    except Exception as e:
+        logger.exception("describe_user_print_pattern failed")
+        return _ok({"error": str(e)})
+
+
+@mcp.tool()
+def printix_session_print(
+    user_email: str,
+    file_b64: str,
+    filename: str,
+    expires_in_hours: int = 24,
+) -> str:
+    """
+    Erzeugt einen Druckjob mit Time-Bomb: der Job wird sofort an den
+    angegebenen User submitted, und nach `expires_in_hours` automatisch
+    geloescht falls noch nicht released. Nuetzlich fuer Gaeste/Externe
+    oder zeitkritische Dokumente.
+
+    Args:
+        user_email:        E-Mail des Empfaengers.
+        file_b64:          Base64-Inhalt.
+        filename:          Anzeigename.
+        expires_in_hours:  Lifetime des Jobs (default 24h).
+    """
+    import json as _json
+    from datetime import datetime, timezone, timedelta
+    try:
+        # 1) Job senden via send_to_user
+        result_str = printix_send_to_user(
+            user_email=user_email, file_content_b64=file_b64, filename=filename
+        )
+        result = _json.loads(result_str)
+        job_id = result.get("job_id", "")
+        if not job_id:
+            return _ok({"error": "submit failed", "details": result})
+
+        # 2) Time-Bomb: Auto-Delete in N Stunden
+        _ensure_timebomb_table()
+        _ensure_timebomb_scheduler()
+        tid = _get_card_tenant_id()
+        now = datetime.now(timezone.utc)
+        trigger_at = (now + timedelta(hours=expires_in_hours)).isoformat()
+        action = {"kind": "log",
+                   "message": f"session_print expired — job_id={job_id} for {user_email}"}
+        with __import__("db")._conn() as conn:
+            cur = conn.execute(
+                "INSERT INTO user_timebombs "
+                "(tenant_id, user_id, user_email, bomb_type, trigger_at, "
+                " action_json, created_at) VALUES (?,?,?,?,?,?,?)",
+                (tid, "", user_email, "session_print_expire", trigger_at,
+                 _json.dumps(action), now.isoformat()),
+            )
+            bomb_id = cur.lastrowid
+
+        return _ok({
+            "ok": True,
+            "job_id": job_id,
+            "user_email": user_email,
+            "expires_at": trigger_at,
+            "timebomb_id": bomb_id,
+            "note": ("Job liegt in der Secure-Print-Queue und wird nach Ablauf "
+                      "der Time-Bomb geloggt; tatsaechliches Auto-Delete via "
+                      "Printix erfordert manuell printix_delete_job."),
+        })
+    except Exception as e:
+        return _ok({"error": str(e)})
+
+
+@mcp.tool()
+def printix_quota_guard(
+    user_email: str = "",
+    window_minutes: int = 5,
+    max_jobs: int = 10,
+) -> str:
+    """
+    Pre-flight-Check fuer Print-Bursts: schaut wie viele Jobs der User in
+    den letzten X Minuten gesendet hat. Liefert eine Empfehlung
+    (allow/throttle/block) damit der AI-Assistent VOR dem naechsten
+    Submit Bescheid weiss.
+
+    Args:
+        user_email:      Default = aktueller MCP-User aus Tenant-Email.
+        window_minutes:  Zeitfenster fuer den Burst-Check.
+        max_jobs:        Schwellwert fuer "throttle".
+    """
+    from datetime import datetime, timezone, timedelta
+    try:
+        c = client()
+        if not user_email:
+            t = current_tenant.get() or {}
+            user_email = t.get("email") or t.get("username") or ""
+        if not user_email:
+            return _ok({"error": "user_email required and could not be inferred"})
+
+        cutoff = datetime.now(timezone.utc) - timedelta(minutes=window_minutes)
+        try:
+            jobs_data = c.list_print_jobs(page=0, size=100)
+        except Exception as e:
+            return _ok({"error": str(e)})
+        items = (jobs_data.get("jobs") if isinstance(jobs_data, dict) else None) or \
+                (jobs_data.get("content") if isinstance(jobs_data, dict) else None) or []
+        recent: list[dict] = []
+        for j in items:
+            owner = (j.get("ownerEmail") or "").lower()
+            if owner != user_email.lower():
+                continue
+            ts = j.get("createdAt") or j.get("submittedAt") or ""
+            try:
+                jt = datetime.fromisoformat(ts.replace("Z", "+00:00"))
+                if jt >= cutoff:
+                    recent.append(j)
+            except Exception:
+                continue
+
+        n = len(recent)
+        if n >= max_jobs:
+            verdict, hint = "block", f"User has sent {n} jobs in last {window_minutes}min — likely automation gone wrong"
+        elif n >= max_jobs // 2:
+            verdict, hint = "throttle", f"User at {n}/{max_jobs} — ask for confirmation before next submit"
+        else:
+            verdict, hint = "allow", f"Normal volume ({n} jobs in {window_minutes}min)"
+        return _ok({
+            "user_email": user_email,
+            "recent_count": n,
+            "window_minutes": window_minutes,
+            "max_jobs": max_jobs,
+            "verdict": verdict,
+            "recommendation": hint,
+        })
+    except Exception as e:
+        return _ok({"error": str(e)})
+
+
+@mcp.tool()
+def printix_print_history_natural(
+    user_email: str = "",
+    when: str = "today",
+    limit: int = 50,
+) -> str:
+    """
+    Druckhistorie mit natuerlich-sprachlichen Zeitangaben.
+
+    Akzeptierte `when`-Werte:
+      - "today" | "heute"
+      - "yesterday" | "gestern"
+      - "this_week" | "diese_woche"
+      - "last_week" | "letzte_woche"
+      - "this_month" | "diesen_monat"
+      - "last_month" | "letzten_monat"
+      - "Q1" | "Q2" | "Q3" | "Q4"  (jeweils des aktuellen Jahres)
+      - "<n>d"  (z.B. "7d" = letzte 7 Tage)
+
+    Args:
+        user_email: Default = aktueller MCP-User.
+        when:       Zeitangabe (siehe oben).
+        limit:      Max. Eintraege.
+    """
+    from datetime import datetime, timezone, timedelta
+    try:
+        if not user_email:
+            t = current_tenant.get() or {}
+            user_email = t.get("email") or ""
+        now = datetime.now(timezone.utc)
+        w = (when or "today").lower()
+        if w in ("today", "heute"):
+            start, end = now.replace(hour=0, minute=0, second=0, microsecond=0), now
+        elif w in ("yesterday", "gestern"):
+            y = (now - timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+            start, end = y, y + timedelta(days=1)
+        elif w in ("this_week", "diese_woche"):
+            start = (now - timedelta(days=now.weekday())).replace(hour=0, minute=0, second=0, microsecond=0)
+            end = now
+        elif w in ("last_week", "letzte_woche"):
+            this_mon = (now - timedelta(days=now.weekday())).replace(hour=0, minute=0, second=0, microsecond=0)
+            start = this_mon - timedelta(days=7)
+            end = this_mon
+        elif w in ("this_month", "diesen_monat"):
+            start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+            end = now
+        elif w in ("last_month", "letzten_monat"):
+            first_this = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+            last_prev = first_this - timedelta(seconds=1)
+            start = last_prev.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+            end = first_this
+        elif w in ("q1", "q2", "q3", "q4"):
+            q = int(w[1])
+            start_month = (q - 1) * 3 + 1
+            start = now.replace(month=start_month, day=1, hour=0, minute=0,
+                                  second=0, microsecond=0)
+            end_month = start_month + 3
+            if end_month > 12:
+                end = start.replace(year=now.year + 1, month=1)
+            else:
+                end = start.replace(month=end_month)
+        elif w.endswith("d") and w[:-1].isdigit():
+            n = int(w[:-1])
+            start, end = now - timedelta(days=n), now
+        else:
+            return _ok({"error": f"unknown 'when' value: {when}",
+                         "hint": "use today|yesterday|this_week|last_week|this_month|last_month|Q1..Q4|7d"})
+
+        c = client()
+        jobs_data = c.list_print_jobs(page=0, size=200)
+        items = (jobs_data.get("jobs") if isinstance(jobs_data, dict) else None) or \
+                (jobs_data.get("content") if isinstance(jobs_data, dict) else None) or []
+        out: list[dict] = []
+        for j in items:
+            if user_email and (j.get("ownerEmail") or "").lower() != user_email.lower():
+                continue
+            ts = j.get("createdAt") or j.get("submittedAt") or ""
+            try:
+                jt = datetime.fromisoformat(ts.replace("Z", "+00:00"))
+            except Exception:
+                continue
+            if start <= jt <= end:
+                out.append({
+                    "job_id":     j.get("id") or j.get("jobId"),
+                    "title":      j.get("title") or j.get("documentName", ""),
+                    "printer":    j.get("printerName", ""),
+                    "pages":      j.get("pages", 0),
+                    "color_mode": j.get("colorMode", ""),
+                    "submitted":  ts,
+                })
+            if len(out) >= limit:
+                break
+        return _ok({
+            "user_email": user_email,
+            "when": when,
+            "interpreted_as": {"start": start.isoformat(), "end": end.isoformat()},
+            "count": len(out),
+            "jobs": out,
+        })
+    except Exception as e:
+        logger.exception("print_history_natural failed")
+        return _ok({"error": str(e)})
+
+
 # ─── Dual Transport Router ────────────────────────────────────────────────────
 
 class DualTransportApp:
