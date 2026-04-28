@@ -4549,6 +4549,8 @@ def printix_send_to_user(
     filename: str = "document.pdf",
     target_printer: str = "",
     copies: int = 1,
+    pdl: str = "auto",
+    color: bool = True,
 ) -> str:
     """
     High-Level: druckt ein Dokument als User X.
@@ -4557,6 +4559,11 @@ def printix_send_to_user(
     statt ID), submit_print_job, upload, complete, change_owner.
     Entweder file_url ODER file_content_b64 angeben.
 
+    Auto-Conversion (v6.8.8+): PDF/PostScript/Text wird via Ghostscript zu
+    PCL XL konvertiert (Default). Sonst druckt der Drucker rohe PDF-Bytes
+    als Klartext (Hieroglyphen). Mit `pdl="passthrough"` schickt das Tool
+    die Datei unveraendert.
+
     Args:
         user_email:       Empfaenger (Owner der Secure-Print-Karte).
         file_url:         HTTP(S)-URL aus der das Dokument geladen wird.
@@ -4564,9 +4571,12 @@ def printix_send_to_user(
         filename:         Dateiname (fuer Titel + MIME-Detection).
         target_printer:   Printer-Name oder printer_id/queue_id kombiniert ('pid:qid').
         copies:           Anzahl Kopien (default: 1).
+        pdl:              "auto" (=PCLXL) | "PCLXL" | "PCL5" | "POSTSCRIPT" | "passthrough".
+        color:            Farb-Output bei PCL-Konvertierung (Default True).
     """
     import base64 as _b64
     import requests as _req
+    from print_conversion import prepare_for_print, ConversionError
     try:
         c = client()
         if not file_url and not file_content_b64:
@@ -4591,21 +4601,36 @@ def printix_send_to_user(
         if not (printer_id and queue_id):
             return _ok({"error": "could not resolve printer_id/queue_id"})
 
+        # PDL-Detection + Konvertierung (v6.8.8+)
+        target_pdl = (pdl or "auto").upper()
+        if target_pdl == "AUTO":
+            target_pdl = "PCLXL"
+        try:
+            converted_bytes, final_pdl = prepare_for_print(
+                file_bytes, target=target_pdl, color=color)
+        except ConversionError as ce:
+            return _ok({"error": f"conversion failed: {ce}",
+                         "hint": "pdl='passthrough' ueberspringt die Konvertierung"})
+
         # Job submit
-        # NOTE v7.2.4: PrintixClient.submit_print_job() hat kein size_bytes-Argument.
-        # Historischer Bug — niemals getestet. Wir nutzen jetzt nur die akzeptierten Felder.
+        # NOTE v6.8.4: PrintixClient.submit_print_job() hat kein size_bytes-Argument.
+        # NOTE v6.8.5: API-Response ist nested ({job:{id:...}, uploadLinks:[...]}).
+        # NOTE v6.8.8: pdl wird jetzt aus der Konvertierung uebergeben.
         job = c.submit_print_job(printer_id=printer_id, queue_id=queue_id,
-                                  title=filename, copies=copies)
+                                  title=filename, copies=copies, pdl=final_pdl)
         job_id, upload_url, upload_headers = _extract_job_id_and_upload(job)
         if not (job_id and upload_url):
             return _ok({"error": "submit_print_job missing job_id or upload_url", "raw": job})
 
-        c.upload_file_to_url(upload_url, file_bytes, extra_headers=upload_headers)
+        c.upload_file_to_url(upload_url, converted_bytes, extra_headers=upload_headers)
         c.complete_upload(job_id)
         c.change_job_owner(job_id, user_email)
         return _ok({
             "ok": True, "job_id": job_id, "owner_email": user_email,
-            "filename": filename, "size": len(file_bytes),
+            "filename": filename,
+            "size_input": len(file_bytes),
+            "size_after_conversion": len(converted_bytes),
+            "pdl": final_pdl,
             "printer_id": printer_id, "queue_id": queue_id,
         })
     except PrintixAPIError as e:
@@ -4997,6 +5022,8 @@ def printix_print_self(
     title: str = "",
     target_printer: str = "",
     copies: int = 1,
+    pdl: str = "auto",
+    color: bool = True,
 ) -> str:
     """
     Druckt eine Datei in die EIGENE Secure-Print-Queue des aufrufenden MCP-Users.
@@ -5009,6 +5036,11 @@ def printix_print_self(
     Tenant-E-Mail genutzt (current_tenant.email). Wenn diese nicht zu
     einem Printix-User passt, wird ein klarer Fehler zurueckgegeben.
 
+    Auto-Conversion (v6.8.8+): Eingehende PDFs / PostScript / Text-Dateien
+    werden serverseitig via Ghostscript zu PCL XL konvertiert (Default),
+    weil die Printix-API kein PDF als PDL akzeptiert. Drucker ohne
+    eingebauten PDF-RIP wuerden sonst Hieroglyphen drucken.
+
     Args:
         file_b64:        Base64-kodierter Dateiinhalt (PDF/PS/PCL/Text).
         filename:        Anzeigename der Datei (z.B. "Bericht_Q1.pdf").
@@ -5016,8 +5048,17 @@ def printix_print_self(
         target_printer:  Druckername oder 'printer_id:queue_id'. Default:
                          erster verfuegbarer Drucker des Tenants.
         copies:          Anzahl Kopien (default: 1).
+        pdl:             Ziel-PDL fuer die Konvertierung. "auto" (Default
+                         = PCLXL) | "PCLXL" | "PCL5" | "POSTSCRIPT" |
+                         "passthrough" (Datei unveraendert; PDF wird
+                         dann von vielen Druckern als Hieroglyphen
+                         gedruckt — nur fuer Debug oder wenn die
+                         Drucker-Queue serverseitig konvertiert).
+        color:           Farb-Output bei der PCL-Konvertierung (Default
+                         True = pxlcolor). False = pxlmono.
     """
     import base64 as _b64
+    from print_conversion import prepare_for_print, ConversionError
     try:
         c = client()
         # 1) Datei-Bytes
@@ -5051,13 +5092,29 @@ def printix_print_self(
         if not (printer_id and queue_id):
             return _ok({"error": "could not resolve printer_id/queue_id"})
 
-        # 4) 5-Stage-Submit
+        # 4) PDL-Detection + Konvertierung
+        target_pdl = (pdl or "auto").upper()
+        if target_pdl == "AUTO":
+            target_pdl = "PCLXL"
+        if target_pdl == "PASSTHROUGH":
+            target_pdl = "PASSTHROUGH"
+        try:
+            converted_bytes, final_pdl = prepare_for_print(
+                file_bytes, target=target_pdl, color=color)
+        except ConversionError as ce:
+            return _ok({"error": f"conversion failed: {ce}",
+                         "hint": "pdl='passthrough' ueberspringt die Konvertierung — "
+                                  "aber PDF wird dann von vielen Druckern als "
+                                  "Hieroglyphen gedruckt."})
+
+        # 5) 5-Stage-Submit mit korrektem PDL
         job = c.submit_print_job(printer_id=printer_id, queue_id=queue_id,
-                                  title=title or filename, copies=copies)
+                                  title=title or filename, copies=copies,
+                                  pdl=final_pdl)
         job_id, upload_url, upload_headers = _extract_job_id_and_upload(job)
         if not (job_id and upload_url):
             return _ok({"error": "submit_print_job missing job_id or upload_url", "raw": job})
-        c.upload_file_to_url(upload_url, file_bytes, extra_headers=upload_headers)
+        c.upload_file_to_url(upload_url, converted_bytes, extra_headers=upload_headers)
         c.complete_upload(job_id)
         if my_email:
             try:
@@ -5071,7 +5128,9 @@ def printix_print_self(
             "owner_email": my_email,
             "owner_user_id": me.get("id", ""),
             "filename": filename,
-            "size": len(file_bytes),
+            "size_input": len(file_bytes),
+            "size_after_conversion": len(converted_bytes),
+            "pdl": final_pdl,
             "copies": copies,
             "printer_id": printer_id,
             "queue_id": queue_id,
@@ -5707,6 +5766,8 @@ def printix_print_to_recipients(
     target_printer: str = "",
     copies: int = 1,
     fail_on_unresolved: bool = True,
+    pdl: str = "auto",
+    color: bool = True,
 ) -> str:
     """
     Sendet ein Dokument als individuelle Druckjobs an mehrere Empfaenger.
@@ -5717,9 +5778,13 @@ def printix_print_to_recipients(
     nicht-aufloesbaren Eingaben wird ABGEBROCHEN ohne zu drucken — sicherer
     Default. Auf False setzen wenn "best effort" gewuenscht.
 
+    Auto-Conversion (v6.8.8+): EINMALIGE PDF→PCL-Konvertierung vor dem
+    Submit; danach wird derselbe Output-Stream an alle Empfaenger
+    geschickt. Spart Ghostscript-Calls bei Multi-Recipient-Bursts.
+
     Args:
         recipients_csv:        Komma-getrennte Empfaenger-Liste.
-        file_b64:              Base64-Dateiinhalt.
+        file_b64:              Base64-Dateiinhalt (PDF/PS/PCL/Text).
         filename:              Anzeigename.
         target_printer:        Optional Printer-Name oder pid:qid; sonst
                                erster verfuegbarer Drucker.
@@ -5727,8 +5792,12 @@ def printix_print_to_recipients(
         fail_on_unresolved:    True = abbrechen wenn unaufloesbare Eingaben
                                existieren; False = nur die aufloesbaren
                                drucken.
+        pdl:                   "auto" (=PCLXL) | "PCLXL" | "PCL5" |
+                               "POSTSCRIPT" | "passthrough".
+        color:                 Farbe bei der PCL-Konvertierung.
     """
     import base64 as _b64
+    from print_conversion import prepare_for_print, ConversionError
     try:
         c = client()
         items = [x.strip() for x in (recipients_csv or "").split(",") if x.strip()]
@@ -5742,6 +5811,16 @@ def printix_print_to_recipients(
             return _ok({"error": f"invalid base64: {e}"})
         if not file_bytes:
             return _ok({"error": "empty file"})
+
+        # 1b) PDL-Detection + Konvertierung (einmalig fuer alle Empfaenger)
+        target_pdl = (pdl or "auto").upper()
+        if target_pdl == "AUTO":
+            target_pdl = "PCLXL"
+        try:
+            converted_bytes, final_pdl = prepare_for_print(
+                file_bytes, target=target_pdl, color=color)
+        except ConversionError as ce:
+            return _ok({"error": f"conversion failed: {ce}"})
 
         # 2) Empfaenger aufloesen
         resolved = _resolve_recipients_internal(c, items)
@@ -5773,13 +5852,14 @@ def printix_print_to_recipients(
             email = u.get("email") or ""
             try:
                 job = c.submit_print_job(printer_id=printer_id, queue_id=queue_id,
-                                          title=filename, copies=copies)
+                                          title=filename, copies=copies,
+                                          pdl=final_pdl)
                 job_id, upload_url, upload_headers = _extract_job_id_and_upload(job)
                 if not (job_id and upload_url):
                     results.append({"recipient": email, "ok": False,
                                      "error": "no job_id/upload_url in response"})
                     continue
-                c.upload_file_to_url(upload_url, file_bytes, extra_headers=upload_headers)
+                c.upload_file_to_url(upload_url, converted_bytes, extra_headers=upload_headers)
                 c.complete_upload(job_id)
                 if email:
                     try:
@@ -5803,7 +5883,9 @@ def printix_print_to_recipients(
                 "ambiguous": resolved["ambiguous"],
             },
             "filename": filename,
-            "size": len(file_bytes),
+            "size_input": len(file_bytes),
+            "size_after_conversion": len(converted_bytes),
+            "pdl": final_pdl,
             "printer_id": printer_id,
             "queue_id": queue_id,
             "results": results,

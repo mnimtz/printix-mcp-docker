@@ -70,6 +70,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         libreoffice-calc \
         libreoffice-impress \
         fonts-dejavu \
+        # v7.2.8: Ghostscript fuer PDF→PCL/PostScript-Konvertierung in den
+        # Print-Workflow-Tools (print_self, print_to_recipients,
+        # send_to_user etc.). Default-Target = PCL XL (pxlcolor) — sonst
+        # drucken Drucker ohne PDF-RIP rohe PDF-Bytes als Klartext.
+        ghostscript \
         # Healthcheck braucht curl (schlanker als netcat und python-urllib)
         curl \
         # tini = sauberer PID 1 (weiterleitet Signale an Python-Prozesse,

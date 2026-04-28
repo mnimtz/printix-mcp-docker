@@ -2,6 +2,31 @@
 
 This project follows [Semantic Versioning](https://semver.org/).
 
+## 7.2.8 (2026-04-28) — Auto-PDL-Conversion: hieroglyph print fix
+
+### Fixed
+- **Printers printed hieroglyphs instead of PDF content**: Printix API accepts no `PDF` PDL — only `PCL5 | PCLXL | POSTSCRIPT | UFRII | TEXT | XPS`. We were uploading raw PDF bytes, which printers without an internal PDF RIP interpreted as ASCII text. Submit worked, output was garbage.
+
+### Added
+- **New module `print_conversion.py`** with magic-byte detection, Ghostscript wrappers for PDF→PCL XL / PCL5 / PostScript, a PostScript text generator and a top-level `prepare_for_print(file_bytes, target="PCLXL", color=True)` function.
+- **Ghostscript** is now installed in the container (Dockerfile +`ghostscript`, ~25 MB).
+- **Four print tools extended** with `pdl: str = "auto"` + `color: bool = True`:
+  - `printix_print_self`
+  - `printix_print_to_recipients`
+  - `printix_send_to_user` (legacy — finally with conversion)
+  - `printix_session_print` (indirectly via send_to_user)
+
+  Default `pdl="auto"` maps to **PCL XL** (`pxlcolor`) — most universal modern printer language, compatible with HP/Konica/Ricoh/Xerox/Canon/Brother. Values: `auto` | `PCLXL` | `PCL5` | `POSTSCRIPT` | `passthrough`.
+
+- **Clear error messages**: `ConversionError` from Ghostscript is caught and returned as `{"error": "conversion failed: ...", "hint": "..."}` — no silent submit with broken bytes. `passthrough` mode warns in the log about the hieroglyph risk.
+
+- **Tool response now reports `size_input` + `size_after_conversion` + `pdl`** so the user sees what happened (PDF 660 → PCLXL 14k, PDL=PCLXL).
+
+### Notes
+
+- For multi-recipient bursts (`print_to_recipients`) conversion runs **once** before the loop, not per recipient.
+- `passthrough` is explicitly for debug or for tenants whose Cloud-Print-Gateway queue does conversion server-side. Default stays `auto`.
+
 ## 7.2.7 (2026-04-28) — Azure Blob Upload requires `x-ms-blob-type` header
 
 ### Fixed
