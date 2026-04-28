@@ -283,6 +283,64 @@ def create_app(session_secret: str) -> FastAPI:
 
     # ── Registrierung ─────────────────────────────────────────────────────────
 
+    def _notify_admins_of_user_registered(new_user: dict) -> int:
+        """Benachrichtigt alle Admins (is_admin=1, status='approved') deren
+        Tenant das Event `user_registered` in `notify_events` aktiviert hat.
+
+        Effekt-Funnel pro Admin:
+          1. is_admin = 1 + status = 'approved'  (sonst skip)
+          2. Tenant-Lookup via get_tenant_full_by_user_id
+          3. is_event_enabled(tenant, 'user_registered') == True
+          4. tenant.alert_recipients ist nicht leer
+          5. Mail-Credentials via 3-stufiger Fallback (tenant→global→env)
+        Erst wenn alle 5 Bedingungen erfuellt sind, geht eine Mail raus.
+
+        Returns: Anzahl tatsaechlich versendeter Mails.
+        """
+        from db import get_all_users, get_tenant_full_by_user_id
+        from reporting.notify_helper import (
+            send_event_notification, html_user_registered,
+        )
+        sent = 0
+        admins = [
+            u for u in get_all_users()
+            if u.get("is_admin") and u.get("status") == "approved"
+        ]
+        if not admins:
+            logger.debug("user_registered: keine approved Admins, skip")
+            return 0
+        subject = (
+            f"🔔 Neuer Printix-MCP-Benutzer wartet auf Freischaltung: "
+            f"{new_user.get('username', '?')}"
+        )
+        html = html_user_registered(
+            username=new_user.get("username", ""),
+            email=new_user.get("email", ""),
+            company=new_user.get("company", ""),
+        )
+        for admin in admins:
+            try:
+                admin_tenant = get_tenant_full_by_user_id(admin["id"])
+                if not admin_tenant:
+                    continue
+                ok = send_event_notification(
+                    admin_tenant,
+                    "user_registered",
+                    subject,
+                    html,
+                    check_enabled=True,  # respects notify_events toggle
+                )
+                if ok:
+                    sent += 1
+            except Exception as e:
+                logger.warning(
+                    "user_registered notify for admin %s failed: %s",
+                    admin.get("email") or admin.get("id"), e,
+                )
+        logger.info("user_registered: %d Mail(s) an Admins versendet "
+                     "(neuer User: %s)", sent, new_user.get("username", ""))
+        return sent
+
     @app.get("/register", response_class=HTMLResponse)
     async def register_step1_get(request: Request):
         return templates.TemplateResponse("register_step1.html", {
@@ -484,6 +542,22 @@ def create_app(session_secret: str) -> FastAPI:
             )
 
             audit(user["id"], "register", f"Tenant '{tenant['name']}' registriert")
+
+            # v7.2.12: Admin-Benachrichtigung wenn ein neuer User auf Pending
+            # landet. Erster User (is_first=True) wird auto-Admin → keine Mail.
+            # Alle anderen → status="pending", die Admins die `user_registered`
+            # in ihren `notify_events` aktiviert haben werden via Resend
+            # benachrichtigt. Helper-Code (`notify_helper.send_event_notification`)
+            # + HTML-Template (`html_user_registered`) waren schon da, der
+            # Aufruf-Trigger fehlte aber im Registrierungs-Flow.
+            if not is_first:
+                try:
+                    _notify_admins_of_user_registered(user)
+                except Exception as e:
+                    # nicht blockieren — Registrierung war erfolgreich,
+                    # Mail ist best-effort
+                    logger.warning("Admin-Notification fuer 'user_registered' "
+                                    "fehlgeschlagen: %s", e)
 
             for key in list(request.session.keys()):
                 if key.startswith("reg_"):

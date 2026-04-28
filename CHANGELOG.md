@@ -2,6 +2,27 @@
 
 This project follows [Semantic Versioning](https://semver.org/).
 
+## 7.2.12 (2026-04-28) — Bugfix: admin notification on pending registration never fired
+
+### Fixed
+- **No mail to admins on a new pending registration** — the UI toggle (*Settings → Notifications → "🔔 New MCP user registered (admin)"*) was visible and saved, but no mail was sent.
+
+  **Half-finished feature**: UI present (`settings.html:211`), setting persisted into `notify_events`, helper `send_event_notification(tenant, "user_registered", ...)` and HTML template `html_user_registered(...)` already existed in `reporting/notify_helper.py` — only the trigger call in the registration flow was missing. `register_step4_post` created the user + wrote an audit event but never called the notify helper.
+
+- **Fix**: new helper `_notify_admins_of_user_registered(new_user)` right before the registration routes. Iterates all approved admins, loads each tenant via `get_tenant_full_by_user_id`, calls `send_event_notification(tenant, "user_registered", ...)`. The per-tenant Settings toggle is still honored (`check_enabled=True`).
+
+- Best-effort: mail failures are logged but don't block registration. New user lands correctly in pending state regardless.
+
+### Mail prerequisites
+All 5 must be true per admin tenant for the mail to actually go out:
+1. Admin has status=`approved` and is_admin=1
+2. Tenant exists (via `get_tenant_full_by_user_id`)
+3. `notify_events` contains `user_registered` (Settings toggle)
+4. `alert_recipients` is non-empty (recipient CSV in Settings)
+5. Mail credentials configured (tenant own OR global fallback OR env)
+
+If v7.2.12 still doesn't deliver, walk through points 1–5. The log gives concrete hints.
+
 ## 7.2.11 (2026-04-28) — Tool annotations: 82 read-only tools marked (fewer permission prompts)
 
 ### Changed
