@@ -2,6 +2,36 @@
 
 This project follows [Semantic Versioning](https://semver.org/).
 
+## 7.2.10 (2026-04-28) — Tool-picking optimization phase 2: all 126 MCP tools with structured docstrings
+
+### Changed
+- **All 126 MCP tools now ship with consistently structured docstrings** in the new format (one-liner + when-to-use + when-NOT + returns + args). Batch 1 (16 v6.8.x workflow tools) shipped in v7.2.9 — this release covers the rest:
+
+  - Batch 2 (79 tools): high-overlap families — print/send/submit/jobs, list/get/find for printers/sites/networks/snmp/users/groups/cards, query/reports/analytics, user lifecycle, status/whoami/explain
+  - Batch 3 (31 tools): CRUD/reports-templates/schedules/capture-listing/backup/demo/feature-requests
+
+- Format per tool (compact):
+  ```
+  [One-liner]
+  Wann nutzen: "example prompt 1" • "prompt 2" • ...
+  Wann NICHT — stattdessen: <case> → other_tool
+  Returns: brief fields + follow-up tools
+  Args: param value-example | description
+  ```
+
+- Effect on the AI assistant:
+  - Clear **when/when-NOT rules** resolve overlaps (e.g. `print_self` vs `send_to_user` vs `quick_print`, `query_top_users` vs `top_users`, `list_users` vs `find_user` vs `user_360`)
+  - **Concrete user prompts** in the description field act as trigger phrases the model matches directly
+  - **Cross-references** (`stattdessen → printix_X`) help build multi-step plans
+  - **Args with value examples** cut back-and-forth like *"in which format?"*
+
+- Function code is fully unchanged — no behavior change. Pure metadata improvement.
+
+### Affected
+- 126 tools across both repos
+- No DB migration needed
+- Recommend: AI assistants should refresh their tool lists (see MCP_MANUAL_*.md) for the new description text to take effect during tool picking
+
 ## 7.2.9 (2026-04-28) — Tool-picking optimization: 16 v6.8.x workflow tools with structured docstrings
 
 ### Changed

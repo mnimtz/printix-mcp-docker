@@ -351,8 +351,14 @@ def _extract_printer_queue_ids(printer_obj: dict) -> tuple[str, str]:
 @mcp.tool()
 def printix_status() -> str:
     """
-    Zeigt, welche Credential-Bereiche konfiguriert sind und die Tenant-ID.
-    Gut zum Testen ob der MCP-Server korrekt konfiguriert ist.
+        Health-Check des MCP-Servers — laeuft alles, ist Tenant erreichbar?
+
+        Wann nutzen: "Laeuft Printix?" • "Is everything up?" • "Status check"
+        Wann NICHT — stattdessen: User-Stammdaten → printix_whoami ;
+            Inventar-Counts → printix_tenant_summary
+        Returns: {print_api, card_management, workstation_monitoring, tenant_id}.
+        Args: keine.
+
     """
     try:
         result = client().get_credential_status()
@@ -368,30 +374,16 @@ def printix_status() -> str:
 @mcp.tool()
 def printix_list_printers(search: str = "", page: int = 0, size: int = 50) -> str:
     """
-    Listet alle Drucker-Queues (Print Queues) des Tenants.
+        Listet alle Drucker-Queues. Pro physischem Drucker oft mehrere Queues!
 
-    WICHTIG – Datenstruktur der Antwort:
-    Jedes Item in 'printers' ist ein Printer-Queue-Paar.
-    Ein physischer Drucker kann mehrere Queues haben.
+        Wann nutzen: "Welche Drucker haben wir?" • "Show all queues" •
+            "List of printers"
+        Wann NICHT — stattdessen: Fuzzy-Match by Name → printix_resolve_printer ;
+            Detail eines Druckers → printix_get_printer ; Drucker eines Netzwerks → printix_network_printers
+        Returns: printers Liste — pro Item: name (Queue-Name), vendor, location,
+            connectionStatus, _links.self.href (printer_id/queue_id darin).
+        Args: search Substring | page 0-basiert | size max 100.
 
-    - Physische Drucker ermitteln: Nach printer_id deduplizieren.
-      Die printer_id steht in _links.self.href als:
-      /printers/{printer_id}/queues/{queue_id}
-      Felder pro Drucker: name (Modell), vendor, location, connectionStatus,
-      printerSignId (Kurzcode), serialNo.
-
-    - Print Queues anzeigen: Jedes Item direkt als Queue verwenden.
-      Queue-Name = name (z.B. "HP-M577 (Printix)", "Guestprint").
-      Drucker-Modell = model + vendor.
-
-    Beispiel: Bei 10 Druckern mit 19 Queues liefert die API 19 Items.
-    Frage: "Zeige meine Drucker" → deduplizieren auf 10 eindeutige printer_ids.
-    Frage: "Zeige meine Queues"  → alle 19 Items direkt ausgeben.
-
-    Args:
-        search: Optionaler Suchbegriff (Queue-/Druckername).
-        page:   Seitennummer (0-basiert).
-        size:   Einträge pro Seite (max. 100).
     """
     try:
         logger.debug("list_printers(search=%s, page=%d, size=%d)", search, page, size)
@@ -403,12 +395,15 @@ def printix_list_printers(search: str = "", page: int = 0, size: int = 50) -> st
 @mcp.tool()
 def printix_get_printer(printer_id: str, queue_id: str) -> str:
     """
-    Gibt Details und Fähigkeiten einer bestimmten Drucker-Queue zurück.
-    Beide IDs findest du im _links.self.href der printix_list_printers-Ausgabe.
+        Details + Faehigkeiten einer konkreten Drucker-Queue.
 
-    Args:
-        printer_id: ID des Druckers (aus _links.self.href in list_printers).
-        queue_id:   ID der Drucker-Queue (aus _links.self.href in list_printers).
+        Wann nutzen: "Details zu Drucker X" • "Show printer abc"
+        Wann NICHT — stattdessen: Fuzzy-Suche → printix_resolve_printer ;
+            Health → printix_printer_health_report ; Queue + letzte Jobs → printix_get_queue_context
+        Returns: vollstaendiges Drucker-Objekt mit capabilities.
+        Args: printer_id  UUID aus list_printers _links.self.href.
+            queue_id    UUID — selber Pfad.
+
     """
     try:
         logger.debug("get_printer(printer_id=%s, queue_id=%s)", printer_id, queue_id)
@@ -422,12 +417,14 @@ def printix_get_printer(printer_id: str, queue_id: str) -> str:
 @mcp.tool()
 def printix_list_jobs(queue_id: str = "", page: int = 0, size: int = 50) -> str:
     """
-    Listet Druckaufträge. Optionaler Filter nach Drucker-Queue.
+        Druckjobs auflisten, optional nach Queue gefiltert.
 
-    Args:
-        queue_id: Optionale Printer Queue ID zum Filtern.
-        page:     Seitennummer (0-basiert).
-        size:     Einträge pro Seite.
+        Wann nutzen: "Welche Jobs sind in Queue X?" • "Recent print jobs"
+        Wann NICHT — stattdessen: ein Job-Detail → printix_get_job ;
+            haengende Jobs → printix_jobs_stuck ; eigene Historie → printix_print_history_natural
+        Returns: jobs Liste mit id, title, ownerEmail, status, createdAt.
+        Args: queue_id optional | page 0-basiert | size max 50.
+
     """
     try:
         logger.debug("list_jobs(queue_id=%s, page=%d, size=%d)", queue_id, page, size)
@@ -439,10 +436,14 @@ def printix_list_jobs(queue_id: str = "", page: int = 0, size: int = 50) -> str:
 @mcp.tool()
 def printix_get_job(job_id: str) -> str:
     """
-    Gibt Status und Details eines bestimmten Druckauftrags zurück.
+        Details zu einem konkreten Druckjob.
 
-    Args:
-        job_id: ID des Druckauftrags.
+        Wann nutzen: "Status von Job X" • "Show job abc"
+        Wann NICHT — stattdessen: gesamte Liste → printix_list_jobs ;
+            haengende Jobs → printix_jobs_stuck
+        Returns: vollstaendiges Job-Objekt mit Stage, Owner, Pages.
+        Args: job_id  UUID.
+
     """
     try:
         logger.debug("get_job(job_id=%s)", job_id)
@@ -466,22 +467,16 @@ def printix_submit_job(
     scaling: str = "",
 ) -> str:
     """
-    Erstellt einen neuen Druckauftrag (API v1.1) in einer bestimmten Drucker-Queue.
-    Gibt Upload-URL und Job-ID zurück — danach Datei hochladen und printix_complete_upload aufrufen.
-    Beide IDs findest du im _links.self.href der printix_list_printers-Ausgabe.
+        Low-Level-Druckjob einreichen (API v1.1, Schritt 1 des 5-Stage-Submits).
 
-    Args:
-        printer_id:  Drucker-ID (aus _links.self.href in list_printers).
-        queue_id:    Queue-ID (aus _links.self.href in list_printers).
-        title:       Name des Druckauftrags (Pflicht).
-        user:        Optionale E-Mail des Benutzers, dem der Auftrag zugeordnet wird.
-        pdl:         Optionales Seitenformat: PCL5 | PCLXL | POSTSCRIPT | UFRII | TEXT | XPS.
-        color:       True = Farbe, False = Monochrom (leer = Drucker-Standard).
-        duplex:      NONE | SHORT_EDGE | LONG_EDGE.
-        copies:      Anzahl Kopien (0 = Drucker-Standard).
-        paper_size:  A4 | A3 | A0–A5 | B4–B5 | LETTER | LEGAL etc.
-        orientation: PORTRAIT | LANDSCAPE | AUTO.
-        scaling:     NOSCALE | SHRINK | FIT.
+        Wann nutzen: NUR fuer manuelle Multi-Step-Workflows.
+        Wann NICHT — stattdessen: KI generiert PDF → printix_print_self ;
+            Eine Datei an User → printix_send_to_user ; Multi-Recipient → printix_print_to_recipients
+        Returns: {job:{id,…}, uploadLinks:[{url,headers:{x-ms-blob-type}}]}.
+        Args: printer_id, queue_id  UUIDs aus list_printers.
+            title  Job-Titel.
+            user, pdl, color, duplex, copies, paper_size, orientation, scaling  alle optional.
+
     """
     try:
         logger.info("submit_job(printer=%s, queue=%s, title=%s)", printer_id, queue_id, title)
@@ -505,18 +500,13 @@ def printix_submit_job(
 @mcp.tool()
 def printix_complete_upload(job_id: str) -> str:
     """
-    Signalisiert, dass der Datei-Upload abgeschlossen ist und löst den Druckvorgang aus.
+        Schritt 3 des Submit-Flows: Upload als komplett markieren, Drucken triggern.
 
-    WICHTIG – Voraussetzung: Vor diesem Aufruf MUSS die Datei bereits per HTTP PUT
-    zur uploadUrl hochgeladen worden sein (die uploadUrl kommt aus printix_submit_job).
-    Reihenfolge: submit_job → Datei hochladen → complete_upload.
+        Wann nutzen: NUR im manuellen 5-Stage-Submit.
+        Wann NICHT — stattdessen: High-Level-Tools → printix_print_self / _send_to_user / _print_to_recipients
+        Returns: completion-status.
+        Args: job_id  aus submit_job.
 
-    Wird complete_upload ohne echten Datei-Upload aufgerufen, meldet der Backend-Server
-    formal Erfolg, entfernt den Job aber sofort danach (leere Datei). Ein anschließender
-    get_job liefert dann 404 — das ist korrektes Backend-Verhalten, kein Skill-Fehler.
-
-    Args:
-        job_id: ID des Druckauftrags (aus printix_submit_job).
     """
     try:
         logger.info("complete_upload(job_id=%s)", job_id)
@@ -528,10 +518,13 @@ def printix_complete_upload(job_id: str) -> str:
 @mcp.tool()
 def printix_delete_job(job_id: str) -> str:
     """
-    Löscht einen Druckauftrag (eingereicht oder fehlgeschlagen).
+        Druckjob stornieren / loeschen.
 
-    Args:
-        job_id: ID des Druckauftrags.
+        Wann nutzen: "Stornier Job X" • "Cancel job abc"
+        Wann NICHT — stattdessen: nur Owner wechseln → printix_change_job_owner
+        Returns: {ok}.
+        Args: job_id  UUID.
+
     """
     try:
         logger.info("delete_job(job_id=%s)", job_id)
@@ -543,11 +536,14 @@ def printix_delete_job(job_id: str) -> str:
 @mcp.tool()
 def printix_change_job_owner(job_id: str, new_owner_email: str) -> str:
     """
-    Überträgt einen Druckauftrag an einen anderen Benutzer (per E-Mail).
+        Job-Owner wechseln — Druckjob delegieren an anderen User.
 
-    Args:
-        job_id:          ID des Druckauftrags.
-        new_owner_email: E-Mail-Adresse des neuen Eigentümers.
+        Wann nutzen: "Gib Job X an User Y ab" • "Delegate job to colleague"
+        Wann NICHT — stattdessen: erst submitten dann delegieren ist redundant —
+            beim Submit gleich user_email direkt setzen → printix_send_to_user
+        Returns: {ok, job_id, new_owner}.
+        Args: job_id  UUID. user_email_or_uuid  Empfaenger.
+
     """
     try:
         logger.info("change_job_owner(job_id=%s, new_owner=%s)", job_id, new_owner_email)
@@ -561,12 +557,14 @@ def printix_change_job_owner(job_id: str, new_owner_email: str) -> str:
 @mcp.tool()
 def printix_list_cards(user_id: str) -> str:
     """
-    Listet alle Karten eines bestimmten Benutzers.
-    Hinweis: Es gibt kein tenant-weites "alle Karten"-Endpoint in der Printix API.
-    Karten müssen immer über einen Benutzer abgefragt werden.
+        Karten eines bestimmten Users.
 
-    Args:
-        user_id: Benutzer-ID in Printix (aus printix_list_users).
+        Wann nutzen: "Welche Karten hat Marcus?" • "List cards for user X"
+        Wann NICHT — stattdessen: User + Karten + Profile aggregiert → printix_get_user_card_context ;
+            tenant-weit → printix_list_cards_by_tenant
+        Returns: cards Liste mit card_id, _links.
+        Args: user_id  UUID.
+
     """
     try:
         logger.debug("list_cards(user_id=%s)", user_id)
@@ -587,12 +585,14 @@ def printix_list_cards(user_id: str) -> str:
 @mcp.tool()
 def printix_search_card(card_id: str = "", card_number: str = "") -> str:
     """
-    Ruft eine einzelne Karte per ID oder Kartennummer ab.
-    Genau eines der beiden Argumente muss angegeben werden.
+        Karte per ID oder Kartennummer suchen.
 
-    Args:
-        card_id:     Karten-ID in Printix.
-        card_number: Physische Kartennummer (wird automatisch base64-encodiert).
+        Wann nutzen: "Such Karte mit ID X" • "Find card abc"
+        Wann NICHT — stattdessen: dekodieren ohne DB-Lookup → printix_decode_card_value ;
+            Profil-Vorschlag → printix_suggest_profile
+        Returns: matches Liste.
+        Args: search  card_id ODER Kartennummer (Hex/Dec).
+
     """
     try:
         logger.debug("search_card(card_id=%s, card_number=%s)", card_id, card_number or "***")
@@ -607,11 +607,14 @@ def printix_search_card(card_id: str = "", card_number: str = "") -> str:
 @mcp.tool()
 def printix_register_card(user_id: str, card_number: str) -> str:
     """
-    Registriert (verknüpft) eine Karte mit einem Benutzer.
+        Karte einem User zuordnen (low-level). Card-Number wird base64-encodiert.
 
-    Args:
-        user_id:     Benutzer-ID in Printix.
-        card_number: Physische Kartennummer (wird automatisch base64-encodiert).
+        Wann nutzen: NUR direkt wenn UID schon transformiert ist.
+        Wann NICHT — stattdessen: AI-Onboarding mit Auto-Transform → printix_card_enrol_assist ;
+            CSV-Bulk → printix_bulk_import_cards
+        Returns: created card-Objekt mit card_id.
+        Args: user_id  UUID. card_number  bereits-transformierte Kartenwert.
+
     """
     try:
         logger.info("register_card(user_id=%s)", user_id)
@@ -623,10 +626,13 @@ def printix_register_card(user_id: str, card_number: str) -> str:
 @mcp.tool()
 def printix_delete_card(card_id: str) -> str:
     """
-    Entfernt eine Kartenzuordnung.
+        Karten-Zuordnung entfernen.
 
-    Args:
-        card_id: ID der Karte in Printix.
+        Wann nutzen: "Loesch Karte X" • "Remove card assignment"
+        Wann NICHT — stattdessen: ganzen User offboarden → printix_offboard_user (entfernt alle Karten)
+        Returns: {ok}.
+        Args: card_id  UUID. user_id optional.
+
     """
     try:
         logger.info("delete_card(card_id=%s)", card_id)
@@ -645,16 +651,16 @@ def printix_list_users(
     page_size: int = 50,
 ) -> str:
     """
-    Listet Benutzer im Tenant.
-    WICHTIG: Die API liefert standardmäßig nur GUEST_USER. Daher ist der Default hier USER.
-    Für alle Nutzer: einmal mit role='USER', einmal mit role='GUEST_USER' aufrufen.
-    Voraussetzung: Printix Premium + Cloud Print API guest user feature aktiviert.
+        Alle User des Tenants mit Pagination + Rollen-Filter.
 
-    Args:
-        role:      'USER' (normale Nutzer) oder 'GUEST_USER' (Gastnutzer). Default: 'USER'.
-        query:     Optionaler Suchbegriff (Name oder E-Mail-Adresse).
-        page:      Seitennummer (0-basiert).
-        page_size: Einträge pro Seite (max. 50).
+        Wann nutzen: "Welche User haben wir?" • "List users" • "Show all guests"
+        Wann NICHT — stattdessen: nur einen User → printix_get_user / printix_find_user ;
+            komplette 360-Sicht → printix_user_360
+        Returns: users Liste, pagination meta.
+        Args: role "USER" (Default) | "GUEST_USER" | "USER,GUEST_USER".
+            query Email-/Namen-Substring.
+            page, page_size.
+
     """
     try:
         logger.debug("list_users(role=%s, query=%s, page=%d)", role, query, page)
@@ -671,10 +677,14 @@ def printix_list_users(
 @mcp.tool()
 def printix_get_user(user_id: str) -> str:
     """
-    Gibt Details eines bestimmten Benutzers zurück.
+        Details eines konkreten Users.
 
-    Args:
-        user_id: Benutzer-ID in Printix.
+        Wann nutzen: "Detail User X" • "Show user abc"
+        Wann NICHT — stattdessen: 360-Sicht (Karten + Gruppen + Workstations) → printix_user_360 ;
+            Diagnose warum etwas nicht funktioniert → printix_diagnose_user
+        Returns: user-Objekt.
+        Args: user_id  UUID.
+
     """
     try:
         logger.debug("get_user(user_id=%s)", user_id)
@@ -691,13 +701,14 @@ def printix_create_user(
     password: str = "",
 ) -> str:
     """
-    Erstellt einen Gast-Benutzerkonto.
+        Low-Level User-anlegen (DB-Eintrag in Printix).
 
-    Args:
-        email:        E-Mail-Adresse des neuen Benutzers.
-        display_name: Anzeigename.
-        pin:          Optionale PIN — muss GENAU 4 Ziffern sein (z.B. "4242"). Andere Längen führen zu VALIDATION_FAILED.
-        password:     Optionales Passwort.
+        Wann nutzen: NUR direkt — meistens lieber Wrapper.
+        Wann NICHT — stattdessen: Kompletter Onboarding-Flow → printix_onboard_user ;
+            AI-Welcome-Workflow → printix_welcome_user (nach create)
+        Returns: created user-Objekt mit id.
+        Args: email, display_name, pin (optional), password (optional), id_code, expiration_timestamp.
+
     """
     try:
         logger.info("create_user(email=%s, name=%s)", email, display_name)
@@ -714,10 +725,13 @@ def printix_create_user(
 @mcp.tool()
 def printix_delete_user(user_id: str) -> str:
     """
-    Löscht einen Gast-Benutzer.
+        User loeschen (USER oder GUEST_USER).
 
-    Args:
-        user_id: Benutzer-ID in Printix.
+        Wann nutzen: NUR mit Vorsicht — endgueltig.
+        Wann NICHT — stattdessen: kompletter Offboarding-Workflow → printix_offboard_user
+        Returns: {ok}.
+        Args: user_id  UUID.
+
     """
     try:
         logger.info("delete_user(user_id=%s)", user_id)
@@ -729,10 +743,13 @@ def printix_delete_user(user_id: str) -> str:
 @mcp.tool()
 def printix_generate_id_code(user_id: str) -> str:
     """
-    Generiert einen neuen 6-stelligen Identifikationscode für einen Benutzer.
+        Neuen 6-stelligen ID-Code fuer einen User erzeugen (Self-Service-Token).
 
-    Args:
-        user_id: Benutzer-ID in Printix.
+        Wann nutzen: "Neuer ID-Code fuer User X" • "Generate self-service code"
+        Wann NICHT — stattdessen: kompletter Onboarding → printix_onboard_user
+        Returns: {id_code, expires_at}.
+        Args: user_id  UUID.
+
     """
     try:
         logger.info("generate_id_code(user_id=%s)", user_id)
@@ -746,12 +763,15 @@ def printix_generate_id_code(user_id: str) -> str:
 @mcp.tool()
 def printix_list_groups(search: str = "", page: int = 0, size: int = 50) -> str:
     """
-    Listet alle Gruppen im Tenant.
+        Alle Gruppen des Tenants.
 
-    Args:
-        search: Optionaler Suchbegriff.
-        page:   Seitennummer.
-        size:   Einträge pro Seite.
+        Wann nutzen: "Welche Gruppen haben wir?" • "List groups"
+        Wann NICHT — stattdessen: Mitglieder einer Gruppe → printix_get_group_members ;
+            Gruppen eines Users → printix_get_user_groups ;
+            einzelne Group-Details → printix_get_group
+        Returns: groups Liste mit name, queueCount, userCount, _links.self.href (UUID darin).
+        Args: search optional | page | size.
+
     """
     try:
         logger.debug("list_groups(search=%s, page=%d, size=%d)", search, page, size)
@@ -763,10 +783,14 @@ def printix_list_groups(search: str = "", page: int = 0, size: int = 50) -> str:
 @mcp.tool()
 def printix_get_group(group_id: str) -> str:
     """
-    Gibt Details einer bestimmten Gruppe zurück.
+        Details einer Gruppe.
 
-    Args:
-        group_id: Gruppen-ID in Printix.
+        Wann nutzen: "Detail Group X" • "Show group abc"
+        Wann NICHT — stattdessen: Mitglieder → printix_get_group_members ;
+            komplette Liste → printix_list_groups
+        Returns: group-Objekt.
+        Args: group_id  UUID.
+
     """
     try:
         logger.debug("get_group(group_id=%s)", group_id)
@@ -778,14 +802,15 @@ def printix_get_group(group_id: str) -> str:
 @mcp.tool()
 def printix_create_group(name: str, external_id: str) -> str:
     """
-    Erstellt eine neue Gruppe.
-    VORAUSSETZUNG: Der Tenant muss eine konfigurierte Directory-Anbindung haben (z.B. Azure AD,
-    Google Workspace). Ohne Directory schlägt der Call fehl mit:
-    "Directory ID cannot be null when no directories are configured for tenant".
+        Neue Printix-Gruppe anlegen. VORAUSSETZUNG: Tenant hat Directory-Anbindung (Entra/AD).
 
-    Args:
-        name:        Gruppenname.
-        external_id: Pflicht: ID der Gruppe im externen Verzeichnis (z.B. Azure AD GUID).
+        Wann nutzen: "Neue Gruppe Z anlegen" • "Create group X"
+        Wann NICHT — stattdessen: schon vorhandene checken → printix_list_groups ;
+            AD-Sync abgleichen → printix_sync_entra_group_to_printix
+        Returns: created group-Objekt.
+        Args: name  Anzeigename. external_id  externe ID (AD/Entra).
+            identity_provider, description optional.
+
     """
     try:
         logger.info("create_group(name=%s, external_id=%s)", name, external_id)
@@ -800,10 +825,13 @@ def printix_create_group(name: str, external_id: str) -> str:
 @mcp.tool()
 def printix_delete_group(group_id: str) -> str:
     """
-    Löscht eine Gruppe.
+        Gruppe loeschen.
 
-    Args:
-        group_id: Gruppen-ID in Printix.
+        Wann nutzen: NUR mit Vorsicht.
+        Wann NICHT — stattdessen: erst Mitglieder pruefen → printix_get_group_members
+        Returns: {ok}.
+        Args: group_id  UUID.
+
     """
     try:
         logger.info("delete_group(group_id=%s)", group_id)
@@ -822,13 +850,13 @@ def printix_list_workstations(
     size: int = 50,
 ) -> str:
     """
-    Listet Workstations (Computer mit Printix Client). Optional nach Standort oder Name filtern.
+        Verbundene Workstations des Tenants.
 
-    Args:
-        search:  Optionaler Suchbegriff (Hostname / Name).
-        site_id: Optionale Standort-ID zum Filtern.
-        page:    Seitennummer.
-        size:    Einträge pro Seite.
+        Wann nutzen: "Welche Workstations sind online?" • "List workstations"
+        Wann NICHT — stattdessen: einzelne Details → printix_get_workstation
+        Returns: workstations Liste.
+        Args: search, site_id, page, size optional.
+
     """
     try:
         logger.debug("list_workstations(search=%s, site_id=%s)", search, site_id)
@@ -845,10 +873,13 @@ def printix_list_workstations(
 @mcp.tool()
 def printix_get_workstation(workstation_id: str) -> str:
     """
-    Gibt Details einer bestimmten Workstation zurück.
+        Details einer Workstation.
 
-    Args:
-        workstation_id: Workstation-ID in Printix.
+        Wann nutzen: "Detail Workstation X"
+        Wann NICHT — stattdessen: gesamte Liste → printix_list_workstations
+        Returns: workstation-Objekt.
+        Args: workstation_id  UUID.
+
     """
     try:
         logger.debug("get_workstation(workstation_id=%s)", workstation_id)
@@ -862,12 +893,14 @@ def printix_get_workstation(workstation_id: str) -> str:
 @mcp.tool()
 def printix_list_sites(search: str = "", page: int = 0, size: int = 50) -> str:
     """
-    Listet alle Standorte (Sites) im Tenant.
+        Alle Standorte des Tenants.
 
-    Args:
-        search: Optionaler Suchbegriff.
-        page:   Seitennummer.
-        size:   Einträge pro Seite.
+        Wann nutzen: "Welche Standorte haben wir?" • "List sites"
+        Wann NICHT — stattdessen: Site-Details + Networks + Drucker → printix_site_summary ;
+            einzelne Site → printix_get_site
+        Returns: sites Liste mit address, timezone.
+        Args: keine.
+
     """
     try:
         logger.debug("list_sites(search=%s, page=%d, size=%d)", search, page, size)
@@ -879,10 +912,14 @@ def printix_list_sites(search: str = "", page: int = 0, size: int = 50) -> str:
 @mcp.tool()
 def printix_get_site(site_id: str) -> str:
     """
-    Gibt Details eines bestimmten Standorts zurück.
+        Details einer einzelnen Site.
 
-    Args:
-        site_id: Standort-ID in Printix.
+        Wann nutzen: "Detail zu Site X" • "Show site abc"
+        Wann NICHT — stattdessen: aggregiert mit Networks + Druckern → printix_site_summary ;
+            komplette Liste → printix_list_sites
+        Returns: site-Objekt.
+        Args: site_id  UUID.
+
     """
     try:
         logger.debug("get_site(site_id=%s)", site_id)
@@ -899,14 +936,14 @@ def printix_create_site(
     network_ids: str = "",
 ) -> str:
     """
-    Erstellt einen neuen Standort.
-    Hinweis: path ist Pflichtfeld laut API.
+        Neuen Standort anlegen.
 
-    Args:
-        name:            Standortname.
-        path:            Pflicht: Pfad des Standorts, z.B. '/Europe/Germany/Munich'.
-        admin_group_ids: Optionale kommagetrennte Liste von Admin-Gruppen-IDs.
-        network_ids:     Optionale kommagetrennte Liste von Netzwerk-IDs.
+        Wann nutzen: "Leg Standort 'Hamburg' an" • "Create site Y"
+        Wann NICHT — stattdessen: vorhandene anschauen → printix_list_sites ;
+            bestehende editieren → printix_update_site
+        Returns: created site mit id.
+        Args: name, address, timezone optional, country_code optional.
+
     """
     try:
         logger.info("create_site(name=%s, path=%s)", name, path)
@@ -933,16 +970,14 @@ def printix_update_site(
     network_ids: str = "",
 ) -> str:
     """
-    Aktualisiert einen Standort.
-    Hinweis: path sollte angegeben werden, da die API sonst VALIDATION_FAILED zurückgibt.
-    Aktuellen path findest du mit printix_get_site.
+        Site-Stammdaten editieren.
 
-    Args:
-        site_id:         Standort-ID.
-        name:            Neuer Name (leer = unverändert).
-        path:            Standort-Pfad, z.B. '/Europe/Germany/Munich' (empfohlen).
-        admin_group_ids: Kommagetrennte Liste von Admin-Gruppen-IDs (leer = unverändert).
-        network_ids:     Kommagetrennte Liste von Netzwerk-IDs (leer = unverändert).
+        Wann nutzen: "Aktualisier die Adresse von Site X" • "Update site Y"
+        Wann NICHT — stattdessen: neue anlegen → printix_create_site ;
+            nur ansehen → printix_get_site
+        Returns: updated site.
+        Args: site_id  UUID. + alle aenderbaren Felder optional.
+
     """
     try:
         logger.info("update_site(site_id=%s, name=%s, path=%s)", site_id, name, path)
@@ -964,10 +999,13 @@ def printix_update_site(
 @mcp.tool()
 def printix_delete_site(site_id: str) -> str:
     """
-    Löscht einen Standort.
+        Site loeschen — VORSICHT, betrifft auch zugehoerige Networks.
 
-    Args:
-        site_id: Standort-ID in Printix.
+        Wann nutzen: NUR mit Vorlauf.
+        Wann NICHT — stattdessen: erst Site-Inventory pruefen → printix_site_summary
+        Returns: {ok}.
+        Args: site_id  UUID.
+
     """
     try:
         logger.info("delete_site(site_id=%s)", site_id)
@@ -981,12 +1019,14 @@ def printix_delete_site(site_id: str) -> str:
 @mcp.tool()
 def printix_list_networks(site_id: str = "", page: int = 0, size: int = 50) -> str:
     """
-    Listet Netzwerke, optional gefiltert nach Standort.
+        Alle Netzwerke, optional nach Site gefiltert.
 
-    Args:
-        site_id: Optionale Standort-ID.
-        page:    Seitennummer.
-        size:    Einträge pro Seite.
+        Wann nutzen: "Welche Netzwerke?" • "Networks at site X"
+        Wann NICHT — stattdessen: einzelnes Network mit Druckern → printix_get_network_context ;
+            nur Detail → printix_get_network
+        Returns: networks Liste mit subnets, gateways.
+        Args: site_id  optional.
+
     """
     try:
         logger.debug("list_networks(site_id=%s, page=%d, size=%d)", site_id, page, size)
@@ -998,10 +1038,14 @@ def printix_list_networks(site_id: str = "", page: int = 0, size: int = 50) -> s
 @mcp.tool()
 def printix_get_network(network_id: str) -> str:
     """
-    Gibt Details eines bestimmten Netzwerks zurück.
+        Details eines einzelnen Netzwerks.
 
-    Args:
-        network_id: Netzwerk-ID in Printix.
+        Wann nutzen: "Detail Network X" • "Show network abc"
+        Wann NICHT — stattdessen: + Drucker + Site aggregiert → printix_get_network_context ;
+            Drucker direkt → printix_network_printers
+        Returns: network-Objekt.
+        Args: network_id  UUID.
+
     """
     try:
         logger.debug("get_network(network_id=%s)", network_id)
@@ -1021,17 +1065,13 @@ def printix_create_network(
     gateway_ip: str = "",
 ) -> str:
     """
-    Erstellt ein neues Netzwerk.
-    Hinweis: home_office, client_migrate_print_queues und air_print sind laut API Pflichtfelder.
+        Neues Netzwerk innerhalb einer Site anlegen.
 
-    Args:
-        name:                        Netzwerkname.
-        home_office:                 True wenn Home-Office-Netzwerk (Standard: False).
-        client_migrate_print_queues: 'GLOBAL_SETTING', 'YES' oder 'NO' (Standard: GLOBAL_SETTING).
-        air_print:                   True um AirPrint zu aktivieren (Standard: False).
-        site_id:                     Optionale Standort-ID.
-        gateway_mac:                 Optionale Gateway MAC-Adresse.
-        gateway_ip:                  Optionale Gateway IP-Adresse.
+        Wann nutzen: "Leg Network mit Subnet X an" • "Create network for site Y"
+        Wann NICHT — stattdessen: bestehende ansehen → printix_list_networks
+        Returns: created network mit id.
+        Args: site_id, name, subnet, gateway optional, dns optional.
+
     """
     try:
         logger.info("create_network(name=%s, site_id=%s)", name, site_id)
@@ -1059,22 +1099,13 @@ def printix_update_network(
     site_id: str = "",
 ) -> str:
     """
-    Aktualisiert ein Netzwerk.
-    Liest zuerst den aktuellen Stand aus der API und schreibt dann alle Pflichtfelder
-    (homeOffice, clientMigratePrintQueues, airPrint) zusammen mit den Änderungen zurück.
+        Netzwerk-Stammdaten editieren.
 
-    Hinweis zur Antwort: Der Update-Endpoint liefert eine schlankere Antwortstruktur als GET —
-    der site-Link fehlt in der direkten Rückgabe. Die Site-Zuordnung ist korrekt gespeichert.
-    Für die vollständige Ansicht danach printix_get_network aufrufen.
+        Wann nutzen: "Aenderung Subnet von Network X" • "Update network Y"
+        Wann NICHT — stattdessen: neu anlegen → printix_create_network
+        Returns: updated network.
+        Args: network_id  UUID. + Felder optional.
 
-    Args:
-        network_id:                  Netzwerk-ID.
-        name:                        Neuer Name (leer = unverändert).
-        subnet:                      Neues Subnetz, z.B. '192.168.1.0/24' (leer = unverändert).
-        home_office:                 True/False oder leer = unverändert.
-        client_migrate_print_queues: 'GLOBAL_SETTING', 'YES' oder 'NO' (leer = unverändert).
-        air_print:                   True/False oder leer = unverändert.
-        site_id:                     Standort-ID (leer = unverändert).
     """
     try:
         logger.info("update_network(network_id=%s, name=%s)", network_id, name)
@@ -1094,10 +1125,13 @@ def printix_update_network(
 @mcp.tool()
 def printix_delete_network(network_id: str) -> str:
     """
-    Löscht ein Netzwerk.
+        Netzwerk loeschen.
 
-    Args:
-        network_id: Netzwerk-ID in Printix.
+        Wann nutzen: NUR mit Vorlauf.
+        Wann NICHT — stattdessen: aktuelle Inhalte pruefen → printix_get_network_context
+        Returns: {ok}.
+        Args: network_id  UUID.
+
     """
     try:
         logger.info("delete_network(network_id=%s)", network_id)
@@ -1111,11 +1145,13 @@ def printix_delete_network(network_id: str) -> str:
 @mcp.tool()
 def printix_list_snmp_configs(page: int = 0, size: int = 50) -> str:
     """
-    Listet alle SNMP-Konfigurationen für Druckerüberwachung.
+        Alle SNMP-Konfigurationen (v1/v2c/v3) des Tenants.
 
-    Args:
-        page: Seitennummer.
-        size: Einträge pro Seite.
+        Wann nutzen: "SNMP-Konfigs?" • "List SNMP profiles"
+        Wann NICHT — stattdessen: einzelne Config + Drucker → printix_get_snmp_context
+        Returns: snmp_configs Liste.
+        Args: keine.
+
     """
     try:
         logger.debug("list_snmp_configs(page=%d, size=%d)", page, size)
@@ -1127,10 +1163,13 @@ def printix_list_snmp_configs(page: int = 0, size: int = 50) -> str:
 @mcp.tool()
 def printix_get_snmp_config(config_id: str) -> str:
     """
-    Gibt Details einer SNMP-Konfiguration zurück.
+        Details einer SNMP-Konfiguration.
 
-    Args:
-        config_id: SNMP-Konfigurations-ID.
+        Wann nutzen: "Detail SNMP X" • "Show snmp abc"
+        Wann NICHT — stattdessen: aggregiert mit Druckern + Network → printix_get_snmp_context
+        Returns: snmp-Objekt.
+        Args: snmp_id  UUID.
+
     """
     try:
         logger.debug("get_snmp_config(config_id=%s)", config_id)
@@ -1155,22 +1194,14 @@ def printix_create_snmp_config(
     privacy_key: str = "",
 ) -> str:
     """
-    Erstellt eine neue SNMP-Konfiguration für Druckermonitoring.
-    Endpunkt: POST /snmp
+        SNMP-Profil (v1/v2c/v3) anlegen.
 
-    Args:
-        name:               Name der Konfiguration (Pflicht).
-        get_community_name: SNMP Get Community Name.
-        set_community_name: SNMP Set Community Name.
-        tenant_default:     True wenn dies die Standard-Konfiguration des Tenants ist.
-        security_level:     NO_AUTH_NO_PRIVACY | AUTH_NO_PRIVACY | AUTH_PRIVACY.
-        version:            SNMP Version: V1 | V2C | V3 (Großbuchstaben).
-        username:           SNMPv3 Benutzername.
-        context_name:       SNMPv3 Context Name.
-        authentication:     NONE | MD5 | SHA | SHA256 | SHA384 | SHA512.
-        authentication_key: SNMPv3 Authentication Key.
-        privacy:            NONE | DES | AES | AES192 | ASE256.
-        privacy_key:        SNMPv3 Privacy Key.
+        Wann nutzen: "Erstell SNMP-Config Y" • "Create SNMP profile"
+        Wann NICHT — stattdessen: bestehende ansehen → printix_list_snmp_configs
+        Returns: created snmp_config mit id.
+        Args: name, version "v1"/"v2c"/"v3", community, auth_user/auth_protocol/auth_password (v3),
+            priv_protocol/priv_password (v3-priv).
+
     """
     try:
         logger.info("create_snmp_config(name=%s, version=%s)", name, version)
@@ -1195,10 +1226,13 @@ def printix_create_snmp_config(
 @mcp.tool()
 def printix_delete_snmp_config(config_id: str) -> str:
     """
-    Löscht eine SNMP-Konfiguration.
+        SNMP-Konfiguration loeschen.
 
-    Args:
-        config_id: SNMP-Konfigurations-ID.
+        Wann nutzen: NUR mit Vorlauf.
+        Wann NICHT — stattdessen: erst Drucker pruefen die sie nutzen → printix_get_snmp_context
+        Returns: {ok}.
+        Args: snmp_id  UUID.
+
     """
     try:
         logger.info("delete_snmp_config(config_id=%s)", config_id)
@@ -1243,10 +1277,13 @@ def _reporting_check() -> str | None:
 @mcp.tool()
 def printix_reporting_status() -> str:
     """
-    Prüft den Status des Reporting-Moduls: ODBC-Treiber, SQL-Konfiguration und Mail.
+        Status der Reports-Engine — DB-Verbindung, letzter Nightly-Run, Preset-Count.
 
-    Nützlich zur Diagnose wenn SQL-Abfragen fehlschlagen.
-    Zeigt alle erkannten ODBC-Treiber, den gewählten Treiber und ob SQL + Mail konfiguriert sind.
+        Wann nutzen: "Laeuft Reports?" • "Reporting status"
+        Wann NICHT — stattdessen: konkretes Reports-Tool aufrufen → printix_query_*
+        Returns: {sql_connected, last_run_at, preset_count}.
+        Args: keine.
+
     """
     status: dict = {"reporting_available": _REPORTING_AVAILABLE}
 
@@ -1306,18 +1343,15 @@ def printix_query_print_stats(
     printer_id: str = "",
 ) -> str:
     """
-    Druckvolumen-Statistik aus der Printix BI-Datenbank.
+        Druckvolumen nach beliebiger Dimension (User, Site, Drucker, Zeit).
 
-    Liefert Aufträge, Seiten, Farbanteil und Duplex-Quote für den gewählten Zeitraum.
-    Ermöglicht Analyse nach Zeitraum, Standort, Benutzer oder Drucker.
+        Wann nutzen: "Druckvolumen pro X" • "Print stats grouped by Y"
+        Wann NICHT — stattdessen: Trend ueber Zeit → printix_query_trend / printix_print_trends ;
+            Top-N → printix_query_top_users / printix_query_top_printers ;
+            Kosten → printix_query_cost_report
+        Returns: rows mit count, pages, color/bw breakdown.
+        Args: dimension, days, filters.
 
-    Args:
-        start_date:  Startdatum (YYYY-MM-DD), z.B. "2025-01-01"
-        end_date:    Enddatum   (YYYY-MM-DD), z.B. "2025-01-31"
-        group_by:    Aggregation: day | week | month | user | printer | site (default: month)
-        site_id:     Optional — Netzwerk-ID für Standort-Filter
-        user_email:  Optional — E-Mail für Benutzer-Filter
-        printer_id:  Optional — Drucker-ID für Drucker-Filter
     """
     err = _reporting_check()
     if err:
@@ -1345,22 +1379,14 @@ def printix_query_cost_report(
     currency: str = "€",
 ) -> str:
     """
-    Kostenaufstellung mit Papier-, Toner- und Gesamtkosten.
+        Druckkosten, optional nach Abteilung oder User.
 
-    Berechnet Kosten exakt nach der Printix PowerBI-Formel:
-      Papierkosten = Blätter × cost_per_sheet (Duplex = halbe Blätter)
-      Tonerkosten  = Seiten × cost_per_color/mono
-      Gesamt       = Papier + Toner
+        Wann nutzen: "Was kostet uns das Drucken?" • "Cost report by department"
+        Wann NICHT — stattdessen: Volumina ohne Preis → printix_query_print_stats ;
+            Kurz-Wrapper Abteilungsvergleich → printix_cost_by_department
+        Returns: cost rows mit price_per_page, total.
+        Args: days, group_by.
 
-    Args:
-        start_date:     Startdatum (YYYY-MM-DD)
-        end_date:       Enddatum   (YYYY-MM-DD)
-        cost_per_sheet: Kosten pro Blatt Papier (default: 0.01 €)
-        cost_per_mono:  Kosten pro S/W-Seite Toner (default: 0.02 €)
-        cost_per_color: Kosten pro Farbseite Toner (default: 0.08 €)
-        group_by:       day | week | month | site (default: month)
-        site_id:        Optional — Netzwerk-ID für Standort-Filter
-        currency:       Währungssymbol für Ausgabe (default: €)
     """
     err = _reporting_check()
     if err:
@@ -1397,17 +1423,13 @@ def printix_query_top_users(
     site_id: str = "",
 ) -> str:
     """
-    Ranking der aktivsten Nutzer nach Druckvolumen oder Kosten.
+        Top-N User mit Zeitfenster — vollstaendiges Filter-Set.
 
-    Args:
-        start_date:     Startdatum (YYYY-MM-DD)
-        end_date:       Enddatum   (YYYY-MM-DD)
-        top_n:          Anzahl Nutzer im Ranking (default: 10)
-        metric:         Sortierung: pages | cost | jobs | color_pages (default: pages)
-        cost_per_sheet: Kosten pro Blatt (für Kostenkalkulation)
-        cost_per_mono:  Kosten pro S/W-Seite
-        cost_per_color: Kosten pro Farbseite
-        site_id:        Optional — Netzwerk-ID für Standort-Filter
+        Wann nutzen: nur fuer komplexe Filter — sonst Kurzform.
+        Wann NICHT — stattdessen: einfache Top-Liste → printix_top_users
+        Returns: users Liste mit metric.
+        Args: days, limit, metric "pages"/"jobs", filters.
+
     """
     err = _reporting_check()
     if err:
@@ -1436,17 +1458,13 @@ def printix_query_top_printers(
     site_id: str = "",
 ) -> str:
     """
-    Ranking der meistgenutzten Drucker nach Volumen oder Kosten.
+        Top-N Drucker mit Zeitfenster — vollstaendiges Filter-Set.
 
-    Args:
-        start_date:     Startdatum (YYYY-MM-DD)
-        end_date:       Enddatum   (YYYY-MM-DD)
-        top_n:          Anzahl Drucker im Ranking (default: 10)
-        metric:         Sortierung: pages | cost | jobs | color_pages (default: pages)
-        cost_per_sheet: Kosten pro Blatt
-        cost_per_mono:  Kosten pro S/W-Seite
-        cost_per_color: Kosten pro Farbseite
-        site_id:        Optional — Netzwerk-ID für Standort-Filter
+        Wann nutzen: nur fuer komplexe Filter — sonst Kurzform.
+        Wann NICHT — stattdessen: einfache Top-Liste → printix_top_printers
+        Returns: printers Liste mit metric.
+        Args: days, limit, metric, filters.
+
     """
     err = _reporting_check()
     if err:
@@ -1470,15 +1488,14 @@ def printix_query_anomalies(
     threshold_multiplier: float = 2.5,
 ) -> str:
     """
-    Anomalie-Erkennung: Tage mit ungewöhnlich hohem oder niedrigem Druckvolumen.
+        Anomalie-Erkennung (Volumen-Spikes, ungewoehnliche Drucker-Nutzung).
 
-    Berechnet Mittelwert und Standardabweichung des täglichen Druckvolumens
-    und markiert Tage die mehr als threshold_multiplier × StdAbw abweichen.
+        Wann nutzen: "Gibt es Anomalien?" • "Detect outliers" • "Auffaellige Muster?"
+        Wann NICHT — stattdessen: Trend → printix_query_trend ;
+            Burst eines Users → printix_quota_guard
+        Returns: anomalies Liste mit user, dimension, deviation.
+        Args: days, sensitivity.
 
-    Args:
-        start_date:           Startdatum (YYYY-MM-DD)
-        end_date:             Enddatum   (YYYY-MM-DD)
-        threshold_multiplier: Faktor für Ausreißer-Schwelle (default: 2.5 = 2,5 × StdAbw)
     """
     err = _reporting_check()
     if err:
@@ -1504,19 +1521,14 @@ def printix_query_trend(
     cost_per_color: float = 0.08,
 ) -> str:
     """
-    Vergleich zweier Zeiträume — z.B. aktueller Monat vs. Vormonat.
+        Trendlinien ueber Zeit — eine Dimension nach Tag/Woche/Monat.
 
-    Liefert für beide Perioden Gesamtwerte und berechnet prozentuale Veränderungen
-    für Seiten, Kosten, aktive Nutzer und Auftragsvolumen.
+        Wann nutzen: "Wie entwickelt sich X?" • "Trend over time" mit Filtern.
+        Wann NICHT — stattdessen: Kurzform → printix_print_trends ;
+            Vergleich Periode A vs B → printix_compare_periods
+        Returns: timeseries.
+        Args: dimension, group_by, days, filters.
 
-    Args:
-        period1_start: Startdatum Periode 1 (YYYY-MM-DD), z.B. letzter Monat
-        period1_end:   Enddatum   Periode 1 (YYYY-MM-DD)
-        period2_start: Startdatum Periode 2 (YYYY-MM-DD), z.B. aktueller Monat
-        period2_end:   Enddatum   Periode 2 (YYYY-MM-DD)
-        cost_per_sheet: Kosten pro Blatt
-        cost_per_mono:  Kosten pro S/W-Seite
-        cost_per_color: Kosten pro Farbseite
     """
     err = _reporting_check()
     if err:
@@ -1564,50 +1576,14 @@ def printix_save_report_template(
     logo_position: str = "",
 ) -> str:
     """
-    Speichert eine vollständige Report-Definition als wiederverwendbares Template.
+        Speichert eine Query + Design-Konfig als wiederverwendbares Report-Template.
 
-    Das Template enthält alle Informationen für automatische Ausführung:
-    Query-Parameter, Layout, Schedule und Empfänger.
-    Bei Angabe einer report_id wird ein bestehendes Template überschrieben.
+        Wann nutzen: "Speicher als Template 'X'" • "Save report config"
+        Wann NICHT — stattdessen: einmaligen Run ausfuehren → printix_run_report_now ;
+            bestehende ansehen → printix_list_report_templates
+        Returns: template_id.
+        Args: name, preset, filters, design (Farben/Logo/Layout), recipients optional.
 
-    TIPP: Nutze zuerst printix_list_design_options() um verfügbare Themes,
-    Chart-Typen, Fonts etc. zu sehen. Mit printix_preview_report() kannst
-    du das Design testen bevor du es als Template speicherst.
-
-    Args:
-        name:               Lesbarer Name, z.B. "Monatlicher Kostenreport Controlling"
-        query_type:         print_stats | cost_report | top_users | top_printers | anomalies | trend | hour_dow_heatmap
-                            sowie Stufe-2-Typen: printer_history | device_readings | job_history |
-                            user_activity | sensitive_documents | dept_comparison | waste_analysis |
-                            color_vs_bw | duplex_analysis | paper_size | service_desk |
-                            fleet_utilization | sustainability | peak_hours | cost_allocation
-        query_params:       JSON-String mit Query-Parametern, z.B. '{"start_date":"last_month_start","end_date":"last_month_end","group_by":"month"}'
-        recipients:         Kommagetrennte E-Mail-Adressen, z.B. "controller@firma.de,cfo@firma.de"
-        mail_subject:       Betreffzeile, z.B. "Druckkosten {month} {year}"
-        output_formats:     Kommagetrennte Formate: html,csv,json,pdf,xlsx (default: html)
-        schedule_frequency: Leer = kein Schedule | monthly | weekly | daily
-        schedule_day:       Bei monthly: Tag 1-28. Bei weekly: 0=Mo...6=So (default: 1)
-        schedule_time:      Uhrzeit der Ausführung HH:MM (default: 08:00)
-        company_name:       Firmenname im Report-Header
-        primary_color:      Primärfarbe im Report-Design (Hex, default: #0078D4)
-        footer_text:        Optionaler Fußzeilentext
-        created_prompt:     Ursprüngliche Nutzeranfrage (für spätere Regenerierung)
-        report_id:          Optional — vorhandene ID zum Überschreiben
-        logo_base64:        Optional — Base64-Kodierung (ohne data:-Prefix) eines Logo-Bildes
-                            für den Report-Header. Max. 1 MB Rohgröße. Hat Vorrang vor logo_url.
-        logo_mime:          MIME-Type des Base64-Logos, z.B. image/png, image/jpeg (default: image/png)
-        logo_url:           Alternativ: externe URL zu einem Logo-Bild (nur wenn logo_base64 leer)
-        theme_id:           Design-Theme: corporate_blue | modern_teal | executive_slate |
-                            warm_sunset | forest_green | royal_purple | minimalist_gray
-                            (leer = corporate_blue). Setzt automatisch passende Farben.
-        chart_type:         Bevorzugter Chart-Typ: bar | line | donut | heatmap | sparkline
-                            (leer = automatische Wahl je nach Report-Typ)
-        header_variant:     Header-Stil: left | center | banner (default: left)
-        density:            Tabellen-Dichte: compact | normal | comfortable (default: normal)
-        font_family:        Schriftart: arial | helvetica | verdana | georgia | courier (default: arial)
-        currency:           Währung: EUR | USD | GBP | CHF (default: EUR)
-        show_env_impact:    Umwelt-Impact-Sektion anzeigen: true | false (default: false)
-        logo_position:      Logo-Position im Header: left | right | center (default: right)
     """
     if not _REPORTING_AVAILABLE:
         return _ok({"error": "Reporting-Modul nicht verfügbar."})
@@ -1716,13 +1692,14 @@ def _next_run_info(report_id: str) -> str | None:
 @mcp.tool()
 def printix_list_report_templates() -> str:
     """
-    Listet alle gespeicherten Report-Templates des aktuellen Benutzers.
+        Alle gespeicherten Report-Templates des Tenants.
 
-    WICHTIG: Dieses Tool immer zuerst aufrufen wenn der Benutzer einen Report
-    ausführen, versenden, löschen oder planen möchte und keine report_id bekannt ist.
-    Die report_id aus der Liste dann an printix_run_report_now oder andere Tools übergeben.
+        Wann nutzen: "Welche Templates haben wir?" • "List saved reports"
+        Wann NICHT — stattdessen: Detail eines Templates → printix_get_report_template ;
+            aktive Schedules → printix_list_schedules
+        Returns: templates Liste.
+        Args: keine.
 
-    Gibt Name, Query-Typ, Empfänger, Schedule und nächste geplante Ausführung zurück.
     """
     if not _REPORTING_AVAILABLE:
         return _ok({"error": "Reporting-Modul nicht verfügbar."})
@@ -1748,10 +1725,14 @@ def printix_list_report_templates() -> str:
 @mcp.tool()
 def printix_get_report_template(report_id: str) -> str:
     """
-    Ruft ein einzelnes Report-Template vollständig ab.
+        Details eines gespeicherten Report-Templates.
 
-    Args:
-        report_id: Template-ID (aus printix_list_report_templates)
+        Wann nutzen: "Detail Template X" • "Show saved report Y"
+        Wann NICHT — stattdessen: Vorschau-Rendering → printix_preview_report ;
+            einmal ausfuehren → printix_run_report_now
+        Returns: template-Objekt.
+        Args: report_id  UUID.
+
     """
     if not _REPORTING_AVAILABLE:
         return _ok({"error": "Reporting-Modul nicht verfügbar."})
@@ -1767,10 +1748,13 @@ def printix_get_report_template(report_id: str) -> str:
 @mcp.tool()
 def printix_delete_report_template(report_id: str) -> str:
     """
-    Löscht ein Report-Template und entfernt einen eventuellen Schedule.
+        Report-Template loeschen.
 
-    Args:
-        report_id: Template-ID (aus printix_list_report_templates)
+        Wann nutzen: NUR mit Vorsicht — auch verbundene Schedules werden ungueltig.
+        Wann NICHT — stattdessen: nur Schedule entfernen → printix_delete_schedule
+        Returns: {ok}.
+        Args: report_id  UUID.
+
     """
     if not _REPORTING_AVAILABLE:
         return _ok({"error": "Reporting-Modul nicht verfügbar."})
@@ -1787,19 +1771,14 @@ def printix_delete_report_template(report_id: str) -> str:
 @mcp.tool()
 def printix_run_report_now(report_id: str = "", report_name: str = "") -> str:
     """
-    Führt ein gespeichertes Report-Template sofort aus und versendet ihn per Mail.
+        Template einmalig ausfuehren und sofort zustellen (Test-Run oder Ad-hoc).
 
-    Workflow wenn der Benutzer "Report X senden" oder "schick mir den Bericht" sagt:
-      1. Falls report_id unbekannt: printix_list_report_templates() aufrufen
-      2. Passendes Template nach Name finden
-      3. Dieses Tool mit der report_id aufrufen
+        Wann nutzen: "Schick Template X jetzt einmalig an y@firma.de" • "Run report ad-hoc"
+        Wann NICHT — stattdessen: regelmaessig einplanen → printix_schedule_report ;
+            nur PDF-Vorschau → printix_preview_report
+        Returns: run_id, delivery_status.
+        Args: report_id, recipients optional (Override aus Template).
 
-    Alternativ: report_name direkt angeben — es wird automatisch nach Name gesucht
-    (Groß-/Kleinschreibung egal, Teilstring reicht, z.B. "Monat" findet "Monatsbericht IT").
-
-    Args:
-        report_id:   Template-ID (aus printix_list_report_templates) — bevorzugt
-        report_name: Name-Suche als Alternative wenn keine ID bekannt
     """
     err = _reporting_check()
     if err:
@@ -1847,7 +1826,13 @@ def printix_run_report_now(report_id: str = "", report_name: str = "") -> str:
 @mcp.tool()
 def printix_send_test_email(recipient: str) -> str:
     """
-    Sendet eine Test-E-Mail über den konfigurierten Resend-API-Key des Tenants.
+        Schickt eine Test-Mail an eine Adresse — prueft SMTP/Resend-Konfig.
+
+        Wann nutzen: "Test-Mail" • "SMTP check" • "Verify mail setup"
+        Wann NICHT — stattdessen: Reports zustellen → printix_run_report_now
+        Returns: {ok, message_id}.
+        Args: to_email  Empfaenger.
+
     """
     if not _REPORTING_AVAILABLE:
         return _ok({"error": "Reporting-Modul nicht verfügbar."})
@@ -1875,17 +1860,14 @@ def printix_schedule_report(
     time: str = "08:00",
 ) -> str:
     """
-    Legt einen Zeitplan für ein bestehendes Report-Template an oder aktualisiert ihn.
+        Template als Cron-Job einplanen — wiederkehrender Versand.
 
-    Für monatliche Reports empfiehlt sich Tag 1-3 (Anfang des Folgemonats).
-    Alle Zeiten in UTC.
+        Wann nutzen: "Schick X jeden Montag" • "Schedule report monthly"
+        Wann NICHT — stattdessen: einmalig ausfuehren → printix_run_report_now ;
+            Template selbst editieren → printix_save_report_template (neu speichern)
+        Returns: schedule_id, next_run_at.
+        Args: report_id, cron z.B. "0 8 1 * *", recipients Liste, timezone optional.
 
-    Args:
-        report_id: Template-ID (aus printix_list_report_templates)
-        frequency: monthly | weekly | daily
-        day:       Bei monthly: 1-28 (Tag des Monats).
-                   Bei weekly:  0=Montag … 6=Sonntag (default: 1)
-        time:      Uhrzeit UTC HH:MM (default: 08:00)
     """
     if not _REPORTING_AVAILABLE:
         return _ok({"error": "Reporting-Modul nicht verfügbar."})
@@ -1930,7 +1912,14 @@ def printix_schedule_report(
 @mcp.tool()
 def printix_list_schedules() -> str:
     """
-    Listet alle aktiven Report-Schedules mit nächstem Ausführungszeitpunkt.
+        Alle aktiven Schedules.
+
+        Wann nutzen: "Was ist eingeplant?" • "List active schedules"
+        Wann NICHT — stattdessen: Templates → printix_list_report_templates ;
+            Schedule editieren/loeschen → printix_update_schedule / _delete_schedule
+        Returns: schedules Liste mit cron, next_run_at, recipients.
+        Args: keine.
+
     """
     if not _REPORTING_AVAILABLE:
         return _ok({"error": "Reporting-Modul nicht verfügbar."})
@@ -1944,10 +1933,13 @@ def printix_list_schedules() -> str:
 @mcp.tool()
 def printix_delete_schedule(report_id: str) -> str:
     """
-    Entfernt den Zeitplan eines Reports (Template bleibt erhalten).
+        Schedule entfernen — Template bleibt.
 
-    Args:
-        report_id: Template-ID deren Schedule entfernt werden soll
+        Wann nutzen: "Stopp den geplanten Versand"
+        Wann NICHT — stattdessen: Template auch weg → printix_delete_report_template
+        Returns: {ok}.
+        Args: schedule_id  UUID.
+
     """
     if not _REPORTING_AVAILABLE:
         return _ok({"error": "Reporting-Modul nicht verfügbar."})
@@ -1983,16 +1975,14 @@ def printix_update_schedule(
     recipients: str = "",
 ) -> str:
     """
-    Ändert Timing oder Empfänger eines bestehenden Schedules.
+        Schedule-Konfig aendern (Cron, Empfaenger, etc.).
 
-    Nur angegebene Parameter werden geändert — alle anderen bleiben unverändert.
+        Wann nutzen: "Aender den Schedule X" • "Modify schedule"
+        Wann NICHT — stattdessen: komplett neu → printix_schedule_report ;
+            loeschen → printix_delete_schedule
+        Returns: updated schedule.
+        Args: schedule_id  UUID. + aenderbare Felder optional.
 
-    Args:
-        report_id:  Template-ID
-        frequency:  Neu: monthly | weekly | daily (leer = unverändert)
-        day:        Neu: Tag (0 = unverändert)
-        time:       Neu: Uhrzeit UTC HH:MM (leer = unverändert)
-        recipients: Neue kommagetrennte Empfängerliste (leer = unverändert)
     """
     if not _REPORTING_AVAILABLE:
         return _ok({"error": "Reporting-Modul nicht verfügbar."})
@@ -2041,16 +2031,13 @@ def printix_update_schedule(
 @mcp.tool()
 def printix_list_design_options() -> str:
     """
-    Listet alle verfügbaren Design-Optionen für Report-Templates:
-    Themes, Chart-Typen, Fonts, Header-Varianten, Dichte-Stufen, Währungen.
+        Verfuegbare Farbschemata, Logos, Layout-Varianten fuer Reports.
 
-    Nutze diese Informationen beim Erstellen oder Bearbeiten von Report-Templates,
-    um dem Benutzer passende Optionen vorzuschlagen.
+        Wann nutzen: "Welche Designs habe ich?" • "List report styles"
+        Wann NICHT — stattdessen: Vorschau-Render mit gewaehltem Design → printix_preview_report
+        Returns: color_schemes, logos, layouts.
+        Args: keine.
 
-    Beispiel-Workflow:
-      1. printix_list_design_options() → zeigt alle Themes
-      2. Benutzer wählt "executive_slate" als Theme
-      3. printix_save_report_template(..., theme_id="executive_slate") → speichert
     """
     if not _REPORTING_AVAILABLE:
         return _ok({"error": "Reporting-Modul nicht verfügbar."})
@@ -2121,43 +2108,13 @@ def printix_preview_report(
     report_id: str = "",
 ) -> str:
     """
-    Erzeugt eine Report-Vorschau OHNE E-Mail-Versand — ideal zum iterativen
-    Design im AI-Chat. Gibt den vollständigen Report als HTML (mit eingebetteten
-    SVG-Charts) oder als JSON-Datenstruktur zurück.
+        Rendert PDF-Vorschau eines Reports OHNE zu versenden.
 
-    Zwei Modi:
-      1. Ad-hoc: query_type + Datumsbereich angeben → Daten frisch abfragen
-      2. Template: report_id angeben → gespeichertes Template als Basis
+        Wann nutzen: "Zeig mir wie X aussieht" • "Render preview"
+        Wann NICHT — stattdessen: tatsaechlich versenden → printix_run_report_now
+        Returns: {pdf_b64, page_count}.
+        Args: report_id  UUID.
 
-    Bei Ad-hoc wird ein kompletter Report gerendert inkl. KPIs, Charts und Tabellen.
-
-    Workflow für AI-gesteuertes Report-Design:
-      1. printix_list_design_options() → verfügbare Themes etc.
-      2. printix_preview_report(query_type="print_stats", theme_id="executive_slate")
-         → Vorschau ansehen
-      3. "Kannst du die Farbe auf Grün ändern?" → printix_preview_report(..., primary_color="#1BA17D")
-      4. Zufrieden? → printix_save_report_template(...) zum Speichern
-
-    Args:
-        query_type:        Report-Typ (print_stats, cost_report, top_users, etc.)
-        start_date:        Start-Datum oder Preset (last_month_start, this_year_start, etc.)
-        end_date:          End-Datum oder Preset
-        query_params_json: Zusätzliche Query-Parameter als JSON-String
-                           z.B. '{"group_by":"month","site_id":"123"}'
-        theme_id:          Theme (corporate_blue, executive_slate, dark_mode, etc.)
-        primary_color:     Überschreibt die Theme-Primärfarbe (Hex, z.B. #0078D4)
-        chart_type:        Bevorzugter Chart-Typ: auto | bar | line | donut | heatmap
-        company_name:      Firmenname im Header
-        header_variant:    left | center | banner | minimal
-        density:           compact | normal | airy
-        font_family:       arial | georgia | roboto | fira_code | etc.
-        logo_base64:       Base64-kodiertes Logo (ohne data:-Prefix)
-        logo_mime:         MIME-Type des Logos (default: image/png)
-        footer_text:       Fußzeile
-        currency:          EUR | USD | GBP | CHF
-        show_env_impact:   Umwelt-Auswirkung anzeigen (Papier, Bäume, CO₂)
-        output_format:     html (Standard, mit Charts) | json (nur Rohdaten)
-        report_id:         Optional — vorhandenes Template als Basis laden
     """
     err = _reporting_check()
     if err:
@@ -2289,28 +2246,14 @@ def printix_query_any(
     query_params_json: str = "",
 ) -> str:
     """
-    Universelles Query-Tool für alle 22 Report-Typen (Stufe 1 + 2).
+        Universal-Reports-Endpunkt: Preset + Filter -> Tabelle.
 
-    Ersetzt die Notwendigkeit, für jeden Query-Typ ein eigenes MCP-Tool zu kennen.
-    Gibt die Rohdaten als JSON zurück — ideal für AI-Analyse, Visualisierung
-    oder als Basis für printix_preview_report.
+        Wann nutzen: "Frag X aus dem Reports-Warehouse" • "Run query Y with filters"
+        Wann NICHT — stattdessen: spezialisierte Tools sind kuerzer → printix_query_print_stats /
+            printix_top_users / printix_query_anomalies / printix_print_trends ; etc.
+        Returns: rows Liste, columns, total.
+        Args: preset  Preset-Name. filters dict mit User/Site/Time-Window.
 
-    Verfügbare query_type-Werte:
-      Stufe 1: print_stats, cost_report, top_users, top_printers, anomalies, trend
-      Stufe 2: printer_history, device_readings, job_history, queue_stats,
-               user_detail, user_copy_detail, user_scan_detail,
-               workstation_overview, workstation_detail,
-               tree_meter, service_desk, sensitive_documents,
-               hour_dow_heatmap, off_hours_print, audit_log
-
-    Args:
-        query_type:        Einer der oben genannten Query-Typen
-        start_date:        Start (Datum oder Preset: last_month_start, this_year_start, today, etc.)
-        end_date:          Ende (Datum oder Preset)
-        query_params_json: Weitere Parameter als JSON, z.B.:
-                           '{"group_by":"user","site_id":"abc","top_n":20}'
-                           '{"user_email":"max@firma.de"}'
-                           '{"keyword_sets":"hr,finance","include_scans":true}'
     """
     err = _reporting_check()
     if err:
@@ -2369,14 +2312,13 @@ def _demo_check() -> str | None:
 @mcp.tool()
 def printix_demo_setup_schema() -> str:
     """
-    Initialisiert die lokale Demo-SQLite-Datenbank (idempotent).
+        Erzeugt Demo-Schema in der Reports-DB (Sandbox-Tabellen) — einmaliger Setup.
 
-    Legt folgende Demo-Tabellen an (nur wenn sie noch nicht existieren):
-      demo_networks, demo_users, demo_printers, demo_jobs, demo_tracking_data,
-      demo_jobs_scan, demo_jobs_copy, demo_jobs_copy_details, demo_sessions
+        Wann nutzen: "Setup Demo-Datenbank" • "Init demo schema"
+        Wann NICHT — stattdessen: Daten erzeugen (nach Setup) → printix_demo_generate
+        Returns: {ok, tables_created}.
+        Args: keine.
 
-    Idempotent — kann mehrfach ohne Schaden ausgeführt werden.
-    Kein Azure SQL erforderlich — Demo-Daten liegen lokal auf SQLite.
     """
     err = _demo_check()
     if err:
@@ -2399,28 +2341,14 @@ def printix_demo_generate(
     jobs_per_user_day: float = 3.0,
 ) -> str:
     """
-    Generiert ein vollständiges Demo-Dataset in der lokalen SQLite-Datenbank.
+        Erzeugt synthetische Demo-Daten (User, Drucker, Druckjobs, Karten).
 
-    Erstellt realistische Druck-, Scan- und Kopierjobs für den angegebenen Zeitraum
-    — rückwirkend ab heute. Alle Reports (Volumen, Kosten, Top-User, Trends usw.)
-    zeigen danach aussagekräftige Demo-Daten. Kein Azure SQL erforderlich.
+        Wann nutzen: "Setze Demo-Umgebung mit 50 Usern und 500 Jobs auf" • "Generate demo data"
+        Wann NICHT — stattdessen: nur Schema ohne Daten → printix_demo_setup_schema ;
+            Daten wieder weg → printix_demo_rollback
+        Returns: {users_created, printers_created, jobs_created, demo_tag}.
+        Args: users 50, printers 10, jobs 500, days_of_history 30, demo_tag (Auto).
 
-    Args:
-        user_count:        Anzahl Demo-User (1–200, default: 15)
-        printer_count:     Anzahl Demo-Drucker (1–50, default: 6)
-        months:            Anzahl Monate rückwirkend ab heute (1–36, default: 12)
-        languages:         Kommagetrennte Sprachliste für Benutzernamen
-                           Verfügbar: de, en, fr, it, es, nl, sv, no
-                           Beispiel: "de,fr,en" → gemischte Herkunft
-        sites:             Kommagetrennte Standortnamen
-                           Beispiel: "Hauptsitz,München,Wien,Zürich"
-        demo_tag:          Name für diese Demo-Session (für späteres Rollback)
-                           Beispiel: "DEMO_ACME_2025" — leer = automatisch generiert
-        jobs_per_user_day: Durchschnittliche Druckjobs pro User pro Werktag (default: 3.0)
-
-    Beispiel-Aufruf:
-        "Erstelle Demo-Daten: 20 User, 8 Drucker, 12 Monate, Sprachen DE/FR/EN,
-         Standorte Berlin/Hamburg/München, Tag DEMO_KUNDE_2025"
     """
     err = _demo_check()
     if err:
@@ -2448,17 +2376,13 @@ def printix_demo_generate(
 @mcp.tool()
 def printix_demo_rollback(demo_tag: str) -> str:
     """
-    Löscht alle Demo-Daten einer bestimmten Session aus der lokalen SQLite-DB.
+        Entfernt Demo-Daten anhand des demo_tag — wieder cleane Datenbank.
 
-    Entfernt alle Zeilen aus demo_tracking_data, demo_jobs, demo_jobs_scan,
-    demo_jobs_copy, demo_jobs_copy_details, demo_printers, demo_users,
-    demo_networks und demo_sessions für den angegebenen demo_tag.
+        Wann nutzen: "Demo wieder weg" • "Rollback demo"
+        Wann NICHT — stattdessen: erst pruefen welche Tags aktiv sind → printix_demo_status
+        Returns: {removed_count, tables_cleaned}.
+        Args: demo_tag  aus printix_demo_status.
 
-    Voraussetzung: printix_demo_status zeigt vorhandene Tags.
-
-    Args:
-        demo_tag: Name der Demo-Session, z.B. "DEMO_ACME_2025"
-                  (sichtbar in printix_demo_status)
     """
     err = _demo_check()
     if err:
@@ -2476,10 +2400,13 @@ def printix_demo_rollback(demo_tag: str) -> str:
 @mcp.tool()
 def printix_demo_status() -> str:
     """
-    Zeigt alle aktiven Demo-Sessions im aktuellen Tenant.
+        Welche Demo-Sets sind aktuell aktiv?
 
-    Listet jede Session mit demo_tag, Erstellungsdatum, Anzahl User/Drucker/Jobs.
-    Nützlich um Tags für printix_demo_rollback zu ermitteln.
+        Wann nutzen: "Welche Demo-Daten haben wir?" • "Demo state"
+        Wann NICHT — stattdessen: Daten neu erzeugen → printix_demo_generate
+        Returns: active_tags Liste mit counts.
+        Args: keine.
+
     """
     err = _demo_check()
     if err:
@@ -2503,13 +2430,14 @@ def _get_card_tenant_id() -> str:
 @mcp.tool()
 def printix_list_card_profiles() -> str:
     """
-    Listet alle Karten-Transformationsprofile des Tenants.
+        Alle Card-Profile (Transform-Regeln) des Tenants.
 
-    Profile definieren wie Kartenwerte umgewandelt werden (z.B. HEX→Decimal,
-    Base64-Encoding, Byte-Reversal). Enthält sowohl Built-in-Profile
-    (YSoft, Ricoh, Canon, etc.) als auch benutzerdefinierte.
+        Wann nutzen: "Welche Profile haben wir?" • "List card profiles"
+        Wann NICHT — stattdessen: einzelnes Detail → printix_get_card_profile ;
+            Profil zu einer UID vorschlagen → printix_suggest_profile
+        Returns: profiles Liste.
+        Args: keine.
 
-    Felder: id, name, vendor, reader_model, mode, description, is_builtin, rules_json.
     """
     try:
         from cards.store import list_profiles
@@ -2523,14 +2451,14 @@ def printix_list_card_profiles() -> str:
 @mcp.tool()
 def printix_get_card_profile(profile_id: str) -> str:
     """
-    Zeigt Details eines Karten-Transformationsprofils.
+        Details eines Card-Profils inkl. Transform-Regeln.
 
-    Enthält die vollständigen Regeln (rules_json) für die Transformation:
-    strip_separators, input_mode, submit_mode, base64_source,
-    remove_chars, replace_map, trim_prefix, append, prepend, etc.
+        Wann nutzen: "Detail Profil X"
+        Wann NICHT — stattdessen: alle Profile → printix_list_card_profiles ;
+            passendes Profil zu UID finden → printix_suggest_profile
+        Returns: profile mit rules_json.
+        Args: profile_id  UUID.
 
-    Args:
-        profile_id: Profil-ID (z.B. 'builtin-plain-base64' oder eigene UUID).
     """
     try:
         from cards.store import get_profile
@@ -2546,15 +2474,14 @@ def printix_get_card_profile(profile_id: str) -> str:
 @mcp.tool()
 def printix_search_card_mappings(search: str = "", printix_user_id: str = "") -> str:
     """
-    Durchsucht lokale Karten-Mappings.
+        Lokale Card-Mapping-DB durchsuchen.
 
-    Jedes Mapping speichert die Zuordnung: Kartenwert → Printix-User,
-    inklusive aller Transformations-Zwischenschritte (raw → normalized → final),
-    das verwendete Profil und Notizen.
+        Wann nutzen: "Hat User X eine Mapping mit Wert Y?" • "Find local mapping"
+        Wann NICHT — stattdessen: orphaned-Cleanup → printix_find_orphaned_mappings ;
+            Karten gegen Printix → printix_search_card
+        Returns: matches Liste mit user, card_value, profile.
+        Args: query  Substring oder Wert.
 
-    Args:
-        search:          Suchbegriff (sucht in raw-Wert, normalized, HEX, Base64).
-        printix_user_id: Optional: nur Mappings für diesen Printix-User.
     """
     try:
         from cards.store import search_mappings
@@ -2569,19 +2496,14 @@ def printix_search_card_mappings(search: str = "", printix_user_id: str = "") ->
 @mcp.tool()
 def printix_get_card_details(card_id: str = "", card_number: str = "") -> str:
     """
-    Karte abfragen mit vollständigen Details — kombiniert Printix API + lokale DB.
+        Karte + lokales Mapping + Owner-Details in einem Block.
 
-    Liefert:
-    - Printix Cloud: cardId, registeredAt, owner
-    - Lokale DB: Transformation (raw → normalized → final), Profil-Name/Vendor,
-      Reader-Model, Notizen, Vorschau aller Zwischenschritte
+        Wann nutzen: "Detail Karte X" • "Show card abc"
+        Wann NICHT — stattdessen: User + alle Karten → printix_get_user_card_context ;
+            Audit-Trail → printix_card_audit
+        Returns: card, mapping, owner.
+        Args: card_id  UUID. user_id optional.
 
-    Das ist die "enriched" Version von printix_search_card — nutze dieses Tool
-    wenn Du möglichst viele Details zu einer Karte brauchst.
-
-    Args:
-        card_id:     Printix Card-ID.
-        card_number: Kartennummer (wird automatisch Base64-codiert wenn nötig).
     """
     try:
         c = client()
@@ -2604,16 +2526,14 @@ def printix_get_card_details(card_id: str = "", card_number: str = "") -> str:
 @mcp.tool()
 def printix_decode_card_value(card_value: str) -> str:
     """
-    Analysiert und decodiert einen Kartenwert — erkennt Format automatisch.
+        Raw-Kartenwert dekodieren (Base64, Hex, YSoft/Konica-Varianten).
 
-    Nützlich wenn ein Kartenwert aus einem Leser kommt und man verstehen will,
-    welches Format vorliegt (ASCII, HEX, YSoft Decimal, Konica, etc.).
+        Wann nutzen: "Was ist die Karte mit UID 04:5F:F0:…?" • "Decode card value"
+        Wann NICHT — stattdessen: durch Profil schicken → printix_transform_card_value ;
+            Profil suchen → printix_suggest_profile
+        Returns: decoded_bytes_hex, profile_hint, parsed_variants.
+        Args: card_value  raw String mit oder ohne Trennzeichen.
 
-    Gibt zurück: erkanntes Format, decodierte Bytes, HEX-Darstellung,
-    Decimal-Wert, reversed Bytes, mögliche Interpretationen.
-
-    Args:
-        card_value: Der Rohwert von der Karte (z.B. "MDQ1RkYwMDI=" oder "04:5F:F0:02").
     """
     try:
         from cards.transform import decode_printix_secret_value
@@ -2631,18 +2551,14 @@ def printix_transform_card_value(
     submit_mode: str = "",
 ) -> str:
     """
-    Transformiert einen Kartenwert mit einem Profil oder manuellen Regeln.
+        Wert durch Transformations-Pipeline schicken (Hex<->Dec, Reverse, Prefix/Suffix …).
 
-    Wendet Transformationsregeln an: Separatoren entfernen, HEX/Decimal-Konvertierung,
-    Base64-Encoding, Byte-Reversal, Prefix/Suffix, etc.
+        Wann nutzen: "Konvertier UID X zu Y-Format" • "Transform card value"
+        Wann NICHT — stattdessen: nur Erkennung ohne Transform → printix_decode_card_value ;
+            komplette Enrolment-Kette → printix_card_enrol_assist
+        Returns: final, hex, decimal, plus alle Zwischenstufen.
+        Args: raw_value  Eingabe. + viele Profile-Parameter (siehe cards.transform).
 
-    Gibt den transformierten Wert + Vorschau aller Zwischenschritte zurück.
-
-    Args:
-        card_value:       Rohwert der Karte.
-        profile_id:       Profil-ID für vordefinierte Regeln (optional).
-        strip_separators: Trennzeichen (:-.) entfernen (wenn kein Profil).
-        submit_mode:      'base64_text', 'hex', 'decimal', 'raw' (wenn kein Profil).
     """
     try:
         from cards.transform import transform_card_value
@@ -2672,13 +2588,14 @@ def printix_transform_card_value(
 @mcp.tool()
 def printix_get_user_card_context(user_id: str) -> str:
     """
-    Vollständiger Kartenkontext eines Benutzers: User-Details + alle Karten + lokale Mappings.
+        User + alle seine Karten + verwendete Profile in einem Block.
 
-    Ideal wenn ein Agent im Benutzerkontext arbeiten soll und neben den Printix-Karten
-    auch die lokal gespeicherten echten Kartenwerte, Profile und Transformationen sehen soll.
+        Wann nutzen: "Karten + Profile von Marcus" • "User card context"
+        Wann NICHT — stattdessen: nur User-Stamm → printix_user_360 ;
+            nur Karten-Liste → printix_list_cards
+        Returns: user, cards, profiles.
+        Args: email ODER user_id.
 
-    Args:
-        user_id: Benutzer-ID in Printix.
     """
     try:
         c = client()
@@ -2721,17 +2638,14 @@ def printix_query_audit_log(
     limit: int = 200,
 ) -> str:
     """
-    Abfrage des lokalen Audit-Logs (SQLite, nicht SQL Server).
+        Strukturierter Audit-Trail des MCP-Servers (Aktionen, Objekte, Actor).
 
-    Das Audit-Log erfasst alle Aktionen im MCP-Portal: User-Genehmigungen,
-    Passwort-Resets, Credential-Änderungen, Feature-Requests, etc.
+        Wann nutzen: "Was hat User X im MCP gemacht?" • "Audit trail server-side"
+        Wann NICHT — stattdessen: Karten-Audit → printix_card_audit ;
+            Druckhistorie → printix_print_history_natural
+        Returns: events Liste mit timestamp, actor, action, target.
+        Args: start_date, end_date, actor_email, action.
 
-    Args:
-        start_date:    Startdatum (YYYY-MM-DD), leer = letzte 30 Tage.
-        end_date:      Enddatum (YYYY-MM-DD), leer = heute.
-        action_prefix: Filter auf Action-Prefix (z.B. 'user.' für User-Aktionen).
-        object_type:   Filter auf Object-Type (z.B. 'user', 'tenant', 'feature_request').
-        limit:         Max. Einträge (Standard: 200).
     """
     try:
         from datetime import datetime, timedelta
@@ -2764,14 +2678,13 @@ def printix_query_audit_log(
 @mcp.tool()
 def printix_list_feature_requests(status: str = "", limit: int = 100) -> str:
     """
-    Listet Feature-Requests / Feedback-Tickets.
+        Ticketsystem fuer Feature-Wuensche (interner Tracker).
 
-    Zeigt alle Tickets oder filtert nach Status.
-    Gültige Status: new, planned, in_progress, done, rejected, later.
+        Wann nutzen: "Welche Wuensche stehen offen?" • "List feature requests"
+        Wann NICHT — stattdessen: Detail eines Tickets → printix_get_feature_request
+        Returns: requests Liste mit id, title, status, votes.
+        Args: status "open"/"closed"/"all" optional.
 
-    Args:
-        status: Optional: nur Tickets mit diesem Status.
-        limit:  Max. Einträge (Standard: 100).
     """
     try:
         import db
@@ -2786,10 +2699,13 @@ def printix_list_feature_requests(status: str = "", limit: int = 100) -> str:
 @mcp.tool()
 def printix_get_feature_request(ticket_id: int) -> str:
     """
-    Zeigt Details eines Feature-Request-Tickets.
+        Details eines Feature-Request-Tickets.
 
-    Args:
-        ticket_id: Die numerische Ticket-ID (nicht die Ticketnummer).
+        Wann nutzen: "Detail Feature X"
+        Wann NICHT — stattdessen: gesamte Liste → printix_list_feature_requests
+        Returns: request mit body, comments.
+        Args: request_id  numerisch oder UUID.
+
     """
     try:
         import db
@@ -2806,12 +2722,13 @@ def printix_get_feature_request(ticket_id: int) -> str:
 @mcp.tool()
 def printix_list_backups() -> str:
     """
-    Listet alle verfügbaren Backups des MCP-Servers.
+        Alle vorhandenen Backups (DB + Konfig + Metadaten).
 
-    Backups enthalten: SQLite-Datenbanken (printix_multi.db, demo_data.db),
-    Fernet-Schlüssel, Report-Templates, MCP-Secrets.
+        Wann nutzen: "Welche Backups gibt's?" • "List backups"
+        Wann NICHT — stattdessen: neues anlegen → printix_create_backup
+        Returns: backups Liste mit timestamp, size, contents-Summary.
+        Args: keine.
 
-    Gibt Dateiname, Größe, Erstellungsdatum und Version zurück.
     """
     try:
         from backup_manager import list_backups
@@ -2824,12 +2741,13 @@ def printix_list_backups() -> str:
 @mcp.tool()
 def printix_create_backup() -> str:
     """
-    Erstellt ein vollständiges Backup des MCP-Servers.
+        Erzeugt ein Backup-Zip mit DB + Verschluesselungs-Key + Konfiguration.
 
-    Sichert: printix_multi.db, demo_data.db, fernet.key,
-    report_templates.json, mcp_secrets.json.
+        Wann nutzen: "Backup vor Aenderung" • "Create backup before X"
+        Wann NICHT — stattdessen: ueber HA-UI auch moeglich (alternativer Pfad)
+        Returns: {filename, size, timestamp}.
+        Args: keine.
 
-    Gibt den Dateinamen und die Größe des erstellten Backups zurück.
     """
     try:
         from backup_manager import create_backup
@@ -2844,12 +2762,15 @@ def printix_create_backup() -> str:
 @mcp.tool()
 def printix_list_capture_profiles() -> str:
     """
-    Listet alle Capture-Profile (Scan-Weiterleitungsregeln) des Tenants.
+        Alle Capture-Profile (Scan-Weiterleitungs-Regeln) des Tenants.
 
-    Capture-Profile definieren Webhooks für die Printix Scan-Erfassung.
-    Jedes Profil hat eine Plugin-Konfiguration (z.B. Paperless-NGX).
+        Wann nutzen: "Welche Capture-Profile habe ich?" • "List capture configs"
+        Wann NICHT — stattdessen: Plugin-Schema eines Profils → printix_describe_capture_profile ;
+            Datei direkt einspeisen → printix_send_to_capture ;
+            Capture-Server-Status → printix_capture_status
+        Returns: capture_profiles Liste mit id, name, plugin_type, webhook_url.
+        Args: keine.
 
-    Felder: id, name, plugin_type, webhook_url, config.
     """
     try:
         import db
@@ -2880,11 +2801,14 @@ def printix_list_capture_profiles() -> str:
 @mcp.tool()
 def printix_capture_status() -> str:
     """
-    Zeigt den Status des Capture-Systems.
+        Server-Status der Capture-Pipeline: Port, Webhook-URL, verfuegbare Plugins.
 
-    Enthält: ob der separate Capture-Server aktiv ist,
-    welche Plugins verfügbar sind, Webhook-Base-URL,
-    und Anzahl konfigurierter Profile.
+        Wann nutzen: "Laeuft Capture?" • "Capture status" • "Welche Plugins sind installiert?"
+        Wann NICHT — stattdessen: konkrete Profile → printix_list_capture_profiles ;
+            Plugin-Schema → printix_describe_capture_profile
+        Returns: server_port, webhook_base_url, plugins Liste, profiles_count.
+        Args: keine.
+
     """
     try:
         capture_enabled = os.environ.get("CAPTURE_ENABLED", "false").strip().lower() == "true"
@@ -2954,13 +2878,14 @@ def printix_capture_status() -> str:
 @mcp.tool()
 def printix_site_summary(site_id: str) -> str:
     """
-    Vollständige Zusammenfassung einer Site: Site-Details + alle Networks + alle Drucker.
+        Aggregierte Sicht: Site + Networks + Drucker in einem Block.
 
-    Kombiniert mehrere API-Calls in einem Tool — spart Round-Trips.
-    Ideal um einen schnellen Überblick über einen Standort zu bekommen.
+        Wann nutzen: "Komplettsicht Site DACH" • "Full site overview"
+        Wann NICHT — stattdessen: nur Site-Meta → printix_get_site ;
+            nur Drucker einer Site → printix_network_printers(network_id=site)
+        Returns: site, networks Liste, printers Liste.
+        Args: site_id  UUID.
 
-    Args:
-        site_id: Die Site-ID.
     """
     try:
         c = client()
@@ -3010,14 +2935,15 @@ def printix_site_summary(site_id: str) -> str:
 @mcp.tool()
 def printix_network_printers(network_id: str = "", site_id: str = "") -> str:
     """
-    Listet alle Drucker eines bestimmten Netzwerks oder einer Site.
+        Alle Drucker eines Netzwerks oder einer Site (mit Strategy-Fallbacks).
 
-    Filtert die Drucker-Liste nach Netzwerk- oder Site-Zugehörigkeit.
-    Nützlich um zu sehen welche Geräte in welchem Netzwerk-Segment stehen.
+        Wann nutzen: "Drucker im Netzwerk X" • "Printers at site Y"
+        Wann NICHT — stattdessen: Tenant-weite Liste → printix_list_printers ;
+            Fuzzy-Suche → printix_resolve_printer
+        Returns: printers + resolution_strategy (network_id_or_link |
+            network_site_match | network_name_match | site_fallback).
+        Args: network_id  UUID des Netzwerks (oder Site falls bekannt).
 
-    Args:
-        network_id: Netzwerk-ID (optional).
-        site_id:    Site-ID (optional, listet alle Drucker aller Networks der Site).
     """
     try:
         c = client()
@@ -3203,14 +3129,14 @@ def printix_network_printers(network_id: str = "", site_id: str = "") -> str:
 @mcp.tool()
 def printix_get_queue_context(queue_id: str, printer_id: str = "") -> str:
     """
-    Liefert den vollständigen Kontext einer Queue: Queue-/Printer-Objekt + letzte Jobs.
+        Aggregierte Sicht: Queue + Drucker-Objekt + letzte Jobs in einem Aufruf.
 
-    Praktisch wenn ein Agent mit einer Queue arbeiten soll, aber aus der normalen
-    list_printers-Antwort erst den passenden Printer/Queue-Eintrag herauslösen müsste.
+        Wann nutzen: "Komplettsicht auf Queue X" • "Was ist mit dieser Queue los?"
+        Wann NICHT — stattdessen: nur Drucker-Details → printix_get_printer ;
+            nur Jobs einer Queue → printix_list_jobs(queue_id=…)
+        Returns: queue, printer, recent_jobs.
+        Args: queue_id  UUID.
 
-    Args:
-        queue_id: Queue-ID.
-        printer_id: Optionale Printer-ID zur direkten Auflösung.
     """
     try:
         c = client()
@@ -3260,10 +3186,14 @@ def printix_get_queue_context(queue_id: str, printer_id: str = "") -> str:
 @mcp.tool()
 def printix_get_network_context(network_id: str) -> str:
     """
-    Liefert den vollständigen Kontext eines Netzwerks: Network + Site + Drucker + SNMP-Bezüge.
+        Aggregierte Sicht: Network + Site + Drucker in einem Block.
 
-    Args:
-        network_id: Netzwerk-ID.
+        Wann nutzen: "Komplettsicht Network X" • "Network details with printers"
+        Wann NICHT — stattdessen: nur Detail → printix_get_network ;
+            nur Drucker → printix_network_printers
+        Returns: network, site, printers.
+        Args: network_id  UUID.
+
     """
     try:
         c = client()
@@ -3319,10 +3249,13 @@ def printix_get_network_context(network_id: str) -> str:
 @mcp.tool()
 def printix_get_snmp_context(config_id: str) -> str:
     """
-    Liefert den vollständigen Kontext einer SNMP-Konfiguration: SNMP + zugeordnete Networks/Sites/Drucker.
+        Aggregierte Sicht: SNMP-Config + Drucker die sie nutzen + Network.
 
-    Args:
-        config_id: SNMP-Konfigurations-ID.
+        Wann nutzen: "Was nutzt SNMP X?" • "SNMP impact view"
+        Wann NICHT — stattdessen: nur Detail → printix_get_snmp_config
+        Returns: snmp, printers, network.
+        Args: snmp_id  UUID.
+
     """
     try:
         c = client()
@@ -3466,14 +3399,14 @@ def _collect_all_users(c: PrintixClient) -> list[dict]:
 @mcp.tool()
 def printix_find_user(query: str) -> str:
     """
-    Fuzzy-Suche nach einem User ueber E-Mail, Name oder ID.
+        User-Fuzzy-Suche per Email-Fragment oder Name.
 
-    Durchsucht USER und GUEST_USER im aktuellen Tenant. Liefert Kandidaten
-    mit Score-freier Substring-Match. Ideal als Vorstufe fuer Tools, die
-    eine user_id brauchen (printix_user_360, printix_get_user_card_context).
+        Wann nutzen: "Such Marcus" • "Find user by email" • "Wer heisst Mueller?"
+        Wann NICHT — stattdessen: ID schon bekannt → printix_get_user ;
+            komplette Liste → printix_list_users
+        Returns: matches Liste.
+        Args: query  Substring von Email oder Name.
 
-    Args:
-        query: Suchbegriff (Teilstring in E-Mail / Name / ID).
     """
     try:
         users = _collect_all_users(client())
@@ -3493,14 +3426,15 @@ def printix_find_user(query: str) -> str:
 @mcp.tool()
 def printix_user_360(query: str) -> str:
     """
-    Komplettes Profil eines Users auf einen Blick.
+        360-Grad-Sicht eines Users: Stammdaten + Karten + Gruppen + Workstations + letzte Jobs.
 
-    Sucht den User via Fuzzy-Match und liefert: Profil, Karten (enriched),
-    Workstations, Gruppen und lokale Card-Mappings. Perfekter Startpunkt
-    fuer "was ist los mit User X?"-Fragen.
+        Wann nutzen: "Alles ueber marcus@firma.de" • "Full view of user X"
+        Wann NICHT — stattdessen: gezielte Helpdesk-Diagnose → printix_diagnose_user ;
+            nur Karten → printix_get_user_card_context ;
+            nur Gruppen → printix_get_user_groups
+        Returns: aggregated dict.
+        Args: query  Email oder UUID.
 
-    Args:
-        query: Suchbegriff (E-Mail, Name oder ID).
     """
     try:
         c = client()
@@ -3557,11 +3491,15 @@ def printix_user_360(query: str) -> str:
 @mcp.tool()
 def printix_printer_health_report() -> str:
     """
-    Health-Report ueber alle Drucker des Tenants.
+        Drucker-Status grupiert: online / offline / Fehlerzustaende.
 
-    Aggregiert Online/Offline/Status und gruppiert nach Site. Liefert
-    ausserdem die Liste der offline-Drucker als "Problemfaelle" fuer
-    schnelle Entscheidung.
+        Wann nutzen: "Welche Drucker sind offline?" • "Printer health" •
+            "Status aller Drucker"
+        Wann NICHT — stattdessen: konkrete Liste → printix_list_printers ;
+            Detail-Health eines Druckers → printix_get_printer
+        Returns: groups: online[], offline[], error[]; counts.
+        Args: keine.
+
     """
     try:
         c = client()
@@ -3597,11 +3535,15 @@ def printix_printer_health_report() -> str:
 @mcp.tool()
 def printix_tenant_summary() -> str:
     """
-    Executive-Dashboard in einem Call: Counts + Highlights.
+        Kompakter Inventar-Overview: Drucker / User / Sites / Cards / offene Jobs.
 
-    Liefert: Tenant-Info, User-Counts (USER/GUEST), aktive Drucker,
-    Workstation-Anzahl, Kartenzaehler, Top-Gruppen. Fuer
-    "gib mir einen Ueberblick ueber die Organisation"-Prompts.
+        Wann nutzen: "Gib mir einen Ueberblick" • "Tenant overview" •
+            "Wieviel was haben wir?"
+        Wann NICHT — stattdessen: Drucker-Liste → printix_list_printers ;
+            User-Liste → printix_list_users ; Health-Status → printix_printer_health_report
+        Returns: counts pro Resource-Typ.
+        Args: keine.
+
     """
     try:
         c = client()
@@ -3685,14 +3627,15 @@ def printix_tenant_summary() -> str:
 @mcp.tool()
 def printix_diagnose_user(email: str) -> str:
     """
-    Troubleshooting-Tool: "Warum kann User X nicht drucken?"
+        Helpdesk-Diagnose: warum funktioniert was bei User X nicht?
 
-    Prueft heuristisch: User existiert, Rolle passt, hat Karten registriert,
-    hat Workstation, SSO-Status. Liefert eine Liste von Findings mit
-    Severity + Loesungsvorschlag.
+        Wann nutzen: "Anna kann nicht drucken" • "Why is user X failing?" •
+            "Helpdesk-Diagnose fuer Y"
+        Wann NICHT — stattdessen: vollstaendiges Profil → printix_user_360 ;
+            Server-Health → printix_status
+        Returns: findings Liste mit Befund-Texten + Loesungs-Hinweisen.
+        Args: email  User-Email.
 
-    Args:
-        email: E-Mail-Adresse des Users.
     """
     try:
         c = client()
@@ -3777,14 +3720,14 @@ def printix_diagnose_user(email: str) -> str:
 @mcp.tool()
 def printix_list_cards_by_tenant(status: str = "all") -> str:
     """
-    Alle Karten tenant-weit ueber alle User hinweg.
+        Alle Karten des Tenants — quer ueber alle User.
 
-    Sammelt Karten aller User (USER + GUEST_USER), reichert mit lokalem
-    Mapping an und erlaubt Filter.
+        Wann nutzen: "Alle Karten" • "Tenant-wide card list" • "Find orphaned cards"
+        Wann NICHT — stattdessen: Karten EINES Users → printix_list_cards ;
+            nur lokale Mappings ohne Printix-User → printix_find_orphaned_mappings
+        Returns: cards Liste, optional gefiltert.
+        Args: filter "all" (Default) | "registered" | "orphaned".
 
-    Args:
-        status: 'all' | 'unmapped' (nur Karten ohne lokales Mapping) |
-                'mapped' (nur Karten mit Mapping).
     """
     try:
         c = client()
@@ -3828,11 +3771,13 @@ def printix_list_cards_by_tenant(status: str = "all") -> str:
 @mcp.tool()
 def printix_find_orphaned_mappings() -> str:
     """
-    Lokale Card-Mappings ohne zugehoerige Printix-Karte ("Leichen").
+        Lokale Card-Mappings ohne zugehoerigen Printix-User — Cleanup-Kandidaten.
 
-    Laedt alle lokalen Mappings, dann die tenant-weiten Printix-Karten, und
-    liefert die Differenz. Typische Ursache: Karte wurde ausserhalb unserer
-    App in Printix geloescht — unser DB-Mapping blieb.
+        Wann nutzen: "Welche Mappings sind orphan?" • "Find dead card mappings"
+        Wann NICHT — stattdessen: tenant-weite Cards → printix_list_cards_by_tenant
+        Returns: orphans Liste.
+        Args: keine.
+
     """
     try:
         c = client()
@@ -3876,17 +3821,15 @@ def printix_bulk_import_cards(
     dry_run: bool = True,
 ) -> str:
     """
-    Massenimport von Karten aus CSV. Header-Zeile erwartet:
-    `email,card_uid[,notes]`
+        CSV-Massenimport mit Profil + Dry-Run-Modus.
 
-    Transformiert jede UID mit dem gewaehlten Profil und registriert sie
-    in Printix. Mit dry_run=True wird nur simuliert (keine API-Calls,
-    nur Preview).
+        Wann nutzen: "Importier 500 Karten" • "Bulk-import from CSV"
+        Wann NICHT — stattdessen: einzelne Karte → printix_card_enrol_assist
+        Returns: imported_count, skipped, errors, preview (bei dry_run).
+        Args: csv_data  CSV-String mit Header "email,card_uid[,notes]".
+            profile_id  Transform-Profil.
+            dry_run True (Default) — nur validieren, keine API-Calls.
 
-    Args:
-        csv_data:   CSV mit Header 'email,card_uid' (optional 'notes').
-        profile_id: Transform-Profil (leer = Passthrough).
-        dry_run:    True = nur validieren+preview, False = tatsaechlich registrieren.
     """
     import csv as _csv
     import io as _io
@@ -3955,13 +3898,14 @@ def printix_bulk_import_cards(
 @mcp.tool()
 def printix_suggest_profile(sample_uid: str) -> str:
     """
-    Schlaegt das passendste Transform-Profil fuer eine Sample-UID vor.
+        Schlaegt anhand einer Beispiel-UID das passende Card-Profil vor (Top-10-Ranking).
 
-    Wendet alle Profile nacheinander an, scored nach (transform erfolgreich?
-    final_value != raw? length-plausibel?) und liefert Ranking.
+        Wann nutzen: "Welches Profil passt zu UID X?" • "Suggest profile from sample"
+        Wann NICHT — stattdessen: alle Profile sehen → printix_list_card_profiles ;
+            gleich registrieren → printix_card_enrol_assist
+        Returns: top-10 mit score, best_match.
+        Args: sample_uid  Hex-UID, z.B. "045FF002".
 
-    Args:
-        sample_uid: Beispiel-UID wie am Kartenleser gescannt.
     """
     try:
         from cards.store import list_profiles
@@ -4013,11 +3957,13 @@ def printix_suggest_profile(sample_uid: str) -> str:
 @mcp.tool()
 def printix_card_audit(user_email: str) -> str:
     """
-    Audit-Trail fuer die Karten eines Users: was ist registriert, wann,
-    welche Notizen, welches Profil.
+        Audit-Trail aller Karten-Aenderungen fuer einen User.
 
-    Args:
-        user_email: E-Mail-Adresse.
+        Wann nutzen: "Was ist mit Marcus Karten passiert?" • "Card history for user"
+        Wann NICHT — stattdessen: Audit des MCP allgemein → printix_query_audit_log
+        Returns: audit Liste mit timestamp, action, before/after.
+        Args: user_id  UUID.
+
     """
     try:
         c = client()
@@ -4068,13 +4014,13 @@ def printix_card_audit(user_email: str) -> str:
 @mcp.tool()
 def printix_top_printers(days: int = 7, limit: int = 10, metric: str = "pages") -> str:
     """
-    Meistgenutzte Drucker der letzten N Tage. Convenience-Wrapper um
-    printix_query_top_printers mit auto-berechneten Datumsgrenzen.
+        Top-N Drucker — Kurzform-Wrapper.
 
-    Args:
-        days:   Zeitfenster in Tagen (default: 7).
-        limit:  Top-N (default: 10).
-        metric: pages | cost | jobs | color_pages.
+        Wann nutzen: "Top-Drucker letzte 30 Tage" • "Most used printers"
+        Wann NICHT — stattdessen: komplexe Filter → printix_query_top_printers
+        Returns: top Liste mit metric.
+        Args: days 30, limit 10, metric "pages".
+
     """
     from datetime import datetime, timedelta
     end = datetime.utcnow().date()
@@ -4096,13 +4042,13 @@ def printix_top_printers(days: int = 7, limit: int = 10, metric: str = "pages") 
 @mcp.tool()
 def printix_top_users(days: int = 7, limit: int = 10, metric: str = "pages") -> str:
     """
-    Aktivste User der letzten N Tage. Convenience-Wrapper um
-    printix_query_top_users.
+        Top-N User — Kurzform-Wrapper.
 
-    Args:
-        days:   Zeitfenster in Tagen (default: 7).
-        limit:  Top-N (default: 10).
-        metric: pages | cost | jobs | color_pages.
+        Wann nutzen: "Wer druckt am meisten?" • "Top users last week"
+        Wann NICHT — stattdessen: komplexe Filter → printix_query_top_users
+        Returns: top Liste mit metric.
+        Args: days, limit, metric.
+
     """
     from datetime import datetime, timedelta
     end = datetime.utcnow().date()
@@ -4124,13 +4070,13 @@ def printix_top_users(days: int = 7, limit: int = 10, metric: str = "pages") -> 
 @mcp.tool()
 def printix_jobs_stuck(minutes: int = 15) -> str:
     """
-    Jobs die laenger als `minutes` in der Queue haengen.
+        Jobs die laenger als N Minuten haengen — Helpdesk-Diagnose.
 
-    Nutzt Printix list_print_jobs (aktueller Snapshot) und filtert nach
-    Alter + Status. Basis fuer Alerting/Monitoring.
+        Wann nutzen: "Welche Jobs haengen seit langem?" • "Stuck jobs"
+        Wann NICHT — stattdessen: alle Jobs einer Queue → printix_list_jobs
+        Returns: stuck Liste mit age + owner.
+        Args: minutes  Schwellwert in Minuten (Default 30).
 
-    Args:
-        minutes: Schwellwert in Minuten (default: 15).
     """
     try:
         from datetime import datetime, timezone, timedelta
@@ -4168,11 +4114,14 @@ def printix_jobs_stuck(minutes: int = 15) -> str:
 @mcp.tool()
 def printix_print_trends(group_by: str = "day", days: int = 30) -> str:
     """
-    Zeitreihe fuer Druckvolumen. Convenience-Wrapper um printix_query_trend.
+        Druck-Trend nach Tag/Woche/Monat — Kurzform.
 
-    Args:
-        group_by: day | week | month (default: day).
-        days:     Zeitfenster in Tagen (default: 30).
+        Wann nutzen: "Trend der letzten 90 Tage" • "Monthly print trend"
+        Wann NICHT — stattdessen: vollstaendige Filter → printix_query_trend ;
+            A vs B Vergleich → printix_compare_periods
+        Returns: timeseries.
+        Args: group_by "day"/"week"/"month", days.
+
     """
     from datetime import datetime, timedelta
     end = datetime.utcnow().date()
@@ -4199,17 +4148,14 @@ def printix_cost_by_department(
     cost_per_color: float = 0.08,
 ) -> str:
     """
-    Kosten aggregiert pro Kostenstelle/Abteilung.
+        Druckkosten aggregiert pro Abteilung.
 
-    Liest `department_field` aus den User-Custom-Attributen, gruppiert
-    Druckvolumen und rechnet Kosten. Erfordert, dass Printix das
-    Attribut pro User liefert.
+        Wann nutzen: "Welche Abteilung verursacht hohe Kosten?" • "Cost by department"
+        Wann NICHT — stattdessen: nach User → printix_query_cost_report ;
+            ohne Preis-Werte (nur Volumen) → printix_query_print_stats
+        Returns: rows {department, jobs, pages, color/bw, cost}.
+        Args: department_field, days, cost_per_mono, cost_per_color.
 
-    Args:
-        department_field: Name des User-Attributs (default: 'department').
-        days:             Zeitfenster.
-        cost_per_mono:    Kosten pro S/W-Seite.
-        cost_per_color:   Kosten pro Farbseite.
     """
     from datetime import datetime, timedelta
     end = datetime.utcnow().date()
@@ -4265,14 +4211,13 @@ def printix_compare_periods(
     offset_b: int = 30,
 ) -> str:
     """
-    Vergleicht zwei gleichgrosse Zeitraeume: "letzte N Tage" vs. "die N Tage davor".
+        Periode A gegen Periode B stellen — Delta-KPIs.
 
-    Nuetzlich fuer "Wie hat sich Druckvolumen seit letztem Monat entwickelt?".
+        Wann nutzen: "Vergleich letzte 30 vs 30 Tage davor" • "Period A vs B"
+        Wann NICHT — stattdessen: kontinuierlicher Trend → printix_query_trend / _print_trends
+        Returns: a, b, deltas, percent_changes.
+        Args: days_a, days_b, dimension.
 
-    Args:
-        days_a:   Laenge Zeitraum A in Tagen (jetzt).
-        days_b:   Laenge Zeitraum B in Tagen.
-        offset_b: Wie weit zurueck Zeitraum B startet (default: gleiche Laenge vorher).
     """
     from datetime import datetime, timedelta
     err = _reporting_check()
@@ -4325,12 +4270,14 @@ def printix_compare_periods(
 @mcp.tool()
 def printix_list_admins() -> str:
     """
-    Alle Admin-/Manager-Rollen im Tenant.
+        Alle Admins des Tenants.
 
-    Filtert aus list_users auf SYSTEM_MANAGER, SITE_MANAGER, KIOSK_MANAGER.
-    Hinweis: manche Manager-Rollen sind ueber die Standard-API nicht
-    listbar — dann bleibt die Liste leer und die Existenz muss aus dem
-    Portal kommen.
+        Wann nutzen: "Welche Admins gibt's?" • "Tenant admin list"
+        Wann NICHT — stattdessen: alle User → printix_list_users ;
+            Berechtigungs-Matrix → printix_permission_matrix
+        Returns: admins Liste.
+        Args: keine.
+
     """
     try:
         c = client()
@@ -4357,8 +4304,14 @@ def printix_list_admins() -> str:
 @mcp.tool()
 def printix_permission_matrix() -> str:
     """
-    Matrix: User x Gruppen. Wer ist in welchen Gruppen? Gruppen steuern
-    in Printix typischerweise Drucker-Zuweisung.
+        Matrix User × Berechtigungen — wer darf was?
+
+        Wann nutzen: "Wer hat welche Rechte?" • "Permission overview"
+        Wann NICHT — stattdessen: nur Admin-Liste → printix_list_admins ;
+            einzelne User-Rechte → printix_get_user
+        Returns: matrix table.
+        Args: keine.
+
     """
     try:
         c = client()
@@ -4396,13 +4349,14 @@ def printix_permission_matrix() -> str:
 @mcp.tool()
 def printix_inactive_users(days: int = 90) -> str:
     """
-    User, die laenger als N Tage nicht aktiv waren.
+        User die seit N Tagen nicht mehr gedruckt haben — Offboarding-Kandidaten.
 
-    Nutzt lastSignIn / lastActivity falls verfuegbar. Wenn das Feld
-    fehlt, wird der User als "unknown" eingestuft.
+        Wann nutzen: "Wer ist seit 180 Tagen inaktiv?" • "Idle users since X days"
+        Wann NICHT — stattdessen: Druck-Pattern eines Users → printix_describe_user_print_pattern ;
+            Pruefung ob User existiert → printix_find_user
+        Returns: inactive Liste mit last_print_at.
+        Args: days  Schwelle (Default 90).
 
-    Args:
-        days: Schwellwert in Tagen (default: 90).
     """
     try:
         from datetime import datetime, timezone, timedelta
@@ -4438,13 +4392,13 @@ def printix_inactive_users(days: int = 90) -> str:
 @mcp.tool()
 def printix_sso_status(email: str) -> str:
     """
-    Entra/Azure-SSO-Status fuer einen User: ist er via SSO verknuepft,
-    hat er sich schonmal angemeldet, welche Auth-Quelle?
+        Prueft SSO/Entra-Mapping fuer eine User-Email.
 
-    Best-effort: Printix-API-Felder variieren, wir liefern was da ist.
+        Wann nutzen: "SSO-Status fuer marcus@firma.de" • "Is user X SSO-mapped?"
+        Wann NICHT — stattdessen: Helpdesk-Allround → printix_diagnose_user
+        Returns: {sso_provider, mapped, attributes}.
+        Args: email  User-Email.
 
-    Args:
-        email: E-Mail-Adresse.
     """
     try:
         c = client()
@@ -4488,12 +4442,15 @@ _ERROR_KB = {
 @mcp.tool()
 def printix_explain_error(code_or_message: str) -> str:
     """
-    Erklaert einen Printix-/MCP-Fehlercode oder Fehlertext in Klartext +
-    liefert Loesungsvorschlaege aus der internen Wissensbasis.
+        Uebersetzt einen Printix-Fehlercode oder Error-Message in Klartext + Loesungsvorschlag.
 
-    Args:
-        code_or_message: Fehlercode (z.B. 'no_printix_user') oder Teil
-                         der Fehlermeldung.
+        Wann nutzen: "Was bedeutet 'AADSTS700025'?" • "Erklaer mir Fehler X" •
+            "Why did this fail?"
+        Wann NICHT — stattdessen: User druckt nicht → printix_diagnose_user ;
+            Server prueft → printix_status
+        Returns: explanation, root_causes, fix_suggestions.
+        Args: code_or_message  Fehlercode ("auth_required", "AADSTS700025") ODER Teil-Message.
+
     """
     key = (code_or_message or "").strip().lower()
     matches = []
@@ -4512,11 +4469,13 @@ def printix_explain_error(code_or_message: str) -> str:
 @mcp.tool()
 def printix_suggest_next_action(context: str) -> str:
     """
-    Heuristischer Advisor: gibt man ihm den "Zustand" (z.B. "User X hat 3
-    fehlgeschlagene Jobs"), liefert er plausible Next-Steps.
+        Schlaegt anhand eines Kontext-Strings einen sinnvollen naechsten Schritt vor.
 
-    Args:
-        context: Beschreibung des Problems/Zustands.
+        Wann nutzen: "Was sollte ich als naechstes tun?" • "Suggest next step"
+        Wann NICHT — stattdessen: konkretes Reports-Tool gesucht → printix_natural_query
+        Returns: suggested_actions Liste.
+        Args: context  Freitext-Kontext.
+
     """
     c = (context or "").lower()
     suggestions: list[str] = []
@@ -4553,26 +4512,21 @@ def printix_send_to_user(
     color: bool = True,
 ) -> str:
     """
-    High-Level: druckt ein Dokument als User X.
+        High-Level: druckt Dokument als User X. Auto-PDL-Conversion (PDF→PCL XL).
 
-    Fuehrt in einem Call durch: User-Lookup, Printer-Resolve (falls Name
-    statt ID), submit_print_job, upload, complete, change_owner.
-    Entweder file_url ODER file_content_b64 angeben.
+        Wann nutzen: "Schick X an marcus@firma.de" • "Send PDF to user Y" •
+            "Druck das fuer Anna"
+        Wann NICHT — stattdessen: an sich selbst → printix_print_self ;
+            mehrere Empfaenger → printix_print_to_recipients ;
+            URL statt Base64 + simple use case → printix_quick_print ;
+            archivieren statt drucken → printix_send_to_capture
+        Returns: {ok, job_id, owner_email, filename, size_*, pdl, printer_id, queue_id}.
+        Args: user_email  Ziel-Email.
+            file_url HTTP(S)-URL  | file_content_b64 Base64 (eines von beiden!).
+            filename  Anzeigename.
+            target_printer  "" | Name | "pid:qid".
+            copies, pdl ("auto"), color (True).
 
-    Auto-Conversion (v6.8.8+): PDF/PostScript/Text wird via Ghostscript zu
-    PCL XL konvertiert (Default). Sonst druckt der Drucker rohe PDF-Bytes
-    als Klartext (Hieroglyphen). Mit `pdl="passthrough"` schickt das Tool
-    die Datei unveraendert.
-
-    Args:
-        user_email:       Empfaenger (Owner der Secure-Print-Karte).
-        file_url:         HTTP(S)-URL aus der das Dokument geladen wird.
-        file_content_b64: Base64-kodierter Dateiinhalt (Alternative zu URL).
-        filename:         Dateiname (fuer Titel + MIME-Detection).
-        target_printer:   Printer-Name oder printer_id/queue_id kombiniert ('pid:qid').
-        copies:           Anzahl Kopien (default: 1).
-        pdl:              "auto" (=PCLXL) | "PCLXL" | "PCL5" | "POSTSCRIPT" | "passthrough".
-        color:            Farb-Output bei PCL-Konvertierung (Default True).
     """
     import base64 as _b64
     import requests as _req
@@ -4649,17 +4603,14 @@ def printix_onboard_user(
     groups: str = "",
 ) -> str:
     """
-    Komplett-Onboarding eines neuen Users: anlegen, optional in Gruppen
-    stecken. Fuer echte SSO-User geht Printix ueblicherweise ueber Entra —
-    dieses Tool ist fuer manuelle / Guest-Accounts.
+        Komplett-Onboarding: User anlegen, optional in Gruppen stecken.
 
-    Args:
-        email:        E-Mail-Adresse.
-        display_name: Anzeigename.
-        role:         Ignoriert (API legt GUEST_USER an); fuer spaeter.
-        pin:          Optionale 4-stellige PIN.
-        password:     Optionales Passwort.
-        groups:       Komma-getrennte Group-IDs (best-effort Zuweisung).
+        Wann nutzen: "Leg neuen Mitarbeiter an" • "Onboard new user" •
+            "Create user with full setup"
+        Wann NICHT — stattdessen: Welcome-PDF + Reminder-Time-Bombs ergaenzend → printix_welcome_user
+        Returns: ok, user, group_assignments, next_steps.
+        Args: email, display_name, role ("USER"), pin, password, groups (csv).
+
     """
     try:
         c = client()
@@ -4691,12 +4642,13 @@ def printix_onboard_user(
 @mcp.tool()
 def printix_offboard_user(email: str, force: bool = False) -> str:
     """
-    Leaver-Flow: alle Karten loeschen, offene Jobs canceln, User-Account
-    deaktivieren/loeschen.
+        Leaver-Flow: alle Karten loeschen + offene Jobs canceln + User deaktivieren/loeschen.
 
-    Args:
-        email: E-Mail des scheidenden Users.
-        force: Wenn True, ueberspringt Rueckfragen (ist eh non-interactive).
+        Wann nutzen: "Offboard X" • "Mitarbeiter scheidet aus" • "Delete user with cleanup"
+        Wann NICHT — stattdessen: nur User-Loeschung ohne Cleanup → printix_delete_user (selten ratsam)
+        Returns: report mit steps Liste pro Phase.
+        Args: email  User-Email. force True wenn role != GUEST_USER.
+
     """
     try:
         c = client()
@@ -4759,9 +4711,14 @@ def printix_offboard_user(email: str, force: bool = False) -> str:
 @mcp.tool()
 def printix_whoami() -> str:
     """
-    Debug-Hilfe: zeigt den aktuellen Tenant-Kontext — welcher Tenant
-    antwortet, welche OAuth-Apps sind konfiguriert, welche Scopes
-    stehen zur Verfuegung.
+        Aktueller Tenant + eigener Printix-User + Admin-Status.
+
+        Wann nutzen: "Wer bin ich?" • "Who am I logged in as?"
+        Wann NICHT — stattdessen: nur Server-Health → printix_status ;
+            Tenant-Kennzahlen → printix_tenant_summary
+        Returns: tenant_name, user_email, is_admin.
+        Args: keine.
+
     """
     try:
         tenant = current_tenant.get() or {}
@@ -4786,14 +4743,16 @@ def printix_whoami() -> str:
 @mcp.tool()
 def printix_quick_print(recipient_email: str, file_url: str, filename: str = "document.pdf") -> str:
     """
-    One-Shot-Druck: nutzt den ersten verfuegbaren Drucker im Tenant und
-    sendet die Datei als Secure-Print-Job fuer den Empfaenger. Fuer
-    "schick das schnell an Marcus"-Flows.
+        Single-shot-Print: URL + Empfaenger → fertig (Wrapper um send_to_user).
 
-    Args:
-        recipient_email: Empfaenger (Secure-Print-Owner).
-        file_url:        HTTP(S)-URL der Datei.
-        filename:        Dateiname (fuer Titel).
+        Wann nutzen: "Druck mir https://… als marcus@firma.de" • "Quick print URL to user"
+        Wann NICHT — stattdessen: KI-generiertes PDF (Base64) → printix_send_to_user mit file_content_b64 ;
+            an sich selbst → printix_print_self ; Mehrere Empfaenger → printix_print_to_recipients
+        Returns: gleich wie send_to_user.
+        Args: recipient_email  Empfaenger.
+            file_url  HTTP(S)-URL der Datei.
+            filename  optional, Default "document.pdf".
+
     """
     return printix_send_to_user(user_email=recipient_email, file_url=file_url,
                                  filename=filename, target_printer="", copies=1)
@@ -4802,11 +4761,14 @@ def printix_quick_print(recipient_email: str, file_url: str, filename: str = "do
 @mcp.tool()
 def printix_resolve_printer(name_or_location: str) -> str:
     """
-    Findet den besten passenden Drucker ueber Fuzzy-Match auf Name,
-    Location, Model. Liefert printer_id + queue_id fuer andere Tools.
+        Findet besten Drucker per Token-Fuzzy-Match (Name + Location + Vendor + Site).
 
-    Args:
-        name_or_location: Suchstring ("HP im 3. OG", "Finance", "MFP-24").
+        Wann nutzen: "Brother Drucker in Duesseldorf" • "Welcher HP M577 in DACH?"
+        Wann NICHT — stattdessen: schon ID bekannt → printix_get_printer ;
+            gesamte Liste → printix_list_printers
+        Returns: matches mit Score; bester Treffer first.
+        Args: query  freier Text mit beliebigen Tokens (Vendor + Location + Modell …).
+
     """
     try:
         c = client()
@@ -4877,14 +4839,13 @@ def printix_resolve_printer(name_or_location: str) -> str:
 @mcp.tool()
 def printix_natural_query(question: str) -> str:
     """
-    Hinweis-Tool fuer natuerlichsprachige Fragen an die Reports-Engine.
+        Nimmt natuerlich-sprachige Frage und schlaegt das passende Reports-Tool vor.
 
-    Macht keine echte NLP — liefert stattdessen Vorschlaege, welche
-    konkreten Reports-Tools fuer die Frage relevant sind. Der Agent
-    kann dann das konkrete Tool aufrufen.
+        Wann nutzen: "Welches Tool fuer …?" • "Wie frage ich X ab?"
+        Wann NICHT — stattdessen: direkt querien → printix_query_any oder spezialisiertes query_*
+        Returns: question, suggested_tools.
+        Args: question  natuerlich-sprachige Frage.
 
-    Args:
-        question: Natuerliche Frage ("Wer hat letzten Monat am meisten gedruckt?").
     """
     q = (question or "").lower()
     hints = []
