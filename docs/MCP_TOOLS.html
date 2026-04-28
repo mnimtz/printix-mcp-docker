@@ -1,0 +1,1197 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>MCP TOOLS</title>
+  <style>
+    /* Default styles provided by pandoc.
+    ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+    */
+    html {
+      color: #1a1a1a;
+      background-color: #fdfdfd;
+    }
+    body {
+      margin: 0 auto;
+      max-width: 36em;
+      padding-left: 50px;
+      padding-right: 50px;
+      padding-top: 50px;
+      padding-bottom: 50px;
+      hyphens: auto;
+      overflow-wrap: break-word;
+      text-rendering: optimizeLegibility;
+      font-kerning: normal;
+    }
+    @media (max-width: 600px) {
+      body {
+        font-size: 0.9em;
+        padding: 12px;
+      }
+      h1 {
+        font-size: 1.8em;
+      }
+    }
+    @media print {
+      html {
+        background-color: white;
+      }
+      body {
+        background-color: transparent;
+        color: black;
+        font-size: 12pt;
+      }
+      p, h2, h3 {
+        orphans: 3;
+        widows: 3;
+      }
+      h2, h3, h4 {
+        page-break-after: avoid;
+      }
+    }
+    p {
+      margin: 1em 0;
+    }
+    a {
+      color: #1a1a1a;
+    }
+    a:visited {
+      color: #1a1a1a;
+    }
+    img {
+      max-width: 100%;
+    }
+    svg {
+      height: auto;
+      max-width: 100%;
+    }
+    h1, h2, h3, h4, h5, h6 {
+      margin-top: 1.4em;
+    }
+    h5, h6 {
+      font-size: 1em;
+      font-style: italic;
+    }
+    h6 {
+      font-weight: normal;
+    }
+    ol, ul {
+      padding-left: 1.7em;
+      margin-top: 1em;
+    }
+    li > ol, li > ul {
+      margin-top: 0;
+    }
+    blockquote {
+      margin: 1em 0 1em 1.7em;
+      padding-left: 1em;
+      border-left: 2px solid #e6e6e6;
+      color: #606060;
+    }
+    code {
+      white-space: pre-wrap;
+      font-family: Menlo, Monaco, Consolas, 'Lucida Console', monospace;
+      font-size: 85%;
+      margin: 0;
+      hyphens: manual;
+    }
+    pre {
+      margin: 1em 0;
+      overflow: auto;
+    }
+    pre code {
+      padding: 0;
+      overflow: visible;
+      overflow-wrap: normal;
+    }
+    .sourceCode {
+     background-color: transparent;
+     overflow: visible;
+    }
+    hr {
+      border: none;
+      border-top: 1px solid #1a1a1a;
+      height: 1px;
+      margin: 1em 0;
+    }
+    table {
+      margin: 1em 0;
+      border-collapse: collapse;
+      width: 100%;
+      overflow-x: auto;
+      display: block;
+      font-variant-numeric: lining-nums tabular-nums;
+    }
+    table caption {
+      margin-bottom: 0.75em;
+    }
+    tbody {
+      margin-top: 0.5em;
+      border-top: 1px solid #1a1a1a;
+      border-bottom: 1px solid #1a1a1a;
+    }
+    th {
+      border-top: 1px solid #1a1a1a;
+      padding: 0.25em 0.5em 0.25em 0.5em;
+    }
+    td {
+      padding: 0.125em 0.5em 0.25em 0.5em;
+    }
+    header {
+      margin-bottom: 4em;
+      text-align: center;
+    }
+    #TOC li {
+      list-style: none;
+    }
+    #TOC ul {
+      padding-left: 1.3em;
+    }
+    #TOC > ul {
+      padding-left: 0;
+    }
+    #TOC a:not(:hover) {
+      text-decoration: none;
+    }
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+  </style>
+<style>
+@page { size: A4; margin: 18mm 15mm 20mm 15mm; }
+body {
+  font-family: -apple-system, "Helvetica Neue", "Segoe UI", Arial, sans-serif;
+  color: #1f2937; line-height: 1.55;
+  max-width: 1040px; margin: 2em auto; padding: 0 1.8em;
+  font-size: 10.5pt;
+}
+h1 {
+  color: #0b5394; border-bottom: 3px solid #0b5394;
+  padding-bottom: 0.3em; font-size: 24pt; margin-top: 0.2em;
+  page-break-after: avoid;
+}
+h2 {
+  color: #0b5394; border-bottom: 1px solid #cfe2f3;
+  padding-bottom: 0.2em; margin-top: 1.8em; font-size: 16pt;
+  page-break-after: avoid;
+  page-break-before: auto;
+}
+h3 { color: #1c4587; margin-top: 1.4em; font-size: 12.5pt; page-break-after: avoid; }
+h4 { color: #38761d; margin-top: 1.1em; font-size: 11pt; }
+p  { margin: 0.5em 0; }
+ul, ol { margin: 0.35em 0 0.75em 1.4em; }
+li { margin: 0.12em 0; }
+blockquote {
+  border-left: 4px solid #0b5394; background: #f3f6fa;
+  margin: 1em 0; padding: 0.6em 1em; color: #334155;
+  border-radius: 0 4px 4px 0;
+}
+table {
+  border-collapse: collapse; width: 100%;
+  margin: 0.7em 0 1.2em 0; font-size: 9.5pt;
+  page-break-inside: avoid;
+}
+th, td { padding: 6px 9px; border: 1px solid #e5e7eb; vertical-align: top; }
+th { background: #f3f6fa; color: #0b5394; text-align: left; font-weight: 600; }
+tr:nth-child(even) td { background: #fafbfc; }
+code {
+  background: #f3f6fa; color: #be185d;
+  padding: 1px 5px; border-radius: 3px;
+  font-family: "SFMono-Regular", Consolas, "Courier New", monospace;
+  font-size: 9.5pt;
+}
+pre {
+  background: #1f2937; color: #e5e7eb;
+  padding: 0.85em 1em; border-radius: 6px;
+  overflow-x: auto;
+  font-family: "SFMono-Regular", Consolas, "Courier New", monospace;
+  font-size: 9pt; line-height: 1.45;
+  page-break-inside: avoid;
+}
+pre code { background: none; color: inherit; padding: 0; }
+hr { border: 0; border-top: 1px solid #e5e7eb; margin: 1.6em 0; }
+a { color: #0b5394; text-decoration: none; border-bottom: 1px dotted #0b5394; }
+strong { color: #111827; }
+</style></head>
+<body>
+<header id="title-block-header">
+<h1 class="title">MCP TOOLS</h1>
+</header>
+<h1 id="printix-mcp-server--tool-reference">Printix MCP Server — Tool
+Reference</h1>
+<blockquote>
+<p><strong>Version:</strong> 6.8.10 <strong>Transport:</strong>
+Streamable HTTP (<code>/mcp</code> for claude.ai) + SSE
+(<code>/sse</code> for ChatGPT) <strong>Auth:</strong> OAuth 2.0 Bearer
+Token per tenant <strong>Public Endpoint:</strong>
+<code>https://mcp.printix.cloud</code></p>
+</blockquote>
+<p>This document lists every MCP tool exposed by the Printix MCP Server.
+Tools are grouped by feature area. All tools return a JSON-encoded
+string.</p>
+<hr />
+<h2 id="table-of-contents">Table of Contents</h2>
+<ol type="1">
+<li><a href="#status--info">Status &amp; Info</a></li>
+<li><a href="#printers--queues">Printers &amp; Queues</a></li>
+<li><a href="#print-jobs">Print Jobs</a></li>
+<li><a href="#card-management-printix-cloud">Card Management (Printix
+Cloud)</a></li>
+<li><a href="#card-management-local-db">Card Management (Local
+DB)</a></li>
+<li><a href="#users">Users</a></li>
+<li><a href="#groups">Groups</a></li>
+<li><a href="#workstations">Workstations</a></li>
+<li><a href="#sites--networks">Sites &amp; Networks</a></li>
+<li><a href="#snmp-configurations">SNMP Configurations</a></li>
+<li><a href="#reporting--queries">Reporting — Queries</a></li>
+<li><a href="#reporting--templates--schedules">Reporting — Templates
+&amp; Schedules</a></li>
+<li><a href="#reporting--design--preview">Reporting — Design &amp;
+Preview</a></li>
+<li><a href="#demo-data">Demo Data</a></li>
+<li><a href="#audit-log--feature-requests">Audit Log &amp; Feature
+Requests</a></li>
+<li><a href="#backup-management">Backup Management</a></li>
+<li><a href="#capture-profiles">Capture Profiles</a></li>
+<li><a href="#site--network-aggregations">Site &amp; Network
+Aggregations</a></li>
+<li><a href="#cross-source-insights">Cross-Source Insights</a>
+<em>(v6.7.107)</em></li>
+<li><a href="#card-management--tenant-wide">Card Management —
+Tenant-Wide</a> <em>(v6.7.107)</em></li>
+<li><a href="#print-jobs--reporting--high-level">Print Jobs &amp;
+Reporting — High-Level</a> <em>(v6.7.107)</em></li>
+<li><a href="#access--governance">Access &amp; Governance</a>
+<em>(v6.7.107)</em></li>
+<li><a href="#agent-workflow-helpers">Agent Workflow Helpers</a>
+<em>(v6.7.107)</em></li>
+<li><a href="#quality-of-life">Quality of Life</a>
+<em>(v6.7.107)</em></li>
+</ol>
+<hr />
+<h2 id="status--info">Status &amp; Info</h2>
+<table>
+<thead>
+<tr>
+<th>Tool</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>printix_status()</code></td>
+<td>Returns server version, configured tenant, OAuth app health.
+Sanity-check tool.</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="printers--queues">Printers &amp; Queues</h2>
+<table>
+<thead>
+<tr>
+<th>Tool</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>printix_list_printers(search, page, size)</code></td>
+<td>List printers in tenant. Supports free-text search.</td>
+</tr>
+<tr>
+<td><code>printix_get_printer(printer_id, queue_id)</code></td>
+<td>Full detail of a single printer/queue pair.</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="print-jobs">Print Jobs</h2>
+<table>
+<thead>
+<tr>
+<th>Tool</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>printix_list_jobs(queue_id, page, size)</code></td>
+<td>Current print jobs. Optionally filtered by queue.</td>
+</tr>
+<tr>
+<td><code>printix_get_job(job_id)</code></td>
+<td>Detail of one print job.</td>
+</tr>
+<tr>
+<td><code>printix_submit_job(...)</code></td>
+<td>Submit a new print job (3-step flow: submit → upload →
+complete).</td>
+</tr>
+<tr>
+<td><code>printix_complete_upload(job_id)</code></td>
+<td>Finalize a job after file upload.</td>
+</tr>
+<tr>
+<td><code>printix_delete_job(job_id)</code></td>
+<td>Cancel / delete a print job.</td>
+</tr>
+<tr>
+<td><code>printix_change_job_owner(job_id, new_owner_email)</code></td>
+<td>Transfer Secure-Print ownership to another user.</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="card-management-printix-cloud">Card Management (Printix
+Cloud)</h2>
+<table>
+<thead>
+<tr>
+<th>Tool</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>printix_list_cards(user_id)</code></td>
+<td>All cards of one user, <strong>enriched</strong> with local DB
+mappings (raw UID, profile, notes, decoded hex/decimal).</td>
+</tr>
+<tr>
+<td><code>printix_search_card(card_id, card_number)</code></td>
+<td>Lookup a single card by Printix ID or physical number.</td>
+</tr>
+<tr>
+<td><code>printix_register_card(user_id, card_number)</code></td>
+<td>Register a card directly via Printix API (no local mapping).</td>
+</tr>
+<tr>
+<td><code>printix_delete_card(card_id)</code></td>
+<td>Remove a card from Printix.</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="card-management-local-db">Card Management (Local DB)</h2>
+<table>
+<thead>
+<tr>
+<th>Tool</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>printix_list_card_profiles()</code></td>
+<td>All transform profiles (built-in vendors + tenant-custom).</td>
+</tr>
+<tr>
+<td><code>printix_get_card_profile(profile_id)</code></td>
+<td>Single profile detail incl. rules JSON.</td>
+</tr>
+<tr>
+<td><code>printix_search_card_mappings(search, printix_user_id)</code></td>
+<td>Full-text search across local mappings.</td>
+</tr>
+<tr>
+<td><code>printix_get_card_details(card_id, card_number)</code></td>
+<td>Enriched single-card view combining Printix + local data.</td>
+</tr>
+<tr>
+<td><code>printix_decode_card_value(card_value)</code></td>
+<td>Decode a raw Printix base64 secret into hex / decimal / reversed
+variants.</td>
+</tr>
+<tr>
+<td><code>printix_transform_card_value(card_value, ...)</code></td>
+<td>Apply a transform profile to a raw UID — dry run.</td>
+</tr>
+<tr>
+<td><code>printix_get_user_card_context(user_id)</code></td>
+<td>One-shot: user + all cards (enriched) + all local mappings.</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="users">Users</h2>
+<table>
+<thead>
+<tr>
+<th>Tool</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>printix_list_users(role, query, page, page_size)</code></td>
+<td>List users. Default <code>role='USER'</code> — call again with
+<code>'GUEST_USER'</code> for guests.</td>
+</tr>
+<tr>
+<td><code>printix_get_user(user_id)</code></td>
+<td>Full user detail.</td>
+</tr>
+<tr>
+<td><code>printix_create_user(email, display_name, pin, password)</code></td>
+<td>Create a guest account.</td>
+</tr>
+<tr>
+<td><code>printix_delete_user(user_id)</code></td>
+<td>Delete a (guest) user.</td>
+</tr>
+<tr>
+<td><code>printix_generate_id_code(user_id)</code></td>
+<td>Issue a fresh 6-digit ID code for card-reader fallback.</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="groups">Groups</h2>
+<table>
+<thead>
+<tr>
+<th>Tool</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>printix_list_groups(search, page, size)</code></td>
+<td>List groups.</td>
+</tr>
+<tr>
+<td><code>printix_get_group(group_id)</code></td>
+<td>Single group detail.</td>
+</tr>
+<tr>
+<td><code>printix_create_group(name, external_id)</code></td>
+<td>Create a group.</td>
+</tr>
+<tr>
+<td><code>printix_delete_group(group_id)</code></td>
+<td>Delete a group.</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="workstations">Workstations</h2>
+<table>
+<thead>
+<tr>
+<th>Tool</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>printix_list_workstations(search, page, page_size)</code></td>
+<td>List registered endpoints (Printix Client installations).</td>
+</tr>
+<tr>
+<td><code>printix_get_workstation(workstation_id)</code></td>
+<td>Full workstation detail.</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="sites--networks">Sites &amp; Networks</h2>
+<table>
+<thead>
+<tr>
+<th>Tool</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>printix_list_sites(search, page, size)</code></td>
+<td>List sites.</td>
+</tr>
+<tr>
+<td><code>printix_get_site(site_id)</code></td>
+<td>Site detail.</td>
+</tr>
+<tr>
+<td><code>printix_create_site(name, path, ...)</code></td>
+<td>Create a site.</td>
+</tr>
+<tr>
+<td><code>printix_update_site(site_id, ...)</code></td>
+<td>Update a site.</td>
+</tr>
+<tr>
+<td><code>printix_delete_site(site_id)</code></td>
+<td>Delete a site.</td>
+</tr>
+<tr>
+<td><code>printix_list_networks(site_id, page, size)</code></td>
+<td>List networks (optionally scoped to a site).</td>
+</tr>
+<tr>
+<td><code>printix_get_network(network_id)</code></td>
+<td>Network detail.</td>
+</tr>
+<tr>
+<td><code>printix_create_network(name, ...)</code></td>
+<td>Create a network.</td>
+</tr>
+<tr>
+<td><code>printix_update_network(network_id, ...)</code></td>
+<td>Update network.</td>
+</tr>
+<tr>
+<td><code>printix_delete_network(network_id)</code></td>
+<td>Delete a network.</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="snmp-configurations">SNMP Configurations</h2>
+<table>
+<thead>
+<tr>
+<th>Tool</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>printix_list_snmp_configs(page, size)</code></td>
+<td>List SNMP configs.</td>
+</tr>
+<tr>
+<td><code>printix_get_snmp_config(config_id)</code></td>
+<td>Single SNMP config.</td>
+</tr>
+<tr>
+<td><code>printix_create_snmp_config(name, ...)</code></td>
+<td>Create SNMP config.</td>
+</tr>
+<tr>
+<td><code>printix_delete_snmp_config(config_id)</code></td>
+<td>Delete SNMP config.</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="reporting--queries">Reporting — Queries</h2>
+<table>
+<thead>
+<tr>
+<th>Tool</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>printix_reporting_status()</code></td>
+<td>Health of the SQL Server data source + last ingest time.</td>
+</tr>
+<tr>
+<td><code>printix_query_print_stats(...)</code></td>
+<td>Raw print-volume aggregation (group by user/printer/site/etc.).</td>
+</tr>
+<tr>
+<td><code>printix_query_cost_report(...)</code></td>
+<td>Cost calculation per unit with configurable €/page.</td>
+</tr>
+<tr>
+<td><code>printix_query_top_users(start_date, end_date, top_n, metric, ...)</code></td>
+<td>Ranking of most active users.</td>
+</tr>
+<tr>
+<td><code>printix_query_top_printers(start_date, end_date, top_n, metric, ...)</code></td>
+<td>Ranking of most-used printers.</td>
+</tr>
+<tr>
+<td><code>printix_query_anomalies(...)</code></td>
+<td>Detect usage spikes / drops.</td>
+</tr>
+<tr>
+<td><code>printix_query_trend(...)</code></td>
+<td>Time series grouped by day/week/month.</td>
+</tr>
+<tr>
+<td><code>printix_query_any(sql_like_spec)</code></td>
+<td>Generic query escape hatch — execute a saved template spec.</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="reporting--templates--schedules">Reporting — Templates &amp;
+Schedules</h2>
+<table>
+<thead>
+<tr>
+<th>Tool</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>printix_save_report_template(...)</code></td>
+<td>Persist a configured report for re-use.</td>
+</tr>
+<tr>
+<td><code>printix_list_report_templates()</code></td>
+<td>All saved report templates.</td>
+</tr>
+<tr>
+<td><code>printix_get_report_template(report_id)</code></td>
+<td>Template detail.</td>
+</tr>
+<tr>
+<td><code>printix_delete_report_template(report_id)</code></td>
+<td>Delete template.</td>
+</tr>
+<tr>
+<td><code>printix_run_report_now(report_id, report_name)</code></td>
+<td>Execute a template ad hoc and return results.</td>
+</tr>
+<tr>
+<td><code>printix_send_test_email(recipient)</code></td>
+<td>Verify SMTP / email delivery.</td>
+</tr>
+<tr>
+<td><code>printix_schedule_report(...)</code></td>
+<td>Schedule a template (cron-like).</td>
+</tr>
+<tr>
+<td><code>printix_list_schedules()</code></td>
+<td>All active schedules.</td>
+</tr>
+<tr>
+<td><code>printix_delete_schedule(report_id)</code></td>
+<td>Remove schedule.</td>
+</tr>
+<tr>
+<td><code>printix_update_schedule(...)</code></td>
+<td>Modify schedule.</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="reporting--design--preview">Reporting — Design &amp;
+Preview</h2>
+<table>
+<thead>
+<tr>
+<th>Tool</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>printix_list_design_options()</code></td>
+<td>Available chart/layout presets for PDF generation.</td>
+</tr>
+<tr>
+<td><code>printix_preview_report(...)</code></td>
+<td>Render a report preview (HTML/PDF) without sending email.</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="demo-data">Demo Data</h2>
+<table>
+<thead>
+<tr>
+<th>Tool</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>printix_demo_setup_schema()</code></td>
+<td>Create demo tables in SQLite if missing.</td>
+</tr>
+<tr>
+<td><code>printix_demo_generate(...)</code></td>
+<td>Generate synthetic print-job data (useful for dashboards without
+real data).</td>
+</tr>
+<tr>
+<td><code>printix_demo_rollback(demo_tag)</code></td>
+<td>Remove a demo batch by tag.</td>
+</tr>
+<tr>
+<td><code>printix_demo_status()</code></td>
+<td>Active demo datasets.</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="audit-log--feature-requests">Audit Log &amp; Feature
+Requests</h2>
+<table>
+<thead>
+<tr>
+<th>Tool</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>printix_query_audit_log(start_date, end_date, action_prefix, object_type, limit)</code></td>
+<td>Query the tenant audit log (user actions, credential changes,
+feature requests).</td>
+</tr>
+<tr>
+<td><code>printix_list_feature_requests(status, limit)</code></td>
+<td>List user-submitted feature requests / ideas.</td>
+</tr>
+<tr>
+<td><code>printix_get_feature_request(ticket_id)</code></td>
+<td>Detail of a specific request.</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="backup-management">Backup Management</h2>
+<table>
+<thead>
+<tr>
+<th>Tool</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>printix_list_backups()</code></td>
+<td>Existing DB/secret backups under <code>/config/backups</code>.</td>
+</tr>
+<tr>
+<td><code>printix_create_backup()</code></td>
+<td>Create a fresh backup.</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="capture-profiles">Capture Profiles</h2>
+<table>
+<thead>
+<tr>
+<th>Tool</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>printix_list_capture_profiles()</code></td>
+<td>Capture webhook profiles (OCR/forwarding pipelines).</td>
+</tr>
+<tr>
+<td><code>printix_capture_status()</code></td>
+<td>Capture subsystem health + recent webhook activity.</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="site--network-aggregations">Site &amp; Network Aggregations</h2>
+<table>
+<thead>
+<tr>
+<th>Tool</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>printix_site_summary(site_id)</code></td>
+<td>Site overview: networks + printers + SNMP.</td>
+</tr>
+<tr>
+<td><code>printix_network_printers(network_id, site_id)</code></td>
+<td>Printers on a specific network.</td>
+</tr>
+<tr>
+<td><code>printix_get_queue_context(queue_id, printer_id)</code></td>
+<td>Full context for a queue (printer, site, network, SNMP).</td>
+</tr>
+<tr>
+<td><code>printix_get_network_context(network_id)</code></td>
+<td>Network + its site + printers + SNMP in one call.</td>
+</tr>
+<tr>
+<td><code>printix_get_snmp_context(config_id)</code></td>
+<td>SNMP config + networks/sites/printers that use it.</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="cross-source-insights">Cross-Source Insights</h2>
+<p><em>(new in v6.7.107)</em></p>
+<table>
+<thead>
+<tr>
+<th>Tool</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>printix_find_user(query)</code></td>
+<td>Fuzzy search across email/name/ID. Pre-step for anything needing a
+<code>user_id</code>.</td>
+</tr>
+<tr>
+<td><code>printix_user_360(query)</code></td>
+<td>Complete profile: user + cards (enriched) + workstations.</td>
+</tr>
+<tr>
+<td><code>printix_printer_health_report()</code></td>
+<td>Online/offline breakdown, grouped by site, with offline-list.</td>
+</tr>
+<tr>
+<td><code>printix_tenant_summary()</code></td>
+<td>Executive dashboard: counts for users, printers, workstations,
+groups, local cards.</td>
+</tr>
+<tr>
+<td><code>printix_diagnose_user(email)</code></td>
+<td>Heuristic troubleshooting — finds missing cards, role mismatches,
+orphaned accounts.</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="card-management--tenant-wide">Card Management — Tenant-Wide</h2>
+<p><em>(new in v6.7.107)</em></p>
+<table>
+<thead>
+<tr>
+<th>Tool</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>printix_list_cards_by_tenant(status)</code></td>
+<td>All cards across all users. Filter <code>mapped</code> /
+<code>unmapped</code> / <code>all</code>.</td>
+</tr>
+<tr>
+<td><code>printix_find_orphaned_mappings()</code></td>
+<td>Local mappings with no corresponding Printix card (leftovers from
+outside-app deletes).</td>
+</tr>
+<tr>
+<td><code>printix_bulk_import_cards(csv_data, profile_id, dry_run)</code></td>
+<td>CSV mass import (<code>email,card_uid[,notes]</code>) with transform
+profile.</td>
+</tr>
+<tr>
+<td><code>printix_suggest_profile(sample_uid)</code></td>
+<td>Tries all profiles against a sample UID and scores best match.</td>
+</tr>
+<tr>
+<td><code>printix_card_audit(user_email)</code></td>
+<td>Per-user card audit trail with source, notes, timestamps.</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="print-jobs--reporting--high-level">Print Jobs &amp; Reporting —
+High-Level</h2>
+<p><em>(new in v6.7.107)</em></p>
+<table>
+<thead>
+<tr>
+<th>Tool</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>printix_top_printers(days, limit, metric)</code></td>
+<td>Most-used printers in last N days (convenience wrapper).</td>
+</tr>
+<tr>
+<td><code>printix_top_users(days, limit, metric)</code></td>
+<td>Most-active users in last N days (convenience wrapper).</td>
+</tr>
+<tr>
+<td><code>printix_jobs_stuck(minutes)</code></td>
+<td>Jobs older than N minutes still in queue.</td>
+</tr>
+<tr>
+<td><code>printix_print_trends(group_by, days)</code></td>
+<td>Print-volume time series (day/week/month).</td>
+</tr>
+<tr>
+<td><code>printix_cost_by_department(department_field, days, cost_per_mono, cost_per_color)</code></td>
+<td>Cost aggregation by user-attribute field.</td>
+</tr>
+<tr>
+<td><code>printix_compare_periods(days_a, days_b, offset_b)</code></td>
+<td>Compares two equal-length windows (e.g. "last 30 days vs. the 30
+before").</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="access--governance">Access &amp; Governance</h2>
+<p><em>(new in v6.7.107)</em></p>
+<table>
+<thead>
+<tr>
+<th>Tool</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>printix_list_admins()</code></td>
+<td>All SYSTEM_MANAGER / SITE_MANAGER / KIOSK_MANAGER accounts.</td>
+</tr>
+<tr>
+<td><code>printix_permission_matrix()</code></td>
+<td>User × Group matrix (groups drive printer access in Printix).</td>
+</tr>
+<tr>
+<td><code>printix_inactive_users(days)</code></td>
+<td>Users with no activity in last N days (cleanup candidates).</td>
+</tr>
+<tr>
+<td><code>printix_sso_status(email)</code></td>
+<td>Entra/Azure SSO link status for a user.</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="agent-workflow-helpers">Agent Workflow Helpers</h2>
+<p><em>(new in v6.7.107)</em></p>
+<table>
+<thead>
+<tr>
+<th>Tool</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>printix_explain_error(code_or_message)</code></td>
+<td>Plain-language explanation + fix suggestions for known error
+codes.</td>
+</tr>
+<tr>
+<td><code>printix_suggest_next_action(context)</code></td>
+<td>Heuristic advisor: "given this situation, try these tools".</td>
+</tr>
+<tr>
+<td><code>printix_send_to_user(user_email, file_url | file_content_b64, filename, target_printer, copies)</code></td>
+<td>High-level composite: resolve printer → submit → upload → complete →
+change owner.</td>
+</tr>
+<tr>
+<td><code>printix_onboard_user(email, display_name, role, pin, password, groups)</code></td>
+<td>Full onboarding workflow in one call.</td>
+</tr>
+<tr>
+<td><code>printix_offboard_user(email, force)</code></td>
+<td>Leaver flow: delete cards, clear local mappings, delete
+account.</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="quality-of-life">Quality of Life</h2>
+<p><em>(new in v6.7.107)</em></p>
+<table>
+<thead>
+<tr>
+<th>Tool</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>printix_whoami()</code></td>
+<td>Current tenant context + configured OAuth scopes. Debug helper.</td>
+</tr>
+<tr>
+<td><code>printix_quick_print(recipient_email, file_url, filename)</code></td>
+<td>One-shot send-to-user using first available printer.</td>
+</tr>
+<tr>
+<td><code>printix_resolve_printer(name_or_location)</code></td>
+<td>Fuzzy-match a printer by name/location/model →
+<code>printer_id:queue_id</code>.</td>
+</tr>
+<tr>
+<td><code>printix_natural_query(question)</code></td>
+<td>Maps a natural-language question to the right reporting tools.</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="conventions">Conventions</h2>
+<ul>
+<li><strong>Return format:</strong> every tool returns a JSON-encoded
+string (<code>json.dumps</code>).</li>
+<li><strong>Error shape:</strong> Printix API errors come back as
+<code>{"error": true, "status_code": N, "message": "...", "error_id": "..."}</code>.
+Other errors as <code>{"error": "message"}</code>.</li>
+<li><strong>Tenant isolation:</strong> each request resolves its tenant
+via Bearer token. Tools operate only on that tenant's data.</li>
+<li><strong>Pagination:</strong> most listing tools accept
+<code>page</code> (0-based) and <code>page_size</code> /
+<code>size</code> (default 50, max typically 200).</li>
+<li><strong>Date format:</strong> <code>YYYY-MM-DD</code> for all date
+arguments.</li>
+<li><strong>Cost parameters:</strong> <code>cost_per_mono</code>,
+<code>cost_per_color</code>, <code>cost_per_sheet</code> are per
+page/sheet in the tenant's currency; defaults are rough EU
+averages.</li>
+</ul>
+<h2 id="integration-patterns">Integration Patterns</h2>
+<h3 id="what-cards-does-marcus-have">"What cards does Marcus have?"</h3>
+<pre><code>printix_find_user(&quot;marcus&quot;)
+  → user_id
+printix_get_user_card_context(user_id)
+  → cards + enriched local data</code></pre>
+<h3 id="who-printed-the-most-last-month">"Who printed the most last
+month?"</h3>
+<pre><code>printix_top_users(days=30, limit=10, metric=&quot;pages&quot;)</code></pre>
+<h3 id="user-x-cant-print--help-me-debug">"User X can't print — help me
+debug"</h3>
+<pre><code>printix_diagnose_user(&quot;x@company.com&quot;)
+  → findings list with severities + suggestions</code></pre>
+<h3 id="onboard-a-new-employee">"Onboard a new employee"</h3>
+<pre><code>printix_onboard_user(email=..., display_name=..., groups=&quot;grp1,grp2&quot;)
+printix_generate_id_code(user_id)   # optional
+# card registration happens in iOS/Web client</code></pre>
+<h3 id="how-did-print-volume-change-vs-last-month">"How did print volume
+change vs last month?"</h3>
+<pre><code>printix_compare_periods(days_a=30, days_b=30)</code></pre>
+<hr />
+<h2 id="ai-workflow-tools-v68x--phase-1">AI Workflow Tools (v6.8.x —
+Phase 1)</h2>
+<p>High-level composition tools that combine multiple low-level steps
+into one AI-friendly call. Auto-PDL conversion (PDF → PCL XL via
+Ghostscript) is built in for every print path; default
+<code>pdl="auto"</code> (= PCL XL color), override with
+<code>pdl="passthrough"</code>, <code>"PCLXL"</code>,
+<code>"PCL5"</code>, <code>"POSTSCRIPT"</code>.</p>
+<h3 id="native-file-ingest">Native File Ingest</h3>
+<ul>
+<li><p><strong><code>printix_print_self(file_b64, filename, ..., pdl="auto", color=True)</code></strong>
+Print a file to the calling MCP user's <em>own</em> secure-print queue.
+Self-user is resolved via <code>current_tenant.email</code>. Returns
+<code>{ok, job_id, owner_email, size_input, size_after_conversion, pdl, ...}</code>.
+→ Killer use case: AI generates a PDF inline and queues it on the
+caller's printer.</p></li>
+<li><p><strong><code>printix_send_to_capture(profile, file_b64, filename, metadata_json="{}")</code></strong>
+Push a file directly into a capture workflow (Paperless-ngx, etc.) —
+same code path as a webhook but without the printer/Azure-Blob detour.
+Calls <code>plugin.ingest_bytes()</code> directly. Async tool.</p></li>
+<li><p><strong><code>printix_describe_capture_profile(profile)</code></strong>
+Returns the plugin schema (config fields + types + accepted metadata
+fields). Use <em>before</em> <code>send_to_capture</code> so the AI can
+build the right <code>metadata_json</code>.</p></li>
+</ul>
+<h3 id="multi-recipient-print">Multi-Recipient Print</h3>
+<ul>
+<li><p><strong><code>printix_get_group_members(group_id_or_name)</code></strong>
+Members of a Printix group (UUID or name; case-insensitive). Falls back
+to <code>_links.users</code> HAL link when present.</p></li>
+<li><p><strong><code>printix_get_user_groups(user_email_or_id)</code></strong>
+Reverse lookup: which groups is user X in?</p></li>
+<li><p><strong><code>printix_resolve_recipients(recipients_csv)</code></strong>
+Diagnostic tool. Resolves a mixed list — emails,
+<code>group:Marketing</code>, <code>entra:&lt;oid&gt;</code>,
+<code>upn:...</code> — to a flat printix-user list. Returns
+<code>{resolved, not_found, ambiguous}</code> <em>without</em>
+printing.</p></li>
+<li><p><strong><code>printix_print_to_recipients(recipients_csv, file_b64, filename, ..., fail_on_unresolved=True, pdl="auto", color=True)</code></strong>
+One PDF, multiple recipients (one job per recipient). Conversion runs
+<em>once</em> before the loop.</p></li>
+</ul>
+<h3 id="onboarding--time-bombs">Onboarding &amp; Time-Bombs</h3>
+<ul>
+<li><p><strong><code>printix_welcome_user(user_email, template="default", auto_print_to_self=True, timebombs="card_enrol_7d,first_print_reminder_3d")</code></strong>
+Onboarding companion: generates a personalized welcome PDF, optionally
+queues it on the new user, and arms time-bombs (deferred reminders with
+condition checks).</p></li>
+<li><p><strong><code>printix_list_timebombs(user_email="", status="pending")</code></strong>
+List active/historical time-bombs.</p></li>
+<li><p><strong><code>printix_defuse_timebomb(bomb_id, reason="manual")</code></strong>
+Manually defuse a time-bomb. Tenant-scoped.</p></li>
+<li><p><strong><code>printix_sync_entra_group_to_printix(entra_group_oid, printix_group_id="", sync_mode="report_only")</code></strong>
+Microsoft Graph (<code>Group.Read.All</code>) → diff vs Printix group.
+Default read-only.</p></li>
+</ul>
+<h3 id="bonus">Bonus</h3>
+<ul>
+<li><p><strong><code>printix_card_enrol_assist(user_email, card_uid_raw, profile_id="")</code></strong>
+AI onboarding: UID → profile transform → register in one call.</p></li>
+<li><p><strong><code>printix_describe_user_print_pattern(user_email, days=30)</code></strong>
+Top printers, color quote, average page count.</p></li>
+<li><p><strong><code>printix_session_print(user_email, file_b64, filename, expires_in_hours=24)</code></strong>
+Print job + auto-expire time-bomb.</p></li>
+<li><p><strong><code>printix_quota_guard(user_email="", window_minutes=5, max_jobs=10)</code></strong>
+Pre-flight burst check (verdict <code>allow</code> /
+<code>throttle</code> / <code>block</code>).</p></li>
+<li><p><strong><code>printix_print_history_natural(user_email="", when="today", limit=50)</code></strong>
+Print history with natural-language windows: <code>today</code>,
+<code>yesterday</code>, <code>this_week</code>, <code>last_month</code>,
+<code>Q1</code>–<code>Q4</code>, <code>7d</code>, <code>30d</code>,
+...</p></li>
+</ul>
+<h3 id="time-bomb-engine--db--scheduler">Time-Bomb Engine — DB &amp;
+Scheduler</h3>
+<p>A new table <code>user_timebombs</code> is created idempotently on
+first call. Columns:
+<code>id, tenant_id, user_id, user_email, bomb_type, trigger_at, action_json, status, created_at, resolved_at, last_message</code>.</p>
+<p>An APScheduler job <code>timebomb_tick</code> runs hourly
+(<code>minute=7</code>) and:</p>
+<ol type="1">
+<li>Loads pending bombs with <code>trigger_at &lt;= now</code>.</li>
+<li>Re-checks the original condition (e.g. <em>"user has no card
+enrolled"</em>).</li>
+<li>If condition still holds → executes the action (queues a reminder
+PDF, writes audit log, etc.). Marks <code>fired</code>.</li>
+<li>If condition no longer holds (user did the thing meanwhile) → marks
+<code>defused</code>. Auto-cleanup, no false reminders.</li>
+</ol>
+<h3 id="server-side-pdl-conversion">Server-Side PDL Conversion</h3>
+<p><code>src/print_conversion.py</code> ships with:</p>
+<ul>
+<li><code>detect_pdl(file_bytes)</code> — magic-byte detection (PDF /
+PostScript / PCL5 / PCL XL / TEXT)</li>
+<li><code>pdf_to_pclxl(pdf_bytes, color=True)</code> via Ghostscript
+<code>pxlcolor</code> / <code>pxlmono</code></li>
+<li><code>pdf_to_pcl5(pdf_bytes)</code> via <code>cdjcolor</code> /
+<code>ljet4</code></li>
+<li><code>pdf_to_postscript(pdf_bytes)</code> via
+<code>ps2write</code></li>
+<li><code>text_to_postscript(text)</code> for plaintext input</li>
+<li><code>prepare_for_print(file_bytes, target="PCLXL", color=True)</code>
+— main entry, auto-routes based on detected source PDL</li>
+</ul>
+<p>Ghostscript is installed in the container (Dockerfile +25 MB). Errors
+are wrapped in <code>ConversionError</code> and surfaced cleanly to the
+AI tool — no silent submits with broken bytes.</p>
+<hr />
+<p><em>Generated for Printix MCP Server v6.8.10. <strong>127
+tools</strong> in total — 16 new in v6.8.x (see <em>AI Workflow
+Tools</em> section). For API reference of the underlying Printix Cloud
+API see <a
+href="https://printix.net">printix.net/developer</a>.</em></p>
+</body>
+</html>

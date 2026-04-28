@@ -1,0 +1,1242 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>MCP MANUAL EN</title>
+  <style>
+    /* Default styles provided by pandoc.
+    ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+    */
+    html {
+      color: #1a1a1a;
+      background-color: #fdfdfd;
+    }
+    body {
+      margin: 0 auto;
+      max-width: 36em;
+      padding-left: 50px;
+      padding-right: 50px;
+      padding-top: 50px;
+      padding-bottom: 50px;
+      hyphens: auto;
+      overflow-wrap: break-word;
+      text-rendering: optimizeLegibility;
+      font-kerning: normal;
+    }
+    @media (max-width: 600px) {
+      body {
+        font-size: 0.9em;
+        padding: 12px;
+      }
+      h1 {
+        font-size: 1.8em;
+      }
+    }
+    @media print {
+      html {
+        background-color: white;
+      }
+      body {
+        background-color: transparent;
+        color: black;
+        font-size: 12pt;
+      }
+      p, h2, h3 {
+        orphans: 3;
+        widows: 3;
+      }
+      h2, h3, h4 {
+        page-break-after: avoid;
+      }
+    }
+    p {
+      margin: 1em 0;
+    }
+    a {
+      color: #1a1a1a;
+    }
+    a:visited {
+      color: #1a1a1a;
+    }
+    img {
+      max-width: 100%;
+    }
+    svg {
+      height: auto;
+      max-width: 100%;
+    }
+    h1, h2, h3, h4, h5, h6 {
+      margin-top: 1.4em;
+    }
+    h5, h6 {
+      font-size: 1em;
+      font-style: italic;
+    }
+    h6 {
+      font-weight: normal;
+    }
+    ol, ul {
+      padding-left: 1.7em;
+      margin-top: 1em;
+    }
+    li > ol, li > ul {
+      margin-top: 0;
+    }
+    blockquote {
+      margin: 1em 0 1em 1.7em;
+      padding-left: 1em;
+      border-left: 2px solid #e6e6e6;
+      color: #606060;
+    }
+    code {
+      white-space: pre-wrap;
+      font-family: Menlo, Monaco, Consolas, 'Lucida Console', monospace;
+      font-size: 85%;
+      margin: 0;
+      hyphens: manual;
+    }
+    pre {
+      margin: 1em 0;
+      overflow: auto;
+    }
+    pre code {
+      padding: 0;
+      overflow: visible;
+      overflow-wrap: normal;
+    }
+    .sourceCode {
+     background-color: transparent;
+     overflow: visible;
+    }
+    hr {
+      border: none;
+      border-top: 1px solid #1a1a1a;
+      height: 1px;
+      margin: 1em 0;
+    }
+    table {
+      margin: 1em 0;
+      border-collapse: collapse;
+      width: 100%;
+      overflow-x: auto;
+      display: block;
+      font-variant-numeric: lining-nums tabular-nums;
+    }
+    table caption {
+      margin-bottom: 0.75em;
+    }
+    tbody {
+      margin-top: 0.5em;
+      border-top: 1px solid #1a1a1a;
+      border-bottom: 1px solid #1a1a1a;
+    }
+    th {
+      border-top: 1px solid #1a1a1a;
+      padding: 0.25em 0.5em 0.25em 0.5em;
+    }
+    td {
+      padding: 0.125em 0.5em 0.25em 0.5em;
+    }
+    header {
+      margin-bottom: 4em;
+      text-align: center;
+    }
+    #TOC li {
+      list-style: none;
+    }
+    #TOC ul {
+      padding-left: 1.3em;
+    }
+    #TOC > ul {
+      padding-left: 0;
+    }
+    #TOC a:not(:hover) {
+      text-decoration: none;
+    }
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+  </style>
+<style>
+@page { size: A4; margin: 18mm 15mm 20mm 15mm; }
+body {
+  font-family: -apple-system, "Helvetica Neue", "Segoe UI", Arial, sans-serif;
+  color: #1f2937; line-height: 1.55;
+  max-width: 1040px; margin: 2em auto; padding: 0 1.8em;
+  font-size: 10.5pt;
+}
+h1 {
+  color: #0b5394; border-bottom: 3px solid #0b5394;
+  padding-bottom: 0.3em; font-size: 24pt; margin-top: 0.2em;
+  page-break-after: avoid;
+}
+h2 {
+  color: #0b5394; border-bottom: 1px solid #cfe2f3;
+  padding-bottom: 0.2em; margin-top: 1.8em; font-size: 16pt;
+  page-break-after: avoid;
+  page-break-before: auto;
+}
+h3 { color: #1c4587; margin-top: 1.4em; font-size: 12.5pt; page-break-after: avoid; }
+h4 { color: #38761d; margin-top: 1.1em; font-size: 11pt; }
+p  { margin: 0.5em 0; }
+ul, ol { margin: 0.35em 0 0.75em 1.4em; }
+li { margin: 0.12em 0; }
+blockquote {
+  border-left: 4px solid #0b5394; background: #f3f6fa;
+  margin: 1em 0; padding: 0.6em 1em; color: #334155;
+  border-radius: 0 4px 4px 0;
+}
+table {
+  border-collapse: collapse; width: 100%;
+  margin: 0.7em 0 1.2em 0; font-size: 9.5pt;
+  page-break-inside: avoid;
+}
+th, td { padding: 6px 9px; border: 1px solid #e5e7eb; vertical-align: top; }
+th { background: #f3f6fa; color: #0b5394; text-align: left; font-weight: 600; }
+tr:nth-child(even) td { background: #fafbfc; }
+code {
+  background: #f3f6fa; color: #be185d;
+  padding: 1px 5px; border-radius: 3px;
+  font-family: "SFMono-Regular", Consolas, "Courier New", monospace;
+  font-size: 9.5pt;
+}
+pre {
+  background: #1f2937; color: #e5e7eb;
+  padding: 0.85em 1em; border-radius: 6px;
+  overflow-x: auto;
+  font-family: "SFMono-Regular", Consolas, "Courier New", monospace;
+  font-size: 9pt; line-height: 1.45;
+  page-break-inside: avoid;
+}
+pre code { background: none; color: inherit; padding: 0; }
+hr { border: 0; border-top: 1px solid #e5e7eb; margin: 1.6em 0; }
+a { color: #0b5394; text-decoration: none; border-bottom: 1px dotted #0b5394; }
+strong { color: #111827; }
+</style></head>
+<body>
+<header id="title-block-header">
+<h1 class="title">MCP MANUAL EN</h1>
+</header>
+<h1 id="printix-mcp--user-handbook">Printix MCP — User Handbook</h1>
+<blockquote>
+<p><strong>Version:</strong> 6.8.10 · <strong>Tool inventory:</strong>
+127 tools · <strong>As of:</strong> April 2026
+<strong>Audience:</strong> Administrators, helpdesk and power users who
+interact with the Printix MCP Server through an AI assistant (claude.ai,
+ChatGPT, Claude Desktop, Cursor, etc.). <strong>Language:</strong>
+English · German version see <code>MCP_MANUAL_DE.pdf</code></p>
+</blockquote>
+<hr />
+<h2
+id="warning-important-keep-your-ai-assistants-tool-list-up-to-date">⚠️
+Important: keep your AI assistant's tool list up to date</h2>
+<p>When the MCP server gets a new release, <strong>new tools</strong>
+are usually added. To make sure your AI assistant actually picks them
+up, the tool list has to be reloaded. <strong>A server upgrade alone is
+not enough</strong> — the client caches tool definitions.</p>
+<table>
+<thead>
+<tr>
+<th>Client</th>
+<th>How to refresh the tool list</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>claude.ai (web)</strong></td>
+<td><em>Settings → Connectors → Printix MCP → disconnect →
+reconnect</em>. Or just start a <strong>new conversation</strong> — the
+tool list is pulled on the first message.</td>
+</tr>
+<tr>
+<td><strong>ChatGPT (custom connector)</strong></td>
+<td>In the <em>Custom GPT editor</em>, click <em>Disconnect</em> on the
+MCP server, then <em>Connect</em>. Closing and re-opening the tab
+usually works too.</td>
+</tr>
+<tr>
+<td><strong>Claude Desktop</strong></td>
+<td><strong>Full app restart</strong> (<code>Cmd+Q</code> then re-launch
+— <em>not</em> just close the window). Tools are loaded on startup.</td>
+</tr>
+<tr>
+<td><strong>Cursor / Continue / others</strong></td>
+<td>Toggle the connector off and on, or use the client's
+<code>/mcp reload</code> (varies by client).</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Quick test</strong> to see if a new tool has arrived: ask
+your assistant <em>"Which Printix tools do you have?"</em>. If you see
+e.g. <code>printix_print_self</code> or
+<code>printix_welcome_user</code> in the list, you're current. If not,
+do the refresh above.</p>
+<hr />
+<h2 id="what-is-printix-mcp">What is Printix MCP?</h2>
+<p>The Printix MCP Server bridges modern AI assistants and the Printix
+Cloud Print API. It exposes <strong>127 tools</strong> that let you
+drive Printix in natural language — from the simple <em>"Which printers
+do we have in Düsseldorf?"</em> to complex workflows like <em>"Send me
+this weekly report as a PDF to my printer and archive a copy in
+Paperless tagged 'Q1-report'."</em></p>
+<p>You <strong>don't have to memorize tool names</strong>. The assistant
+picks the right tool for your question. This handbook shows you
+<em>what's possible</em> so you can ask focused questions.</p>
+<hr />
+<h2 id="how-to-read-this-handbook">How to read this handbook</h2>
+<p>Each category has a short intro, a tool table with purpose
+descriptions and several <strong>example dialogues</strong> with
+concrete prompts and tool calls. You can use the prompts verbatim or as
+inspiration.</p>
+<p>🆕 marks tools added in v6.8.0–v6.8.10 (April 2026).</p>
+<hr />
+<h2 id="table-of-contents">Table of Contents</h2>
+<ol type="1">
+<li><a href="#1-system--self-diagnosis">System &amp;
+Self-Diagnosis</a></li>
+<li><a href="#2-printers-sites--networks">Printers, Sites &amp;
+Networks</a></li>
+<li><a href="#3-print-jobs--cloud-print">Print Jobs &amp; Cloud
+Print</a></li>
+<li><a href="#4-users-groups--workstations">Users, Groups &amp;
+Workstations</a></li>
+<li><a href="#5-cards--card-profiles">Cards &amp; Card Profiles</a></li>
+<li><a href="#6-reports--analytics">Reports &amp; Analytics</a></li>
+<li><a href="#7-report-templates--scheduling">Report Templates &amp;
+Scheduling</a></li>
+<li><a href="#8-capture--document-workflow">Capture &amp; Document
+Workflow</a></li>
+<li><a href="#9-onboarding-time-bombs--entra-sync-">Onboarding,
+Time-Bombs &amp; Entra Sync 🆕</a></li>
+<li><a href="#10-operations-maintenance--audit">Operations, Maintenance
+&amp; Audit</a></li>
+<li><a href="#11-tips-for-productive-ai-dialogues">Tips for productive
+AI dialogues</a></li>
+</ol>
+<hr />
+<h2 id="1-system--self-diagnosis">1. System &amp; Self-Diagnosis</h2>
+<p>Meta questions: <em>Who am I? Is everything running? What's my role?
+What should I do next?</em> Great as a session opener — or when
+something doesn't work and you need to know <strong>why</strong>.</p>
+<table>
+<thead>
+<tr>
+<th>Tool</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>printix_status</code></td>
+<td>Health check: server up, tenant reachable, configured credential
+scopes.</td>
+</tr>
+<tr>
+<td><code>printix_whoami</code></td>
+<td>Current tenant + own Printix user + admin status.</td>
+</tr>
+<tr>
+<td><code>printix_tenant_summary</code></td>
+<td>Snapshot: printers, users, sites, cards, open jobs counts.</td>
+</tr>
+<tr>
+<td><code>printix_explain_error</code></td>
+<td>Translates a Printix error code or message to plain English + remedy
+hints.</td>
+</tr>
+<tr>
+<td><code>printix_suggest_next_action</code></td>
+<td>Suggests a sensible next step based on a context string.</td>
+</tr>
+<tr>
+<td><code>printix_natural_query</code></td>
+<td>Takes a natural-language question and proposes the matching reports
+tool.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="example-dialogues">Example dialogues</h3>
+<p><strong>Prompt:</strong> <em>"Is Printix up?"</em> →
+<code>printix_status</code> reports API connection, tenant ID and
+configured credential scopes.</p>
+<p><strong>Prompt:</strong> <em>"Who am I logged in as in Printix?"</em>
+→ <code>printix_whoami</code> returns tenant, your email and admin
+flag.</p>
+<p><strong>Prompt:</strong> <em>"Give me an overview of my tenant."</em>
+→ <code>printix_tenant_summary</code> returns all key counts in one
+block.</p>
+<p><strong>Prompt:</strong> <em>"What does error 'AADSTS700025'
+mean?"</em> → <code>printix_explain_error("AADSTS700025")</code>
+explains it (public client / no client_secret with PKCE) and suggests
+fixes.</p>
+<p><strong>Prompt:</strong> <em>"What should I do next? I just installed
+a new printer."</em> →
+<code>printix_suggest_next_action("new printer installed")</code>
+suggests SNMP config check, test print, health report.</p>
+<hr />
+<h2 id="2-printers-sites--networks">2. Printers, Sites &amp;
+Networks</h2>
+<p>Physical and logical infrastructure: printers, queues, sites,
+networks, SNMP configs. Read and write operations. The
+<code>*_context</code> tools return aggregated views (queue + printer +
+recent jobs in one call).</p>
+<table>
+<thead>
+<tr>
+<th>Tool</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>printix_list_printers</code></td>
+<td>All printers (optional search).</td>
+</tr>
+<tr>
+<td><code>printix_get_printer</code></td>
+<td>Details + capabilities of a specific printer.</td>
+</tr>
+<tr>
+<td><code>printix_resolve_printer</code></td>
+<td>Fuzzy match (name + location + model + site).</td>
+</tr>
+<tr>
+<td><code>printix_network_printers</code></td>
+<td>All printers in a network or site.</td>
+</tr>
+<tr>
+<td><code>printix_get_queue_context</code></td>
+<td>Queue + printer object + recent jobs in one call.</td>
+</tr>
+<tr>
+<td><code>printix_printer_health_report</code></td>
+<td>Status grouped: online / offline / error states.</td>
+</tr>
+<tr>
+<td><code>printix_top_printers</code></td>
+<td>Top-N printers by volume.</td>
+</tr>
+<tr>
+<td><code>printix_list_sites</code> / <code>printix_get_site</code></td>
+<td>Site listing / details.</td>
+</tr>
+<tr>
+<td><code>printix_create_site</code> / <code>printix_update_site</code>
+/ <code>printix_delete_site</code></td>
+<td>Site management.</td>
+</tr>
+<tr>
+<td><code>printix_site_summary</code></td>
+<td>Site + networks + printers in one aggregated block.</td>
+</tr>
+<tr>
+<td><code>printix_list_networks</code> /
+<code>printix_get_network</code></td>
+<td>Network listing / details.</td>
+</tr>
+<tr>
+<td><code>printix_create_network</code> /
+<code>printix_update_network</code> /
+<code>printix_delete_network</code></td>
+<td>Network management.</td>
+</tr>
+<tr>
+<td><code>printix_get_network_context</code></td>
+<td>Network + site + printers in one block.</td>
+</tr>
+<tr>
+<td><code>printix_list_snmp_configs</code> /
+<code>printix_get_snmp_config</code></td>
+<td>SNMP configs.</td>
+</tr>
+<tr>
+<td><code>printix_create_snmp_config</code> /
+<code>printix_delete_snmp_config</code></td>
+<td>SNMP config create/delete.</td>
+</tr>
+<tr>
+<td><code>printix_get_snmp_context</code></td>
+<td>SNMP config + affected printers + network.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="example-dialogues-1">Example dialogues</h3>
+<p><strong>Prompt:</strong> <em>"Which Brother printers are in
+Düsseldorf?"</em> →
+<code>printix_resolve_printer("Brother Düsseldorf")</code> token-fuzzy
+match across name/location/vendor/site.</p>
+<p><strong>Prompt:</strong> <em>"Show me all printers in network
+9cfa4bf0."</em> →
+<code>printix_network_printers(network_id="9cfa4bf0")</code> resolves
+the site (when no direct network→printer mapping exists) and returns the
+relevant printers.</p>
+<p><strong>Prompt:</strong> <em>"Give me a complete summary of the DACH
+site."</em> → <code>printix_site_summary(site_id=…)</code> — site meta +
+networks + all printers.</p>
+<p><strong>Prompt:</strong> <em>"Which printers are currently
+offline?"</em> → <code>printix_printer_health_report</code> groups by
+status, problems first.</p>
+<p><strong>Prompt:</strong> <em>"Top 5 printers by page count last
+week?"</em> →
+<code>printix_top_printers(days=7, limit=5, metric="pages")</code>.</p>
+<p><strong>Prompt:</strong> <em>"Create a new site 'Hamburg' at
+Mönckebergstraße 7."</em> →
+<code>printix_create_site(name="Hamburg", address="Mönckebergstraße 7", ...)</code>.</p>
+<hr />
+<h2 id="3-print-jobs--cloud-print">3. Print Jobs &amp; Cloud Print</h2>
+<p>View, submit and delegate print jobs. <strong>🆕 v6.8.x</strong>:
+three new high-level tools (<code>print_self</code>,
+<code>print_to_recipients</code>, <code>session_print</code>) for AI
+workflows with native PDF/PCL conversion.</p>
+<blockquote>
+<p>🆕 <strong>Auto PDL conversion (v6.8.8+)</strong>: All print tools
+auto-convert PDF/PostScript/Text to PCL XL via Ghostscript before
+submitting to the printer queue. Without this, printers without a PDF
+RIP would print hieroglyphs (raw PDF source as ASCII). Default param
+<code>pdl="auto"</code> (= PCL XL color). Use
+<code>pdl="passthrough"</code> to send the file unchanged.</p>
+</blockquote>
+<table>
+<thead>
+<tr>
+<th>Tool</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>printix_list_jobs</code></td>
+<td>All jobs, optional queue filter.</td>
+</tr>
+<tr>
+<td><code>printix_get_job</code></td>
+<td>Job details.</td>
+</tr>
+<tr>
+<td><code>printix_submit_job</code></td>
+<td>Low-level job submit (stage 1 of the 5-stage flow).</td>
+</tr>
+<tr>
+<td><code>printix_complete_upload</code></td>
+<td>Finish upload.</td>
+</tr>
+<tr>
+<td><code>printix_delete_job</code></td>
+<td>Cancel job.</td>
+</tr>
+<tr>
+<td><code>printix_change_job_owner</code></td>
+<td>Delegate job to another user.</td>
+</tr>
+<tr>
+<td><code>printix_jobs_stuck</code></td>
+<td>Jobs hanging more than N minutes.</td>
+</tr>
+<tr>
+<td><code>printix_quick_print</code></td>
+<td>Single-shot: URL + recipient → done.</td>
+</tr>
+<tr>
+<td><code>printix_send_to_user</code></td>
+<td>Send document (URL or base64) to user X. v6.8.8+: with
+auto-conversion.</td>
+</tr>
+<tr>
+<td>🆕 <code>printix_print_self</code></td>
+<td>Print to <strong>own</strong> secure-print queue (AI generates PDF
+inline).</td>
+</tr>
+<tr>
+<td>🆕 <code>printix_print_to_recipients</code></td>
+<td>Multi-recipient: one PDF to many recipients (also via
+<code>group:Name</code> or <code>entra:OID</code>).</td>
+</tr>
+<tr>
+<td>🆕 <code>printix_resolve_recipients</code></td>
+<td>Diagnostic: shows which recipients would resolve before
+<code>print_to_recipients</code>.</td>
+</tr>
+<tr>
+<td>🆕 <code>printix_session_print</code></td>
+<td>Job with time-bomb (auto-expire after N hours).</td>
+</tr>
+</tbody>
+</table>
+<h3 id="example-dialogues-2">Example dialogues</h3>
+<p><strong>Prompt:</strong> <em>"Send this PDF as Secure Print to <a
+href="mailto:marcus@firma.de">marcus@firma.de</a>."</em> →
+<code>printix_send_to_user(user_email="marcus@firma.de", file_content_b64=..., filename="contract.pdf")</code>
+— server converts PDF→PCL XL and queues the job.</p>
+<p><strong>Prompt:</strong> <em>"Which jobs have been stuck for more
+than 30 minutes?"</em> →
+<code>printix_jobs_stuck(minutes=30)</code>.</p>
+<p><strong>Prompt:</strong> <em>"Hand over job 4711 to <a
+href="mailto:marcus@firma.de">marcus@firma.de</a> — I'm going on
+vacation."</em> →
+<code>printix_change_job_owner(job_id="4711", new_owner_email="marcus@firma.de")</code>.</p>
+<p>🆕 <strong>Prompt:</strong> <em>"Build me an A4 print template with
+the quarterly numbers and queue it for me to pick up at the
+printer."</em> → AI generates PDF inline →
+<code>printix_print_self(file_b64=..., filename="Q1.pdf")</code> puts
+the job in your own queue. Pick it up at the printer with card/code.</p>
+<p>🆕 <strong>Prompt:</strong> <em>"Send this memo to everyone in the
+Marketing group as Secure Print."</em> →
+<code>printix_print_to_recipients(recipients_csv="group:Marketing", file_b64=..., filename="memo.pdf")</code>
+— one job per member.</p>
+<p>🆕 <strong>Prompt:</strong> <em>"Before I send: who exactly is on the
+list?"</em> →
+<code>printix_resolve_recipients("group:Marketing, alice@firma.de, entra:abc-uuid")</code>
+shows the resolved recipients without printing. Ambiguities + not-found
+inputs are listed separately.</p>
+<p>🆕 <strong>Prompt:</strong> <em>"Send this draft contract to <a
+href="mailto:externer-gast@partner.de">externer-gast@partner.de</a> —
+should auto-expire after 4 hours."</em> →
+<code>printix_session_print(user_email="externer-gast@partner.de", file_b64=..., filename="contract.pdf", expires_in_hours=4)</code>
+— submits the job and arms a cleanup time-bomb.</p>
+<p>🆕 <strong>Prompt:</strong> <em>"Print mono only — no need for
+color."</em> → Set <code>color=False</code> on any print tool (default
+<code>True</code>).</p>
+<p>🆕 <strong>Prompt:</strong> <em>"My printer does the PDF RIP itself —
+just pass the file through."</em> → Set <code>pdl="passthrough"</code>
+to disable server-side conversion.</p>
+<hr />
+<h2 id="4-users-groups--workstations">4. Users, Groups &amp;
+Workstations</h2>
+<p>Full lifecycle: create, edit, deactivate, diagnose. The
+<code>user_360</code> and <code>diagnose_user</code> tools are helpdesk
+all-rounders. <strong>🆕 v6.8.x</strong>: detailed group membership +
+print pattern analysis + quota guard.</p>
+<table>
+<thead>
+<tr>
+<th>Tool</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>printix_list_users</code></td>
+<td>All users, with pagination + role filter.</td>
+</tr>
+<tr>
+<td><code>printix_get_user</code></td>
+<td>User details.</td>
+</tr>
+<tr>
+<td><code>printix_find_user</code></td>
+<td>Fuzzy search by email or name.</td>
+</tr>
+<tr>
+<td><code>printix_user_360</code></td>
+<td>360° view: user + cards + groups + workstations + recent jobs.</td>
+</tr>
+<tr>
+<td><code>printix_diagnose_user</code></td>
+<td>Helpdesk diagnosis: what works, what doesn't, why.</td>
+</tr>
+<tr>
+<td><code>printix_create_user</code> /
+<code>printix_delete_user</code></td>
+<td>User management.</td>
+</tr>
+<tr>
+<td><code>printix_generate_id_code</code></td>
+<td>New ID code for a user.</td>
+</tr>
+<tr>
+<td><code>printix_onboard_user</code> /
+<code>printix_offboard_user</code></td>
+<td>Guided on/offboarding (multi-step in one call).</td>
+</tr>
+<tr>
+<td><code>printix_list_admins</code></td>
+<td>All admins.</td>
+</tr>
+<tr>
+<td><code>printix_permission_matrix</code></td>
+<td>Matrix: user × permissions.</td>
+</tr>
+<tr>
+<td><code>printix_inactive_users</code></td>
+<td>Users idle for N days.</td>
+</tr>
+<tr>
+<td><code>printix_sso_status</code></td>
+<td>Check SSO mapping.</td>
+</tr>
+<tr>
+<td><code>printix_list_groups</code> /
+<code>printix_get_group</code></td>
+<td>Group listing / details.</td>
+</tr>
+<tr>
+<td><code>printix_create_group</code> /
+<code>printix_delete_group</code></td>
+<td>Group management.</td>
+</tr>
+<tr>
+<td>🆕 <code>printix_get_group_members</code></td>
+<td>Members of a group by UUID or name (ambiguity-safe).</td>
+</tr>
+<tr>
+<td>🆕 <code>printix_get_user_groups</code></td>
+<td>Reverse lookup: which groups is user X in?</td>
+</tr>
+<tr>
+<td>🆕 <code>printix_describe_user_print_pattern</code></td>
+<td>Print profile of a user: top printers, color quote, page count.</td>
+</tr>
+<tr>
+<td>🆕 <code>printix_quota_guard</code></td>
+<td>Pre-flight burst check before submit (verdict
+allow/throttle/block).</td>
+</tr>
+<tr>
+<td>🆕 <code>printix_print_history_natural</code></td>
+<td>History with natural-language windows ("today", "last week", "Q1",
+"7d").</td>
+</tr>
+<tr>
+<td><code>printix_list_workstations</code> /
+<code>printix_get_workstation</code></td>
+<td>Workstations listing / details.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="example-dialogues-3">Example dialogues</h3>
+<p><strong>Prompt:</strong> <em>"Tell me everything you know about <a
+href="mailto:marcus@firma.de">marcus@firma.de</a>."</em> →
+<code>printix_user_360(query="marcus@firma.de")</code> returns the full
+360° view.</p>
+<p><strong>Prompt:</strong> <em>"Why can't Anna print anymore?"</em> →
+<code>printix_diagnose_user(email="anna@firma.de")</code> checks status,
+SSO, cards, groups, blockers — and suggests fixes.</p>
+<p><strong>Prompt:</strong> <em>"Which users have been inactive for 180
+days?"</em> → <code>printix_inactive_users(days=180)</code> —
+offboarding candidate list.</p>
+<p><strong>Prompt:</strong> <em>"Onboard a new employee: <a
+href="mailto:peter@firma.de">peter@firma.de</a>, Peter Meier, group
+'Finance'."</em> → <code>printix_onboard_user(...)</code> runs all steps
+in order.</p>
+<p>🆕 <strong>Prompt:</strong> <em>"Who's in the Marketing group?"</em>
+→ <code>printix_get_group_members("Marketing")</code> — for ambiguous
+names you get a candidate list with UUIDs.</p>
+<p>🆕 <strong>Prompt:</strong> <em>"Which groups is Anna in?"</em> →
+<code>printix_get_user_groups("anna@firma.de")</code> — checks user
+object first, falls back to group scan.</p>
+<p>🆕 <strong>Prompt:</strong> <em>"What did Marcus print today?"</em> →
+<code>printix_print_history_natural(user_email="marcus@firma.de", when="today")</code>.</p>
+<p>🆕 <strong>Prompt:</strong> <em>"Marcus's print pattern over the last
+30 days?"</em> →
+<code>printix_describe_user_print_pattern(user_email="marcus@firma.de", days=30)</code>
+— top printers, color quote, average pages.</p>
+<p>🆕 <strong>Prompt:</strong> <em>"Before I send another PDF: has the
+user not sent too many in the last 5 minutes?"</em> →
+<code>printix_quota_guard(user_email="marcus@firma.de", window_minutes=5, max_jobs=10)</code>
+— verdict
+<code>allow</code>/<code>throttle</code>/<code>block</code>.</p>
+<hr />
+<h2 id="5-cards--card-profiles">5. Cards &amp; Card Profiles</h2>
+<p>Everything around RFID/Mifare/HID cards: registration, mapping,
+profiles, bulk import. <strong>🆕 v6.8.x</strong>: AI wrapper
+<code>card_enrol_assist</code> that does UID + profile-transform +
+register in one tool.</p>
+<table>
+<thead>
+<tr>
+<th>Tool</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>printix_list_cards</code></td>
+<td>Cards of a user.</td>
+</tr>
+<tr>
+<td><code>printix_list_cards_by_tenant</code></td>
+<td>All cards in tenant (filter:
+<code>all</code>/<code>registered</code>/<code>orphaned</code>).</td>
+</tr>
+<tr>
+<td><code>printix_search_card</code></td>
+<td>Search card by ID/number.</td>
+</tr>
+<tr>
+<td><code>printix_register_card</code></td>
+<td>Assign card to user (low-level).</td>
+</tr>
+<tr>
+<td><code>printix_delete_card</code></td>
+<td>Remove card assignment.</td>
+</tr>
+<tr>
+<td><code>printix_get_card_details</code></td>
+<td>Card + local mapping + owner in one block.</td>
+</tr>
+<tr>
+<td><code>printix_decode_card_value</code></td>
+<td>Decode raw card value (Base64/Hex/YSoft/Konica variants).</td>
+</tr>
+<tr>
+<td><code>printix_transform_card_value</code></td>
+<td>Run value through transformation pipeline (hex↔︎dec, reverse,
+prefix/suffix …).</td>
+</tr>
+<tr>
+<td><code>printix_get_user_card_context</code></td>
+<td>User + all cards + profiles in one block.</td>
+</tr>
+<tr>
+<td><code>printix_list_card_profiles</code> /
+<code>printix_get_card_profile</code></td>
+<td>Profile listing/details.</td>
+</tr>
+<tr>
+<td><code>printix_search_card_mappings</code></td>
+<td>Search local mapping DB.</td>
+</tr>
+<tr>
+<td><code>printix_bulk_import_cards</code></td>
+<td>CSV bulk import (with profile + dry run).</td>
+</tr>
+<tr>
+<td><code>printix_suggest_profile</code></td>
+<td>Suggest profile from sample UID (top-10).</td>
+</tr>
+<tr>
+<td><code>printix_card_audit</code></td>
+<td>Audit trail of all card changes for a user.</td>
+</tr>
+<tr>
+<td><code>printix_find_orphaned_mappings</code></td>
+<td>Local mappings without matching Printix user.</td>
+</tr>
+<tr>
+<td>🆕 <code>printix_card_enrol_assist</code></td>
+<td>AI onboarding: UID + profile transform + register in one call.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="example-dialogues-4">Example dialogues</h3>
+<p><strong>Prompt:</strong> <em>"Which cards does Marcus have?"</em> →
+<code>printix_get_user_card_context(email="marcus@firma.de")</code> —
+user + all cards + profiles.</p>
+<p><strong>Prompt:</strong> <em>"What is card UID
+<code>04:5F:F0:02:AB:3C</code>?"</em> →
+<code>printix_decode_card_value(card_value="04:5F:F0:02:AB:3C")</code>
+recognizes hex with separators, returns decoded bytes + profile
+hint.</p>
+<p><strong>Prompt:</strong> <em>"Import 500 cards from this CSV — but
+first as a dry run."</em> →
+<code>printix_bulk_import_cards(csv=..., profile=..., dry_run=True)</code>
+validates each row and shows previews without writing.</p>
+<p><strong>Prompt:</strong> <em>"For UID <code>045FF002</code> — which
+profile fits?"</em> →
+<code>printix_suggest_profile(sample_uid="045FF002")</code> — top-10
+with score + <code>best_match</code>.</p>
+<p>🆕 <strong>Prompt:</strong> <em>"Marcus tapped his ID card on the
+iPhone. UID is <code>04A1B2C3D4E5F6</code>. Please register it for
+him."</em> →
+<code>printix_card_enrol_assist(user_email="marcus@firma.de", card_uid_raw="04A1B2C3D4E5F6")</code>
+— runs through the default card profile and registers it via
+<code>register_card</code>.</p>
+<hr />
+<h2 id="6-reports--analytics">6. Reports &amp; Analytics</h2>
+<p>Reports run against the separate SQL Server warehouse. You get key
+figures, trends, anomalies and ad-hoc queries through a unified
+interface. <code>query_any</code> is the universal entry point; the
+specialized tools are quicker shortcuts for common questions.</p>
+<table>
+<thead>
+<tr>
+<th>Tool</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>printix_reporting_status</code></td>
+<td>Reports engine status (DB connection, last nightlies, preset
+count).</td>
+</tr>
+<tr>
+<td><code>printix_query_any</code></td>
+<td>Universal: preset + filters → table.</td>
+</tr>
+<tr>
+<td><code>printix_query_print_stats</code></td>
+<td>Print volume by dimension.</td>
+</tr>
+<tr>
+<td><code>printix_query_cost_report</code></td>
+<td>Costs, optionally by department/user.</td>
+</tr>
+<tr>
+<td><code>printix_query_top_users</code> /
+<code>printix_query_top_printers</code></td>
+<td>Top-N with time window.</td>
+</tr>
+<tr>
+<td><code>printix_query_anomalies</code></td>
+<td>Anomaly detection.</td>
+</tr>
+<tr>
+<td><code>printix_query_trend</code></td>
+<td>Trend lines over time.</td>
+</tr>
+<tr>
+<td><code>printix_query_audit_log</code></td>
+<td>Structured audit trail of the MCP server (actions, objects,
+actor).</td>
+</tr>
+<tr>
+<td><code>printix_top_printers</code> /
+<code>printix_top_users</code></td>
+<td>Short-form wrappers.</td>
+</tr>
+<tr>
+<td><code>printix_print_trends</code></td>
+<td>Trend by day/week/month.</td>
+</tr>
+<tr>
+<td><code>printix_cost_by_department</code></td>
+<td>Costs aggregated per department.</td>
+</tr>
+<tr>
+<td><code>printix_compare_periods</code></td>
+<td>Period A vs period B.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="example-dialogues-5">Example dialogues</h3>
+<p><strong>Prompt:</strong> <em>"Who printed the most last month?"</em>
+→ <code>printix_top_users(days=30, limit=10, metric="pages")</code>.</p>
+<p><strong>Prompt:</strong> <em>"Show the print trend for the last 90
+days, monthly."</em> →
+<code>printix_print_trends(group_by="month", days=90)</code>.</p>
+<p><strong>Prompt:</strong> <em>"Compare the last 30 days with the 30
+days before — what changed?"</em> →
+<code>printix_compare_periods(days_a=30, days_b=30)</code> returns delta
+KPIs.</p>
+<p><strong>Prompt:</strong> <em>"Which department has the highest print
+costs?"</em> → <code>printix_cost_by_department(days=30)</code>.</p>
+<p><strong>Prompt:</strong> <em>"What did user X do in the MCP on April
+15?"</em> →
+<code>printix_query_audit_log(start_date="2026-04-15", end_date="2026-04-15", actor_email="x@firma.de")</code>.</p>
+<p><strong>Prompt:</strong> <em>"Are there any anomalies in print
+behavior the last 14 days?"</em> →
+<code>printix_query_anomalies(days=14)</code> — e.g. sudden volume
+spikes or unusual printer usage patterns.</p>
+<hr />
+<h2 id="7-report-templates--scheduling">7. Report Templates &amp;
+Scheduling</h2>
+<p>For analyses you need regularly: save as template, schedule recurring
+delivery, ship by email. Design options via
+<code>list_design_options</code>; <code>preview_report</code> renders a
+PDF preview without sending.</p>
+<table>
+<thead>
+<tr>
+<th>Tool</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>printix_save_report_template</code></td>
+<td>Save query + design as template.</td>
+</tr>
+<tr>
+<td><code>printix_list_report_templates</code></td>
+<td>All saved templates.</td>
+</tr>
+<tr>
+<td><code>printix_get_report_template</code></td>
+<td>Template details.</td>
+</tr>
+<tr>
+<td><code>printix_delete_report_template</code></td>
+<td>Delete template.</td>
+</tr>
+<tr>
+<td><code>printix_run_report_now</code></td>
+<td>Run template once, deliver.</td>
+</tr>
+<tr>
+<td><code>printix_send_test_email</code></td>
+<td>Test email (SMTP check).</td>
+</tr>
+<tr>
+<td><code>printix_schedule_report</code></td>
+<td>Schedule template as cron job.</td>
+</tr>
+<tr>
+<td><code>printix_list_schedules</code></td>
+<td>All active schedules.</td>
+</tr>
+<tr>
+<td><code>printix_update_schedule</code> /
+<code>printix_delete_schedule</code></td>
+<td>Schedule modify/delete.</td>
+</tr>
+<tr>
+<td><code>printix_list_design_options</code></td>
+<td>Available color schemes, logos, layouts.</td>
+</tr>
+<tr>
+<td><code>printix_preview_report</code></td>
+<td>PDF preview of a report without sending.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="example-dialogues-6">Example dialogues</h3>
+<p><strong>Prompt:</strong> <em>"Save the current top-10 user report as
+template 'Monthly Print Top10'."</em> →
+<code>printix_save_report_template(...)</code>.</p>
+<p><strong>Prompt:</strong> <em>"Send this template on the 1st working
+day of every month to <a
+href="mailto:management@firma.de">management@firma.de</a>."</em> →
+<code>printix_schedule_report(report_id=…, cron="0 8 1 * *", recipients=["management@firma.de"])</code>.</p>
+<p><strong>Prompt:</strong> <em>"Show me a PDF preview of template
+XY."</em> → <code>printix_preview_report(report_id=…)</code>.</p>
+<p><strong>Prompt:</strong> <em>"Which color schemes can I use for
+reports?"</em> → <code>printix_list_design_options()</code>.</p>
+<hr />
+<h2 id="8-capture--document-workflow">8. Capture &amp; Document
+Workflow</h2>
+<p>Capture connects scanned or AI-generated documents to target systems
+(Paperless-ngx, SharePoint, DMS …) via plugins. <strong>🆕
+v6.8.x</strong>: two new tools that let the AI feed files directly into
+a capture workflow — not only via the classic webhook path.</p>
+<table>
+<thead>
+<tr>
+<th>Tool</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>printix_list_capture_profiles</code></td>
+<td>All capture profiles in tenant.</td>
+</tr>
+<tr>
+<td><code>printix_capture_status</code></td>
+<td>Status: server port, webhook base URL, available plugins, configured
+profiles.</td>
+</tr>
+<tr>
+<td>🆕 <code>printix_describe_capture_profile</code></td>
+<td>Plugin schema of a profile: which metadata fields are accepted, plus
+current config (secrets masked).</td>
+</tr>
+<tr>
+<td>🆕 <code>printix_send_to_capture</code></td>
+<td>Feed file directly into capture workflow — same code path as a
+webhook, no printer/blob detour.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="example-dialogues-7">Example dialogues</h3>
+<p><strong>Prompt:</strong> <em>"Is capture active and which plugins are
+installed?"</em> → <code>printix_capture_status</code> — plugin list
+(e.g. paperless_ngx) + count of configured profiles.</p>
+<p><strong>Prompt:</strong> <em>"Which capture profiles do I have?"</em>
+→ <code>printix_list_capture_profiles</code> — list with target system,
+webhook URL and recent runs.</p>
+<p>🆕 <strong>Prompt:</strong> <em>"What metadata does the Paperless
+profile accept?"</em> →
+<code>printix_describe_capture_profile("Paperless (Marcus)")</code> —
+plugin schema (<code>tags</code>, <code>correspondent</code>,
+<code>document_type</code> etc.) plus current default values.</p>
+<p>🆕 <strong>Prompt:</strong> <em>"Save this AI-generated contract to
+Paperless with tags 'Q1', 'Contract' and correspondent 'Acme
+Corp'."</em> →
+<code>printix_send_to_capture(profile="Paperless (Marcus)", file_b64=..., filename="contract_acme.pdf", metadata_json='{"tags":["Q1","Contract"], "correspondent":"Acme Corp", "document_type":"Contract"}')</code>.</p>
+<p>🆕 <strong>Prompt:</strong> <em>"My weekly report is done — file it
+in Paperless and send a print copy to my printer too."</em> → Two calls:
+<code>printix_send_to_capture(...)</code> +
+<code>printix_print_self(...)</code> — the assistant chains both
+automatically.</p>
+<hr />
+<h2 id="9-onboarding-time-bombs--entra-sync-new">9. Onboarding,
+Time-Bombs &amp; Entra Sync 🆕</h2>
+<p>Everything in this section is <strong>new in v6.8.x</strong>. It's
+about automated user lifecycle workflows: a freshly created user
+receives a welcome PDF, reminder time-bombs are scheduled, and 7 days
+later we follow up automatically if no action has been taken. Plus:
+Entra/AD group sync with Printix groups.</p>
+<table>
+<thead>
+<tr>
+<th>Tool</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>🆕 <code>printix_welcome_user</code></td>
+<td>Onboarding companion: welcome PDF + time-bombs for
+<code>card_enrol</code>, <code>first_print_reminder</code>.</td>
+</tr>
+<tr>
+<td>🆕 <code>printix_list_timebombs</code></td>
+<td>View active/past time-bombs in tenant.</td>
+</tr>
+<tr>
+<td>🆕 <code>printix_defuse_timebomb</code></td>
+<td>Manually defuse a time-bomb (with audit reason).</td>
+</tr>
+<tr>
+<td>🆕 <code>printix_sync_entra_group_to_printix</code></td>
+<td>Diff Entra/AD group members vs Printix group members (default
+<code>report_only</code>).</td>
+</tr>
+</tbody>
+</table>
+<h3 id="example-dialogues-8">Example dialogues</h3>
+<p>🆕 <strong>Prompt:</strong> <em>"Onboard new employee <a
+href="mailto:peter@firma.de">peter@firma.de</a> and run the welcome
+workflow with reminders."</em> → <code>printix_onboard_user(...)</code>
+(for DB/account creation) +
+<code>printix_welcome_user(user_email="peter@firma.de")</code> puts a
+welcome PDF in his secure-print queue AND arms two time-bombs: 3-day
+reminder if no first print, 7-day reminder if no card enrolled.</p>
+<p>🆕 <strong>Prompt:</strong> <em>"Which onboarding reminders are
+currently active?"</em> →
+<code>printix_list_timebombs(status="pending")</code>.</p>
+<p>🆕 <strong>Prompt:</strong> <em>"Peter just told me he's on holiday
+until next week. Defuse his reminders."</em> →
+<code>printix_list_timebombs(user_email="peter@firma.de")</code> shows
+his bombs with IDs, then
+<code>printix_defuse_timebomb(bomb_id=42, reason="on holiday until 2026-05-12")</code>.</p>
+<p>🆕 <strong>Prompt:</strong> <em>"Sync Entra group
+<code>Marketing-DACH</code> (OID <code>abc-123</code>) with our Printix
+group — but report only, no writes."</em> →
+<code>printix_sync_entra_group_to_printix(entra_group_oid="abc-123", printix_group_id="def-456", sync_mode="report_only")</code>
+returns diff: <code>to_add</code> (in Entra but not Printix) and
+<code>to_remove</code> (in Printix but not Entra).</p>
+<blockquote>
+<p>ℹ️ <strong>Prerequisite for
+<code>sync_entra_group_to_printix</code></strong>: the MCP server's
+Entra app registration needs the application permission
+<code>Group.Read.All</code> (Application, not Delegated) + admin
+consent. Add it in the Azure portal.</p>
+</blockquote>
+<h3 id="time-bomb-concept">Time-bomb concept</h3>
+<p>Time-bombs are <strong>conditional, deferred actions</strong>. A cron
+job runs hourly (<code>minute=7</code>) and for every pending bomb
+checks:</p>
+<ol type="1">
+<li>Is the condition still met? (e.g. <em>"user has no card enrolled
+yet"</em>)</li>
+<li>If yes → run the action (queue a reminder PDF, log entry,
+etc.).</li>
+<li>If no → bomb is auto-marked <code>defused</code>.</li>
+</ol>
+<p>So the <code>first_print_reminder_3d</code> bomb stays pending after
+3 days — if the user actually printed in between, it auto-defuses. Only
+if the user really did nothing, the reminder fires.</p>
+<hr />
+<h2 id="10-operations-maintenance--audit">10. Operations, Maintenance
+&amp; Audit</h2>
+<p>Backups, demo data, feature tracking. Mix of operations and meta.</p>
+<table>
+<thead>
+<tr>
+<th>Tool</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>printix_list_backups</code></td>
+<td>All existing backups.</td>
+</tr>
+<tr>
+<td><code>printix_create_backup</code></td>
+<td>New backup (DB + config + metadata).</td>
+</tr>
+<tr>
+<td><code>printix_demo_setup_schema</code></td>
+<td>Create demo schema in reports DB.</td>
+</tr>
+<tr>
+<td><code>printix_demo_generate</code></td>
+<td>Generate synthetic demo data.</td>
+</tr>
+<tr>
+<td><code>printix_demo_rollback</code></td>
+<td>Remove demo data (by demo tag).</td>
+</tr>
+<tr>
+<td><code>printix_demo_status</code></td>
+<td>Which demo sets are active?</td>
+</tr>
+<tr>
+<td><code>printix_list_feature_requests</code> /
+<code>printix_get_feature_request</code></td>
+<td>Ticket system for feature requests.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="example-dialogues-9">Example dialogues</h3>
+<p><strong>Prompt:</strong> <em>"Make a backup before I change
+anything."</em> → <code>printix_create_backup</code>.</p>
+<p><strong>Prompt:</strong> <em>"Set up a demo environment with 50 users
+and 500 jobs."</em> → <code>printix_demo_setup_schema</code> (once) +
+<code>printix_demo_generate(users=50, jobs=500)</code>.</p>
+<p><strong>Prompt:</strong> <em>"Show me all open feature
+requests."</em> →
+<code>printix_list_feature_requests(status="open")</code>.</p>
+<hr />
+<h2 id="11-tips-for-productive-ai-dialogues">11. Tips for productive AI
+dialogues</h2>
+<ol type="1">
+<li><strong>Think in goals, not tools.</strong> <em>"Who prints too
+much?"</em> beats <em>"call query_top_users with days=30"</em>. The
+assistant picks the right tool.</li>
+<li><strong>Provide context.</strong> <em>"Marcus from finance"</em> is
+clearer than just <em>"Marcus"</em>.</li>
+<li><strong>Use the 360° tools.</strong> <code>printix_user_360</code>,
+<code>printix_get_queue_context</code>,
+<code>printix_site_summary</code> save you follow-up questions.</li>
+<li><strong>Ask "why" on errors.</strong> <em>"Why did this fail?"</em>
+triggers <code>printix_explain_error</code> or
+<code>printix_diagnose_user</code>.</li>
+<li><strong>Dry run before bulk operations.</strong>
+<code>printix_bulk_import_cards(dry_run=True)</code>,
+<code>printix_resolve_recipients</code> (before
+<code>print_to_recipients</code>),
+<code>printix_sync_entra_group_to_printix(sync_mode="report_only")</code>.</li>
+<li><strong>🆕 Multi-step workflows in a single prompt.</strong> The
+assistant can chain tool calls: <em>"Generate a weekly report PDF,
+archive it in Paperless, and print a copy for me."</em></li>
+<li><strong>🆕 Trust auto-conversion in <code>print_*</code>
+tools.</strong> Default <code>pdl="auto"</code> does the right thing 99%
+of the time (PCL XL color). Only override when your printer queue does
+conversion server-side (<code>passthrough</code>) or you explicitly need
+PostScript.</li>
+<li><strong>🆕 Refresh the tool list regularly</strong> (see notice at
+the top). Otherwise the assistant uses outdated tool definitions.</li>
+</ol>
+<hr />
+<p><em>Document generated from Printix MCP Server v6.8.10 · April 2026 ·
+127 tools · <a
+href="https://github.com/mnimtz/Printix-MCP">Repository</a></em></p>
+</body>
+</html>
