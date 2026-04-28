@@ -11,6 +11,11 @@ Synology NAS / TrueNAS / Unraid / …).
 > original **Home Assistant add-on** variant lives on separately in
 > [`printix-mcp-addon`](https://github.com/mnimtz/printix-mcp-addon).
 
+> **Current stable: v7.2.10** (April 2026) · **127 MCP tools** ·
+> iOS mobile companion app · Auto-PDL conversion (PDF → PCL XL via
+> Ghostscript) · Time-bomb-driven onboarding workflows · Multi-recipient
+> secure print · Microsoft Entra ID + Authorization Code + PKCE flow.
+
 > **v7.0.0 is single-tenant.** One installation hosts exactly *one* tenant;
 > all users share it. The earlier "one-tenant-per-user" model from v6.7.x
 > has been removed (see [CHANGELOG](CHANGELOG.md)).
@@ -19,10 +24,28 @@ Synology NAS / TrueNAS / Unraid / …).
 
 ## Feature overview
 
-**AI-assistant integration**
+**AI-assistant integration — 127 MCP tools**
 - MCP server for [claude.ai](https://claude.ai) (Streamable HTTP), ChatGPT (SSE) and Claude Code (CLI)
 - Built-in OAuth 2.0 endpoints — no manual token juggling
-- 80+ MCP tools for Printix queries, user operations, reporting, diagnostics
+- All tools ship with structured docstrings (when-to-use / when-NOT / returns / args + concrete example prompts) so the AI picks the right tool reliably
+- See [`docs/MCP_MANUAL_EN.md`](docs/MCP_MANUAL_EN.md) / [`docs/MCP_MANUAL_DE.md`](docs/MCP_MANUAL_DE.md) for the complete tool catalogue
+
+**Workflow tools (v6.8.x / v7.2.x — AI-driven workflows)**
+- `printix_print_self` — AI generates a PDF inline and queues it on the caller's own secure-print queue (auto-PDL conversion to PCL XL)
+- `printix_print_to_recipients` — multi-recipient secure print, accepts emails, `group:<Name>`, `entra:<group-OID>` mixed
+- `printix_send_to_capture` — push files straight into the capture pipeline (e.g. Paperless-ngx) without the printer detour
+- `printix_welcome_user` — onboarding workflow with conditional time-bombs (auto-reminder if user hasn't enrolled a card / printed yet after N days)
+- `printix_session_print` — secure-print job that auto-expires after N hours
+- `printix_card_enrol_assist` — register an NFC card UID with auto-transform via the user's profile
+- `printix_describe_user_print_pattern`, `printix_quota_guard`, `printix_print_history_natural`, `printix_resolve_recipients` and more
+
+**Mobile app (iOS) — *Printix MobilePrint***
+- Native SwiftUI app for iPhone/iPad
+- Microsoft sign-in via in-app Safari sheet (`ASWebAuthenticationSession` + Authorization Code Flow with PKCE — *no* device-code prompt)
+- NFC card enrolment (tap an HID/Mifare/FeliCa/DESFire badge, UID is decoded via the profile transformer and registered to the Printix user)
+- Share Extension: send any file from any iOS app via *Share → Printix → choose target*
+- QR onboarding from the admin portal (`/my/setup-guide`) — no manual server URL entry
+- Keychain-stored bearer token with Face ID / Touch ID unlock
 
 **Web admin (`/admin`)**
 - User management: create, invite, CSV bulk-import, **Printix direct import** (pull users straight from the Printix cloud into local accounts, optionally with an invitation mail)
@@ -35,6 +58,7 @@ Synology NAS / TrueNAS / Unraid / …).
 **Self-service (`/my`)**
 - View and delete jobs, delegate printing to other users
 - Personal dashboard (own jobs, delegations, managed employees)
+- QR code for iOS app pairing (`/my/setup-guide`)
 
 **Reporting**
 - Report templates with design options (colour, logo, chart type)
@@ -44,10 +68,15 @@ Synology NAS / TrueNAS / Unraid / …).
 **Cloud-print gateway** *(optional)*
 - IPP/IPPS listener on port 631 — PCs can treat the container as a network printer
 - Capture webhook endpoint (Papercut-style follow-me-print trigger)
+- **Auto-PDL conversion** (PDF / PostScript / Text → PCL XL via Ghostscript) for every server-side print path — so printers without a built-in PDF RIP no longer print hieroglyphs
 
 **Auth**
 - Local accounts (username / password, PIN, ID code)
 - Microsoft Entra ID / Azure AD SSO *(optional)*
+  - Web SSO (Authorization Code + client_secret)
+  - macOS / Windows desktop client (Device Code Flow)
+  - iOS mobile app (Authorization Code + PKCE — public client)
+  - Single Entra app registration covers all three flows
 - OAuth for AI assistants
 
 **i18n**
@@ -350,6 +379,8 @@ After the first-time setup in the web UI:
 - **Claude Code (CLI)** → `claude mcp add printix <MCP_PUBLIC_URL>/mcp`
 
 The OAuth endpoints (`/oauth/authorize`, `/oauth/token`) are used automatically by the AI clients — no manual token management needed.
+
+> ⚠️ **After every server upgrade**: refresh the AI assistant's tool list, otherwise it keeps using stale tool definitions. **claude.ai**: start a new conversation or *Settings → Connectors → disconnect / reconnect*. **ChatGPT custom connector**: *Disconnect / Connect* in the Custom GPT editor. **Claude Desktop**: full app restart (`Cmd+Q`). **Cursor / Continue**: toggle the connector or use `/mcp reload`. See [`docs/MCP_MANUAL_EN.md`](docs/MCP_MANUAL_EN.md) for details + the full 127-tool reference.
 
 ---
 
