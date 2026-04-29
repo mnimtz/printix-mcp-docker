@@ -1,6 +1,11 @@
 mcp[cli]>=1.6.0
 requests>=2.31.0
 uvicorn>=0.29.0
+# v7.2.42: Async HTTP für den MCP-Proxy in web/app.py — reicht /mcp,
+# /sse, /oauth und /.well-known vom Web-Port (8080) zum MCP-Port (8765)
+# durch, damit ein einzelner Cloudflare Quick Tunnel beides erreichbar
+# macht.
+httpx>=0.25.0
 
 # Web-Verwaltungsoberfläche (FastAPI + Jinja2)
 fastapi>=0.111.0,<0.116.0

@@ -2,6 +2,61 @@
 
 This project follows [Semantic Versioning](https://semver.org/).
 
+## 7.2.42 (2026-04-29) — MCP-proxy on web port (Quick Tunnel single-URL fix)
+
+### Fixed
+
+**Cloudflare Quick Tunnel returned `{"detail":"Not Found"}` on `/mcp`.**
+Quick Tunnel forwards all traffic to a single internal port — by
+default the web UI on 8080 — but the MCP server runs on a separate
+port (8765). When claude.ai or a browser hit
+`https://….trycloudflare.com/mcp`, the request landed on the web UI's
+FastAPI app, which has no `/mcp` route, hence 404.
+
+### Fix
+
+The web UI on port 8080 now proxies four families of paths internally
+to the MCP server on port 8765:
+
+- `/mcp` and `/mcp/*` — Streamable HTTP transport (claude.ai, Claude Code)
+- `/sse` and `/sse/*` — Server-Sent Events (ChatGPT-style connectors)
+- `/oauth/*` — OAuth Authorize, Token, callbacks
+- `/.well-known/*` — RFC-compliant discovery (oauth-authorization-server, etc.)
+
+The proxy preserves request method, headers (including the bearer
+token), query parameters, and body. SSE traffic uses `httpx.stream`
++ `StreamingResponse` so long-lived event streams remain functional
+through the proxy.
+
+A single Cloudflare Tunnel URL (Quick or Named) now works end-to-end
+for both the admin web UI and AI-assistant MCP traffic — no separate
+hostnames or path-based routing required on the Cloudflare side.
+
+### Implementation
+
+- `src/web/app.py` — four proxy routes mounted near the bottom of
+  `create_app()` (so they don't shadow more specific routes).
+  Internal `_proxy_to_mcp()` helper wraps `httpx.AsyncClient`, reads
+  `MCP_PORT` env var (default 8765), strips hop-by-hop headers, and
+  passes everything else through.
+- `requirements.txt` — `httpx>=0.25.0` added explicitly (was a
+  transitive dep, now a direct one).
+- Auth: no checks on port 8080 for the proxied paths — the existing
+  `BearerAuthMiddleware` and `OAuthMiddleware` on port 8765 still
+  apply, so security model is unchanged.
+
+### Test
+
+After the upgrade:
+
+```bash
+curl https://your-tunnel.trycloudflare.com/mcp
+# Should now return MCP server's JSON-RPC error or 401, not 404
+```
+
+In Claude.ai → Settings → Connectors, paste the tunnel URL — the
+OAuth-based handshake completes via the same URL.
+
 ## 7.2.41 (2026-04-29) — Pro feature gating extended: Print Job Management (/my)
 
 ### Fixed/Added

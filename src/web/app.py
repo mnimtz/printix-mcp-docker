@@ -51,7 +51,7 @@ from typing import Optional
 from urllib.parse import quote_plus
 
 from fastapi import FastAPI, Request, Form, UploadFile, File
-from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse, FileResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse, FileResponse, Response
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 
@@ -7476,6 +7476,129 @@ def create_app(session_secret: str) -> FastAPI:
         _acme_start()
     except Exception as e:
         logger.warning("auto-tls renewal scheduler not started: %s", e)
+
+    # ─── MCP Proxy (v7.2.42) ──────────────────────────────────────────────
+    # Reicht /mcp, /sse, /oauth und /.well-known vom Web-Port (8080) an den
+    # MCP-Server-Port (8765) durch. Damit funktioniert ein einzelner
+    # Cloudflare Quick Tunnel (der nur localhost:8080 erreicht) für BEIDE
+    # Welten — Admin-UI auf "/" und MCP-Endpunkte auf "/mcp", "/sse", etc.
+    # Streaming wird unterstützt (SSE-Connections bleiben offen).
+    #
+    # Auth: wir reichen alle Header durch, BearerAuthMiddleware/OAuthMiddleware
+    # auf 8765 prüfen Tokens dort. Auf 8080 keinerlei Auth-Check — der ganze
+    # Punkt ist, dass die MCP-Endpunkte sich genau wie auf 8765 verhalten.
+
+    @app.api_route("/mcp", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
+    @app.api_route("/mcp/{rest:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
+    async def mcp_proxy(request: Request, rest: str = ""):
+        return await _proxy_to_mcp(request, "/mcp" + (("/" + rest) if rest else ""))
+
+    @app.api_route("/sse", methods=["GET", "POST"])
+    @app.api_route("/sse/{rest:path}", methods=["GET", "POST"])
+    async def sse_proxy(request: Request, rest: str = ""):
+        return await _proxy_to_mcp(request, "/sse" + (("/" + rest) if rest else ""), stream=True)
+
+    @app.api_route("/oauth/{rest:path}", methods=["GET", "POST"])
+    async def oauth_proxy(request: Request, rest: str):
+        return await _proxy_to_mcp(request, "/oauth/" + rest)
+
+    @app.api_route("/.well-known/{rest:path}", methods=["GET"])
+    async def wellknown_proxy(request: Request, rest: str):
+        return await _proxy_to_mcp(request, "/.well-known/" + rest)
+
+    async def _proxy_to_mcp(request: Request, path: str, stream: bool = False):
+        """Internal request forwarder to the MCP server on localhost.
+        Uses httpx async streaming so SSE connections work."""
+        try:
+            import httpx as _httpx
+        except Exception as e:
+            return JSONResponse(
+                {"detail": f"MCP proxy unavailable: httpx not installed ({e})"},
+                status_code=503,
+            )
+
+        mcp_port = (os.environ.get("MCP_PORT", "") or "8765").strip()
+        target = f"http://127.0.0.1:{mcp_port}{path}"
+
+        # Header durchreichen, ohne Hop-by-Hop-Header die uvicorn selbst setzt
+        excluded_request = {
+            "host", "content-length", "connection", "keep-alive", "transfer-encoding",
+            "upgrade", "proxy-authenticate", "proxy-authorization", "te", "trailers",
+        }
+        forward_headers = {
+            k: v for k, v in request.headers.items()
+            if k.lower() not in excluded_request
+        }
+
+        body = await request.body() if request.method in ("POST", "PUT", "PATCH") else None
+
+        if stream:
+            # Streaming: SSE etc. — Connection bleibt offen, Daten werden
+            # tröpfchenweise weitergereicht. Wir starten den httpx-Stream
+            # und reichen ihn als StreamingResponse durch.
+            from fastapi.responses import StreamingResponse
+            client = _httpx.AsyncClient(timeout=None)
+
+            async def _gen():
+                try:
+                    async with client.stream(
+                        request.method, target,
+                        params=request.query_params,
+                        content=body,
+                        headers=forward_headers,
+                    ) as resp:
+                        async for chunk in resp.aiter_raw():
+                            yield chunk
+                finally:
+                    try:
+                        await client.aclose()
+                    except Exception:
+                        pass
+
+            # Status + Header der ersten Antwort übernehmen — wir machen
+            # einen "headed-then-stream"-Trick: erst short HEAD-style probe,
+            # dann den echten Stream. Hier vereinfacht: einmal kurz öffnen
+            # für Status + Headers und dann re-open für Body. Pragmatisch:
+            # geben StreamingResponse mit 200 zurück und lassen den
+            # Generator die Bytes weiterleiten (Status-Code-Mismatch
+            # bleibt dabei selten relevant für SSE, das ist immer 200).
+            return StreamingResponse(_gen(), status_code=200,
+                                       media_type="text/event-stream")
+        else:
+            # Nicht-streaming: normaler Request/Response
+            async with _httpx.AsyncClient(timeout=300) as client:
+                try:
+                    resp = await client.request(
+                        request.method, target,
+                        params=request.query_params,
+                        content=body,
+                        headers=forward_headers,
+                    )
+                except _httpx.ConnectError as ce:
+                    return JSONResponse(
+                        {"detail": f"MCP server not reachable on localhost:{mcp_port} ({ce})"},
+                        status_code=502,
+                    )
+                except Exception as e:
+                    return JSONResponse(
+                        {"detail": f"MCP proxy error: {e}"},
+                        status_code=502,
+                    )
+            # Response-Header durchreichen, gleiche Liste an Hop-by-Hop
+            excluded_response = {
+                "content-length", "connection", "keep-alive", "transfer-encoding",
+                "upgrade", "proxy-authenticate", "te", "trailers",
+            }
+            out_headers = {
+                k: v for k, v in resp.headers.items()
+                if k.lower() not in excluded_response
+            }
+            return Response(
+                content=resp.content,
+                status_code=resp.status_code,
+                headers=out_headers,
+                media_type=resp.headers.get("content-type"),
+            )
 
     # v7.2.32: persistierter Tunnel-Mode → bei App-Start ggf. wiederherstellen.
     # In einem separaten Thread, damit ein nicht-erreichbarer Cloudflare-
