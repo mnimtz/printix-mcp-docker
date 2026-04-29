@@ -2,6 +2,58 @@
 
 This project follows [Semantic Versioning](https://semver.org/).
 
+## 7.2.35 (2026-04-29) — Bring-your-own-cert: TLS import + tunnel-page wording fix
+
+### Added
+**`/admin/tls`** — second native HTTPS option alongside Cloudflare
+Tunnel. Operators who already have a TLS certificate (commercial CA,
+internal PKI, Let's Encrypt via certbot, …) can paste the PEM cert
+chain plus matching private key directly into the admin UI. The web
+UI then runs on HTTPS without any reverse proxy, sidecar container,
+or third-party routing.
+
+Features:
+
+- **Cert validation on save** — both the certificate and the key are
+  parsed via the `cryptography` library before persisting; mismatched
+  cert/key pairs are rejected with a clear error message instead of
+  failing silently when uvicorn restarts.
+- **Live cert details panel** — subject, issuer, validity window,
+  Subject Alternative Names, and days remaining are displayed.
+  Three status banners: green (valid), amber (≤30 days remaining,
+  renew soon), red (expired).
+- **Stored under `/data/tls/`** — `cert.pem` (mode 0644) and
+  `key.pem` (mode 0600). Lives in the same encrypted data volume
+  as all other secrets.
+- **Audit log** — `tls_cert_uploaded` and `tls_cert_disabled`
+  actions with the cert subject for traceability.
+- **Restart needed** to take effect — `web/run.py` reads the
+  `tls_enabled` setting at start time and passes
+  `ssl_certfile` / `ssl_keyfile` to uvicorn. Clear notice in the
+  UI explaining this.
+
+### Caveats panel (in-UI)
+- Manual renewal — for auto-renewal, Cloudflare Tunnel or a
+  reverse-proxy sidecar (Caddy, Traefik) is the better choice.
+- Web UI port (8080) only — MCP server (8765) and IPP listener have
+  their own TLS configs; Cloudflare Tunnel covers all in one go.
+
+### Fixed
+**Misleading currency mention in the Cloudflare wizard step 2.**
+The previous wording made it look like the Cloudflare account costs
+~10€/year, when in fact the account itself is free and only an
+optional new domain purchase costs anything. Step 2 now leads with
+"the Cloudflare service is free; you only pay for a domain name if
+you don't have one" and reorders the three options so the cheapest
+("subdomain CNAME of an existing domain") comes first.
+
+### i18n
+Full translations of the new TLS page and the corrected step 2
+wording in `de` / `en` / `no`.
+
+### Admin dashboard
+New "🔒 TLS Certificate" button next to the "🌐 HTTPS Tunnel" button.
+
 ## 7.2.34 (2026-04-29) — Tunnel page: detailed in-line setup wizard
 
 ### Changed

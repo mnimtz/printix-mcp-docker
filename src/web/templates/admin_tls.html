@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+{% block title %}{{ _('tls_title') }} — {{ _('brand_console_name') }}{% endblock %}
+{% block content %}
+<div class="container">
+
+  <div class="card" style="margin-bottom:20px;">
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; flex-wrap:wrap; gap:10px;">
+      <div>
+        <div class="section-title">🔒 {{ _('tls_title') }}</div>
+        <div class="section-sub">{{ _('tls_subtitle') }}</div>
+      </div>
+      <a href="/admin" class="btn btn-secondary btn-sm">← {{ _('mp_back') }}</a>
+    </div>
+
+    {% if flash_ok %}<div class="alert alert-success" style="margin-bottom:14px;">✅ {{ flash_ok }}</div>{% endif %}
+    {% if flash_err %}<div class="alert alert-error" style="margin-bottom:14px;">⚠ {{ flash_err }}</div>{% endif %}
+
+    <!-- Status banner -->
+    {% if tls_enabled and cert_info and not cert_info.get('parse_error') %}
+      {% if cert_info.get('expired') %}
+      <div style="padding:14px 18px; background:#fee2e2; border-left:4px solid #dc2626; border-radius:8px; margin-bottom:16px;">
+        <div style="font-weight:700; color:#7f1d1d;">⚠ {{ _('tls_status_expired') }}</div>
+        <div style="font-size:.88em; color:#991b1b;">{{ _('tls_status_expired_sub') }}</div>
+      </div>
+      {% elif cert_info.get('days_remaining', 0) < 30 %}
+      <div style="padding:14px 18px; background:#fef3c7; border-left:4px solid #f59e0b; border-radius:8px; margin-bottom:16px;">
+        <div style="font-weight:700; color:#78350f;">⚠ {{ _('tls_status_expiring') }} ({{ cert_info.days_remaining }} {{ _('tls_days') }})</div>
+        <div style="font-size:.88em; color:#92400e;">{{ _('tls_status_expiring_sub') }}</div>
+      </div>
+      {% else %}
+      <div style="padding:14px 18px; background:#dcfce7; border-left:4px solid #16a34a; border-radius:8px; margin-bottom:16px;">
+        <div style="font-weight:700; color:#14532d;">🔒 {{ _('tls_status_active') }}</div>
+        <div style="font-size:.88em; color:#166534;">{{ _('tls_status_active_sub') }} {{ cert_info.days_remaining }} {{ _('tls_days') }}.</div>
+      </div>
+      {% endif %}
+
+      <div style="background:#f7f9fb; padding:14px; border-radius:8px; font-size:.9em; margin-bottom:16px;">
+        <div style="font-weight:600; color:#003366; margin-bottom:8px;">{{ _('tls_cert_details') }}</div>
+        <table style="width:100%;">
+          <tr><td style="padding:4px 12px; font-weight:600; color:#003366; vertical-align:top; width:140px;">{{ _('tls_subject') }}</td><td style="padding:4px 12px; word-break:break-all;"><code>{{ cert_info.subject }}</code></td></tr>
+          <tr><td style="padding:4px 12px; font-weight:600; color:#003366; vertical-align:top;">{{ _('tls_issuer') }}</td><td style="padding:4px 12px; word-break:break-all;"><code>{{ cert_info.issuer }}</code></td></tr>
+          <tr><td style="padding:4px 12px; font-weight:600; color:#003366; vertical-align:top;">{{ _('tls_valid_from') }}</td><td style="padding:4px 12px;">{{ cert_info.not_before }}</td></tr>
+          <tr><td style="padding:4px 12px; font-weight:600; color:#003366; vertical-align:top;">{{ _('tls_valid_until') }}</td><td style="padding:4px 12px;">{{ cert_info.not_after }}</td></tr>
+          {% if cert_info.san %}
+          <tr><td style="padding:4px 12px; font-weight:600; color:#003366; vertical-align:top;">{{ _('tls_san') }}</td><td style="padding:4px 12px;">{% for s in cert_info.san %}<code>{{ s }}</code>{% if not loop.last %}, {% endif %}{% endfor %}</td></tr>
+          {% endif %}
+        </table>
+      </div>
+
+      <div style="margin-bottom:16px;">
+        <form method="post" action="/admin/tls/disable" style="display:inline;">
+          <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('{{ _('tls_disable_confirm') }}');">
+            ⏏ {{ _('tls_disable') }}
+          </button>
+        </form>
+      </div>
+    {% elif cert_info.get('parse_error') %}
+      <div class="alert alert-error">
+        <strong>{{ _('mp_error') }}:</strong> {{ cert_info.parse_error }}
+      </div>
+    {% else %}
+      <div style="padding:14px 18px; background:#fef3c7; border-left:4px solid #f59e0b; border-radius:8px; margin-bottom:16px;">
+        <div style="font-weight:700; color:#78350f;">⚫ {{ _('tls_status_inactive') }}</div>
+        <div style="font-size:.88em; color:#92400e;">{{ _('tls_status_inactive_sub') }}</div>
+      </div>
+    {% endif %}
+
+  </div>
+
+  <!-- ── Use cases ──────────────────────────────────────────────────────── -->
+  <div class="card" style="margin-bottom:20px; background:#f7f9fb;">
+    <div class="section-title" style="margin-bottom:8px; font-size:1em;">📚 {{ _('tls_when_use') }}</div>
+    <div style="font-size:.92em; color:#444; line-height:1.6;">{{ _('tls_when_use_body') | safe }}</div>
+  </div>
+
+  <!-- ── Form ───────────────────────────────────────────────────────────── -->
+  <div class="card" style="margin-bottom:20px;">
+    <div class="section-title" style="margin-bottom:8px;">📥 {{ _('tls_upload_title') }}</div>
+    <div class="section-sub" style="margin-bottom:14px;">{{ _('tls_upload_sub') | safe }}</div>
+
+    <form method="post" action="/admin/tls/save" style="display:flex; flex-direction:column; gap:14px;">
+      <div>
+        <label style="display:block; font-weight:600; color:#003366; margin-bottom:4px;">
+          {{ _('tls_cert_label') }}
+        </label>
+        <textarea name="cert_pem" required rows="10"
+                  placeholder="-----BEGIN CERTIFICATE-----&#10;MIIDXTCCAkWgAwIBAgIJAJ...&#10;-----END CERTIFICATE-----"
+                  style="width:100%; font-family:monospace; font-size:.82em; padding:8px; border:1px solid #ccc; border-radius:6px;"></textarea>
+        <div style="font-size:.78em; color:#666; margin-top:4px;">{{ _('tls_cert_hint') | safe }}</div>
+      </div>
+
+      <div>
+        <label style="display:block; font-weight:600; color:#003366; margin-bottom:4px;">
+          {{ _('tls_key_label') }}
+        </label>
+        <textarea name="key_pem" required rows="10"
+                  placeholder="-----BEGIN PRIVATE KEY-----&#10;MIIEvQIBADANBgkqh...&#10;-----END PRIVATE KEY-----"
+                  style="width:100%; font-family:monospace; font-size:.82em; padding:8px; border:1px solid #ccc; border-radius:6px;"></textarea>
+        <div style="font-size:.78em; color:#666; margin-top:4px;">{{ _('tls_key_hint') | safe }}</div>
+      </div>
+
+      <div style="padding:10px 14px; background:#fef3c7; border-left:3px solid #f59e0b; border-radius:4px; font-size:.86em; color:#78350f;">
+        ⚠ <strong>{{ _('tls_restart_required') }}</strong>
+      </div>
+
+      <div>
+        <button type="submit" class="btn btn-primary">
+          🔒 {{ _('tls_save') }}
+        </button>
+      </div>
+    </form>
+  </div>
+
+  <!-- Important caveats -->
+  <details class="card" style="margin-bottom:20px;">
+    <summary style="cursor:pointer; font-weight:600; color:#003366;">📋 {{ _('tls_caveats_title') }}</summary>
+    <div style="margin-top:14px; font-size:.92em; line-height:1.6; color:#444;">
+      {{ _('tls_caveats_body') | safe }}
+    </div>
+  </details>
+
+</div>
+{% endblock %}

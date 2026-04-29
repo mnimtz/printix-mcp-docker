@@ -2261,6 +2261,162 @@ def create_app(session_secret: str) -> FastAPI:
             media_type="application/pdf",
         )
 
+    # ─── TLS Certificate Import (v7.2.35) ────────────────────────────────
+    # Bring-your-own-certificate als Alternative zu Cloudflare Tunnel:
+    # User lädt eigenes Cert + Key hoch, web-UI startet auf HTTPS.
+    # Persistiert unter /data/tls/{cert,key}.pem; uvicorn liest sie beim
+    # nächsten Start. Container-Restart erforderlich.
+
+    @app.get("/admin/tls", response_class=HTMLResponse)
+    async def admin_tls(request: Request):
+        user = get_session_user(request)
+        if not user or not user.get("is_admin"):
+            return RedirectResponse("/login", status_code=302)
+        cert_path = "/data/tls/cert.pem"
+        key_path  = "/data/tls/key.pem"
+        cert_info: dict = {}
+        if os.path.isfile(cert_path):
+            try:
+                from cryptography import x509
+                from cryptography.hazmat.backends import default_backend
+                with open(cert_path, "rb") as fh:
+                    cert = x509.load_pem_x509_certificate(fh.read(), default_backend())
+                cert_info = {
+                    "subject":     cert.subject.rfc4514_string(),
+                    "issuer":      cert.issuer.rfc4514_string(),
+                    "not_before":  cert.not_valid_before_utc.strftime("%Y-%m-%d %H:%M UTC"),
+                    "not_after":   cert.not_valid_after_utc.strftime("%Y-%m-%d %H:%M UTC"),
+                    "san":         [],
+                }
+                try:
+                    ext = cert.extensions.get_extension_for_class(x509.SubjectAlternativeName)
+                    cert_info["san"] = [str(n.value) for n in ext.value]
+                except Exception:
+                    pass
+                from datetime import datetime, timezone as _tz
+                now = datetime.now(_tz.utc)
+                expiry = cert.not_valid_after_utc
+                cert_info["days_remaining"] = (expiry - now).days
+                cert_info["expired"]        = (expiry < now)
+            except Exception as e:
+                cert_info = {"parse_error": str(e)}
+        try:
+            from db import get_setting
+            tls_enabled = get_setting("tls_enabled", "0") == "1"
+        except Exception:
+            tls_enabled = False
+        flash_ok = (request.query_params.get("ok") or "").strip() or None
+        flash_err = (request.query_params.get("err") or "").strip() or None
+        return templates.TemplateResponse("admin_tls.html", {
+            "request": request, "user": user,
+            "cert_info": cert_info,
+            "tls_enabled": tls_enabled,
+            "flash_ok": flash_ok, "flash_err": flash_err,
+            **t_ctx(request),
+        })
+
+    @app.post("/admin/tls/save")
+    async def admin_tls_save(
+        request: Request,
+        cert_pem: str = Form(...),
+        key_pem: str = Form(...),
+    ):
+        user = get_session_user(request)
+        if not user or not user.get("is_admin"):
+            return RedirectResponse("/login", status_code=302)
+        try:
+            cert_pem = (cert_pem or "").strip()
+            key_pem  = (key_pem or "").strip()
+
+            # PEM-Format Sanity-Check
+            if "-----BEGIN CERTIFICATE-----" not in cert_pem:
+                return RedirectResponse(
+                    f"/admin/tls?err={quote_plus('Cert ist kein PEM (BEGIN CERTIFICATE Header fehlt)')}",
+                    status_code=302)
+            if not any(h in key_pem for h in (
+                "-----BEGIN PRIVATE KEY-----",
+                "-----BEGIN RSA PRIVATE KEY-----",
+                "-----BEGIN EC PRIVATE KEY-----",
+            )):
+                return RedirectResponse(
+                    f"/admin/tls?err={quote_plus('Key ist kein PEM (BEGIN PRIVATE KEY Header fehlt)')}",
+                    status_code=302)
+
+            # Cert + Key parsen — schlechte Inputs jetzt rauswerfen,
+            # nicht erst wenn uvicorn beim Restart crashed
+            from cryptography import x509
+            from cryptography.hazmat.backends import default_backend
+            from cryptography.hazmat.primitives import serialization
+            try:
+                cert_obj = x509.load_pem_x509_certificate(cert_pem.encode(), default_backend())
+            except Exception as e:
+                return RedirectResponse(
+                    f"/admin/tls?err={quote_plus(f'Cert kann nicht geparst werden: {e}')}",
+                    status_code=302)
+            try:
+                key_obj = serialization.load_pem_private_key(
+                    key_pem.encode(), password=None, backend=default_backend(),
+                )
+            except Exception as e:
+                return RedirectResponse(
+                    f"/admin/tls?err={quote_plus(f'Key kann nicht geparst werden: {e}')}",
+                    status_code=302)
+
+            # Cert/Key passen zusammen?
+            try:
+                cert_pubkey = cert_obj.public_key().public_bytes(
+                    encoding=serialization.Encoding.PEM,
+                    format=serialization.PublicFormat.SubjectPublicKeyInfo,
+                )
+                key_pubkey = key_obj.public_key().public_bytes(
+                    encoding=serialization.Encoding.PEM,
+                    format=serialization.PublicFormat.SubjectPublicKeyInfo,
+                )
+                if cert_pubkey != key_pubkey:
+                    return RedirectResponse(
+                        f"/admin/tls?err={quote_plus('Cert und Key passen nicht zusammen (Public Keys unterschiedlich)')}",
+                        status_code=302)
+            except Exception:
+                pass  # Pairing-Check ist best-effort
+
+            # Persistieren
+            tls_dir = "/data/tls"
+            os.makedirs(tls_dir, exist_ok=True)
+            cert_path = os.path.join(tls_dir, "cert.pem")
+            key_path  = os.path.join(tls_dir, "key.pem")
+            with open(cert_path, "w", encoding="utf-8") as fh:
+                fh.write(cert_pem if cert_pem.endswith("\n") else cert_pem + "\n")
+            with open(key_path, "w", encoding="utf-8") as fh:
+                fh.write(key_pem if key_pem.endswith("\n") else key_pem + "\n")
+            os.chmod(key_path, 0o600)
+            os.chmod(cert_path, 0o644)
+
+            from db import set_setting, audit
+            set_setting("tls_enabled", "1")
+            audit(user["id"], "tls_cert_uploaded",
+                  f"TLS cert imported: subject={cert_obj.subject.rfc4514_string()}",
+                  object_type="tls_cert", object_id=cert_path)
+            return RedirectResponse("/admin/tls?ok=cert_saved", status_code=302)
+        except Exception as e:
+            logger.exception("admin_tls_save")
+            return RedirectResponse(
+                f"/admin/tls?err={quote_plus(str(e))}", status_code=302)
+
+    @app.post("/admin/tls/disable")
+    async def admin_tls_disable(request: Request):
+        user = get_session_user(request)
+        if not user or not user.get("is_admin"):
+            return RedirectResponse("/login", status_code=302)
+        try:
+            from db import set_setting, audit
+            set_setting("tls_enabled", "0")
+            audit(user["id"], "tls_cert_disabled",
+                  "TLS disabled — falling back to HTTP after restart",
+                  object_type="tls_cert", object_id="any")
+        except Exception as e:
+            logger.warning("tls disable: %s", e)
+        return RedirectResponse("/admin/tls?ok=disabled", status_code=302)
+
     # ─── Cloudflare Tunnel (v7.2.32) ──────────────────────────────────────
     # Ein-Klick HTTPS für Azure/Hetzner/Selbst-Hoster ohne eigene Domain.
     # Quick Tunnel = anonym *.trycloudflare.com, Named Tunnel = eigene

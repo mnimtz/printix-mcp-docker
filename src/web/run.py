@@ -58,7 +58,37 @@ if __name__ == "__main__":
 
     app = create_app(session_secret=session_secret)
 
-    logger.info("Starte Web-Verwaltungsoberfläche auf %s:%d", host, port)
+    # v7.2.35: Wenn der Admin im Web-UI ein eigenes TLS-Cert importiert
+    # hat, läuft die Web-UI direkt auf HTTPS — ohne Cloudflare oder
+    # Reverse-Proxy-Sidecar. Cert + Key liegen unter /data/tls/{cert,key}.pem.
+    # Der `tls_enabled` Settings-Flag entscheidet, ob aktiv.
+    ssl_kwargs: dict = {}
+    try:
+        import sys as _tls_sys
+        _tls_sys.path.insert(0, "/app")
+        from db import init_db as _tls_init_db, get_setting as _tls_get_setting
+        # init_db ist idempotent; web/app.py ruft es ohnehin beim Import
+        # auf, aber wir lesen Settings VOR FastAPI-Import (anderer Pfad)
+        _tls_init_db()
+        if _tls_get_setting("tls_enabled", "0") == "1":
+            cert_path = "/data/tls/cert.pem"
+            key_path  = "/data/tls/key.pem"
+            if os.path.isfile(cert_path) and os.path.isfile(key_path):
+                ssl_kwargs = {
+                    "ssl_certfile": cert_path,
+                    "ssl_keyfile":  key_path,
+                }
+                logger.info("TLS aktiviert — uvicorn startet auf HTTPS mit %s", cert_path)
+            else:
+                logger.warning(
+                    "tls_enabled=1, aber Cert/Key fehlen unter /data/tls/. "
+                    "Falle auf HTTP zurück."
+                )
+    except Exception as e:
+        logger.warning("TLS-Check fehlgeschlagen, falle auf HTTP zurück: %s", e)
+
+    proto = "https" if ssl_kwargs else "http"
+    logger.info("Starte Web-Verwaltungsoberfläche auf %s://%s:%d", proto, host, port)
     # proxy_headers=True + forwarded_allow_ips="*" lässt Uvicorn die
     # X-Forwarded-Proto/-Host/-For Header auswerten. Ohne das liefert
     # request.base_url nur das interne Schema (http) und den internen
@@ -73,4 +103,5 @@ if __name__ == "__main__":
         log_level=log_lvl,
         proxy_headers=True,
         forwarded_allow_ips="*",
+        **ssl_kwargs,
     )
