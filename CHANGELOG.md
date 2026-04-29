@@ -2,6 +2,55 @@
 
 This project follows [Semantic Versioning](https://semver.org/).
 
+## 7.2.38 (2026-04-29) — RBAC UI toggle (no compose / restart needed) + comprehensive README
+
+### Added
+
+**Inline RBAC enable/disable button** on `/admin/mcp-permissions`.
+
+The previous activation flow required editing `docker-compose.yml` to
+set `MCP_RBAC_ENABLED=1` and restarting the container — which is
+awkward for users running the container via Portainer / `docker run`
+without a tracked compose file. The new toggle is right next to the
+status banner: green "Enable" when off, red "Disable" when on.
+
+Activation is now read live from a DB setting (`rbac_enabled`), so
+flipping the toggle takes effect immediately on the next tool call —
+no container restart, no compose edit. The env var
+`MCP_RBAC_ENABLED` continues to work as the **initial default** for
+fresh installations; the DB setting takes precedence once the admin
+has used the UI toggle at least once.
+
+The status banner now also shows the source of truth ("via env var"
+vs "via UI toggle") so the admin understands why the value is what
+it is and what they can change.
+
+### Changed
+
+- `_check_tool_permission()` in `server.py` now calls
+  `_is_rbac_enabled()` per call (cheap DB lookup) rather than caching
+  the env var at import time.
+- `printix_my_role` reports the live state.
+- New i18n keys for the toggle button, confirm dialog and source
+  notice in `de` / `en` / `no`.
+
+### Documentation
+
+**README.md** rewritten with three new sections:
+
+- **HTTPS — three built-in options** (Cloudflare Tunnel, Auto-HTTPS
+  via sslip.io + Let's Encrypt, Bring-your-own-certificate) with a
+  comparison table
+- **Role-based access control** with the role/scope mapping, the two
+  assignment paths, and the three activation methods
+- **Bundled compliance documentation** (GDPR Compliance Guide +
+  Permission Matrix PDFs)
+
+The previous "Reverse proxy / Cloudflare Tunnel" section is renamed
+to "Reverse proxy / advanced setups" and now positions itself as the
+fallback for users who prefer Traefik/nginx/Caddy over the built-in
+HTTPS options.
+
 ## 7.2.37 (2026-04-29) — Server-Info: OAuth credentials + MCP port URL on the dashboard
 
 ### Changed

@@ -138,8 +138,25 @@ import asyncio as _aio_for_gate
 import functools as _functools
 import inspect as _inspect
 
-_RBAC_ENABLED = (os.getenv("MCP_RBAC_ENABLED", "0").strip().lower()
-                 in ("1", "true", "yes", "on"))
+# v7.2.38: Runtime-toggleable RBAC.
+# Quelle der Wahrheit ist das DB-Setting `rbac_enabled` — Admin kann es
+# unter /admin/mcp-permissions per Button umschalten ohne Container-
+# Restart. Wenn das Setting noch nie gesetzt wurde (frische Installation),
+# nimmt der Env-Var-Wert als Default.
+def _is_rbac_enabled() -> bool:
+    try:
+        import db as _rbac_db
+        v = _rbac_db.get_setting("rbac_enabled", "")
+        if v != "":
+            return v.strip().lower() in ("1", "true", "yes", "on")
+    except Exception:
+        pass
+    return os.getenv("MCP_RBAC_ENABLED", "0").strip().lower() in (
+        "1", "true", "yes", "on"
+    )
+
+# Backward-compat alias — behalten falls Code an anderen Stellen darauf zugreift
+_RBAC_ENABLED = _is_rbac_enabled()
 
 
 def _check_tool_permission(tool_name: str) -> str | None:
@@ -147,7 +164,8 @@ def _check_tool_permission(tool_name: str) -> str | None:
     denial payload (string) when the call must be rejected — to be returned
     from the wrapped tool as if it were the tool's own response.
     """
-    if not _RBAC_ENABLED:
+    # v7.2.38: live-check pro Aufruf, damit UI-Toggle ohne Restart wirkt.
+    if not _is_rbac_enabled():
         return None
     try:
         from permissions import (
@@ -5431,11 +5449,12 @@ def printix_my_role() -> str:
             t for t in TOOL_SCOPES.keys() if not has_permission(role, t)
         )
 
+        rbac_active = _is_rbac_enabled()
         return _ok({
             "role": role,
             "role_label": ROLE_LABELS_EN.get(role, role),
             "permitted_scopes": permitted,
-            "rbac_enabled": _RBAC_ENABLED,
+            "rbac_enabled": rbac_active,
             "tools_allowed_count": len(allowed_tools),
             "tools_denied_count":  len(denied_tools),
             "tools_allowed_sample": allowed_tools[:10],
@@ -5443,9 +5462,9 @@ def printix_my_role() -> str:
             "user_id": user_id,
             "tenant_id": tenant.get("id"),
             "note": (
-                "RBAC is currently inactive (MCP_RBAC_ENABLED=0). All tools "
-                "are reachable regardless of role."
-            ) if not _RBAC_ENABLED else (
+                "RBAC is currently inactive. All tools are reachable "
+                "regardless of role."
+            ) if not rbac_active else (
                 "RBAC is active. Tools outside your scopes return a "
                 "permission_denied response."
             ),

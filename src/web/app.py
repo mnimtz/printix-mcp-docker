@@ -4097,11 +4097,21 @@ def create_app(session_secret: str) -> FastAPI:
             role_labels = _perm.ROLE_LABELS_EN
             role_descriptions = _perm.ROLE_DESCRIPTIONS_EN
 
-        # v7.2.24: RBAC-Status (env var MCP_RBAC_ENABLED) prominent oben
-        # auf der Seite anzeigen, damit der Admin sofort sieht, ob die
-        # Rollen nur erfasst werden oder bereits scharf erzwungen werden.
-        rbac_enabled = (os.getenv("MCP_RBAC_ENABLED", "0").strip().lower()
-                        in ("1", "true", "yes", "on"))
+        # v7.2.38: RBAC-Status — DB-Setting `rbac_enabled` ist die primäre
+        # Quelle (per UI-Toggle gesetzt). Fallback auf Env Var falls noch
+        # nie umgeschaltet. Wirkt sofort, kein Container-Restart nötig.
+        try:
+            from db import get_setting
+            db_val = (get_setting("rbac_enabled", "") or "").strip().lower()
+        except Exception:
+            db_val = ""
+        if db_val:
+            rbac_enabled = db_val in ("1", "true", "yes", "on")
+            rbac_source = "db"
+        else:
+            rbac_enabled = (os.getenv("MCP_RBAC_ENABLED", "0").strip().lower()
+                            in ("1", "true", "yes", "on"))
+            rbac_source = "env"
 
         return templates.TemplateResponse("admin_mcp_permissions.html", {
             "request": request, "user": user,
@@ -4116,9 +4126,36 @@ def create_app(session_secret: str) -> FastAPI:
             "role_labels": role_labels,
             "role_descriptions": role_descriptions,
             "rbac_enabled": rbac_enabled,
+            "rbac_source": rbac_source,
             "flash_ok": flash_ok, "flash_err": flash_err,
             **ctx,
         })
+
+    @app.post("/admin/mcp-permissions/rbac-toggle")
+    async def admin_mcp_rbac_toggle(request: Request, action: str = Form("")):
+        admin = get_session_user(request)
+        if not admin or not admin.get("is_admin"):
+            return RedirectResponse("/login", status_code=302)
+        try:
+            from db import set_setting, audit
+            new_state = "1" if action == "enable" else "0"
+            set_setting("rbac_enabled", new_state)
+            audit(
+                admin["id"],
+                "rbac_enabled_set" if new_state == "1" else "rbac_disabled_set",
+                f"RBAC {'aktiviert' if new_state == '1' else 'deaktiviert'} via Admin-UI",
+                object_type="setting", object_id="rbac_enabled",
+            )
+            return RedirectResponse(
+                "/admin/mcp-permissions?ok=" + ("rbac_enabled" if new_state == "1" else "rbac_disabled"),
+                status_code=302,
+            )
+        except Exception as e:
+            logger.error("rbac toggle: %s", e)
+            return RedirectResponse(
+                f"/admin/mcp-permissions?err={quote_plus(str(e))}",
+                status_code=302,
+            )
 
     @app.post("/admin/mcp-permissions/user-role")
     async def admin_mcp_set_user_role(

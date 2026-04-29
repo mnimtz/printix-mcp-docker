@@ -374,9 +374,94 @@ Updates are safe — all persistent data in the `/data` volume survives the cont
 
 ---
 
-## Reverse proxy / Cloudflare Tunnel
+## HTTPS — three built-in options (v7.2.32+)
 
-Typical internet deployment: a reverse proxy terminates TLS, the container only listens on `127.0.0.1`.
+claude.ai, ChatGPT and the Claude Code CLI all require an **HTTPS** MCP endpoint. Plain `http://my-vm:8765` does not work for connector setup. The container ships three independent paths to HTTPS, all manageable from `/admin` — pick whichever fits your situation.
+
+### Option 1 — 🌐 Cloudflare Tunnel *(recommended for most users)*
+
+Best when you have any domain (or can bring a subdomain) under Cloudflare. **No inbound ports needed**, automatic SSL, DDoS/bot protection, free tier.
+
+- **Quick Tunnel** — anonymous `*.trycloudflare.com` URL, zero setup, zero config. Perfect for 30-second tests, but the URL changes on every container restart, so it's not suitable as a permanent claude.ai connector.
+- **Named Tunnel** — paste a Cloudflare tunnel token + your subdomain. Persistent URL, auto-renews TLS at the Cloudflare edge. Recommended production setup.
+
+The admin UI under `/admin/tunnel` provides a 6-step setup wizard with deep links to the Cloudflare dashboard. See the [Cloudflare guide](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/get-started/create-remote-tunnel/) for context on free-tier limits.
+
+### Option 2 — 🌍 Auto-HTTPS via sslip.io + Let's Encrypt *(no domain at all)*
+
+For users with a fixed public IP but no domain — typical Azure VM / Hetzner Cloud / on-prem scenario.
+
+- One click on `/admin/auto-tls` → public IP detected → sslip.io hostname generated (e.g. `52-143-121-45.sslip.io`) → Let's Encrypt cert acquired → auto-renewal scheduled
+- **Requires inbound port 80** for the ACME HTTP-01 challenge (~30 s every 60 days). The bundled `docker-compose.yml` exposes it by default.
+
+If your firewall does not allow inbound port 80, use Option 1 (Cloudflare Tunnel) instead — that uses only outbound connections.
+
+### Option 3 — 🔒 Bring your own certificate
+
+For users with an existing TLS certificate from a commercial CA, internal PKI, certbot run elsewhere, or any other source.
+
+- Paste PEM cert + private key on `/admin/tls`
+- Cert + key validated server-side, stored under `/data/tls/`, uvicorn picks them up at next start
+- Certificate details (subject, issuer, validity, SAN) displayed live in the UI; expiry warning at 30 days remaining
+- **No auto-renewal** — manual replacement required when the cert nears expiry
+
+Use this when you have a wildcard cert, regulated-industry constraints prohibiting third-party routing, or want to integrate with existing certbot/cron setups.
+
+### Comparison table
+
+| Option | Domain required | Inbound ports | Auto-renewal | DDoS protection |
+|--------|-----------------|---------------|--------------|-----------------|
+| 🌐 Cloudflare Tunnel | yes (free if existing) | none | yes (Cloudflare) | yes |
+| 🌍 Auto-HTTPS / sslip.io | no | 80 | yes (Let's Encrypt) | no |
+| 🔒 BYO Certificate | yes | 8080 (or 443) | no | no |
+
+`MCP_PUBLIC_URL` is updated automatically when you activate any of the three options — Connect-Center and OAuth flows immediately pick up the new URL without manual config.
+
+---
+
+## Role-based access control (v7.2.23+)
+
+The MCP server can enforce scope-based permissions on every tool call. Five built-in roles map to GDPR articles:
+
+| Role | GDPR reference | Permitted scopes |
+|------|----------------|-------------------|
+| `end_user` | Art. 15-22 (data subject rights) | `mcp:self` |
+| `helpdesk` | Art. 32 (separation of duties) | `mcp:self`, `mcp:read` |
+| `admin` | Art. 24 (controller obligations) | all five scopes |
+| `auditor` (DPO) | Art. 37-39 | `mcp:read`, `mcp:audit` |
+| `service_account` | Art. 28 + 32 | empty (whitelisted per token) |
+
+### Two assignment paths
+
+- **Per-Printix-group** — assign an MCP role to any Printix group; all members inherit (highest role wins on multi-group membership)
+- **Per-user override** — explicit role for individual users; takes precedence over group resolution
+
+Assignments are managed under `/admin/mcp-permissions` (live status banner, group dropdowns, user override list, orphan cleanup, downloadable GDPR Compliance Guide and Permission Matrix as PDF).
+
+### Activation
+
+RBAC enforcement is opt-in. Three ways to toggle:
+
+1. **UI toggle** *(easiest, v7.2.38+)* — green "Enable" / red "Disable" button right in the status banner on `/admin/mcp-permissions`. Wirkt immediately, no container restart.
+2. **Environment variable** — set `MCP_RBAC_ENABLED=1` in `docker-compose.yml`. Becomes the default on first boot, then DB setting takes over once toggled in the UI.
+3. **DB setting** — `rbac_enabled` in the settings table (set programmatically). Same as the UI toggle.
+
+When inactive, all authenticated users can call every tool (PR-1 compatibility mode). When active, denied calls return a structured `permission_denied` payload and are recorded in the audit log with `action='mcp_permission_denied'` for compliance review.
+
+### Bundled compliance documentation
+
+Each container ships two ready-to-share PDFs:
+
+- **GDPR Compliance Guide** (`/manuals/gdpr-compliance.pdf`) — article-by-article coverage map for procurement, DPO, or external auditor review
+- **Permission Matrix** (`/manuals/permission-matrix.pdf`) — auto-generated list of all 129 tools grouped by required scope
+
+Both are linked directly from `/admin/mcp-permissions`.
+
+---
+
+## Reverse proxy / advanced setups
+
+If you prefer a manual reverse-proxy setup (Traefik, nginx, Caddy, HAProxy, …) instead of the built-in HTTPS options above, the container listens on plain HTTP on the documented ports — the proxy terminates TLS and forwards.
 
 **Traefik example** (add these labels to `docker-compose.yml`):
 
@@ -392,9 +477,7 @@ services:
       - "traefik.http.services.printix.loadbalancer.server.port=8765"
 ```
 
-**Cloudflare Tunnel**: run `cloudflared` alongside the container and point the tunnel at `http://printix-mcp:8765` (optionally add a second hostname → `:8080` for the web UI).
-
-In both cases: set `MCP_PUBLIC_URL` in `.env` to the public URL — otherwise OAuth redirects and QR-code links won't line up.
+For any reverse-proxy setup: set `MCP_PUBLIC_URL` in `.env` to the public URL — otherwise OAuth redirects and QR-code links will not line up.
 
 ---
 
