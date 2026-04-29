@@ -48,6 +48,7 @@ import logging
 import secrets
 import tempfile
 from typing import Optional
+from urllib.parse import quote_plus
 
 from fastapi import FastAPI, Request, Form, UploadFile, File
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse, FileResponse
@@ -2259,6 +2260,110 @@ def create_app(session_secret: str) -> FastAPI:
             filename="Printix_MCP_Permission_Matrix.pdf",
             media_type="application/pdf",
         )
+
+    # ─── Cloudflare Tunnel (v7.2.32) ──────────────────────────────────────
+    # Ein-Klick HTTPS für Azure/Hetzner/Selbst-Hoster ohne eigene Domain.
+    # Quick Tunnel = anonym *.trycloudflare.com, Named Tunnel = eigene
+    # Domain + CF-Account-Token.
+
+    @app.get("/admin/tunnel", response_class=HTMLResponse)
+    async def admin_tunnel(request: Request):
+        user = get_session_user(request)
+        if not user or not user.get("is_admin"):
+            return RedirectResponse("/login", status_code=302)
+        try:
+            from tunnel import get_manager, SETTING_NAMED_HOST
+            from db import get_setting
+            mgr = get_manager()
+            status = mgr.status()
+            saved_host = get_setting(SETTING_NAMED_HOST, "")
+        except Exception as e:
+            logger.error("admin_tunnel: %s", e)
+            status = {"error": str(e)}
+            saved_host = ""
+        flash_ok = (request.query_params.get("ok") or "").strip() or None
+        flash_err = (request.query_params.get("err") or "").strip() or None
+        return templates.TemplateResponse("admin_tunnel.html", {
+            "request": request, "user": user,
+            "status": status,
+            "saved_host": saved_host,
+            "flash_ok": flash_ok, "flash_err": flash_err,
+            **t_ctx(request),
+        })
+
+    @app.get("/admin/tunnel/status", response_class=JSONResponse)
+    async def admin_tunnel_status(request: Request):
+        user = get_session_user(request)
+        if not user or not user.get("is_admin"):
+            return JSONResponse({"error": "auth"}, status_code=401)
+        try:
+            from tunnel import get_manager
+            return JSONResponse(get_manager().status())
+        except Exception as e:
+            return JSONResponse({"error": str(e)}, status_code=500)
+
+    @app.post("/admin/tunnel/start-quick")
+    async def admin_tunnel_start_quick(request: Request):
+        user = get_session_user(request)
+        if not user or not user.get("is_admin"):
+            return RedirectResponse("/login", status_code=302)
+        try:
+            from tunnel import get_manager
+            from db import audit
+            target_port = int(os.environ.get("WEB_PORT", "8080"))
+            result = get_manager().start_quick(target_port)
+            audit(user["id"], "tunnel_start_quick",
+                  f"Cloudflare Quick Tunnel started → {result.get('url') or '(URL pending)'}",
+                  object_type="tunnel", object_id="quick")
+            if result.get("error"):
+                return RedirectResponse(
+                    f"/admin/tunnel?err={quote_plus(result['error'])}", status_code=302)
+            return RedirectResponse("/admin/tunnel?ok=quick_started", status_code=302)
+        except Exception as e:
+            logger.error("tunnel start-quick: %s", e)
+            return RedirectResponse(
+                f"/admin/tunnel?err={quote_plus(str(e))}", status_code=302)
+
+    @app.post("/admin/tunnel/start-named")
+    async def admin_tunnel_start_named(
+        request: Request,
+        token: str = Form(...),
+        public_host: str = Form(""),
+    ):
+        user = get_session_user(request)
+        if not user or not user.get("is_admin"):
+            return RedirectResponse("/login", status_code=302)
+        try:
+            from tunnel import get_manager
+            from db import audit
+            result = get_manager().start_named(token, public_host)
+            audit(user["id"], "tunnel_start_named",
+                  f"Cloudflare Named Tunnel started → {public_host or '(no host)'}",
+                  object_type="tunnel", object_id="named")
+            if result.get("error"):
+                return RedirectResponse(
+                    f"/admin/tunnel?err={quote_plus(result['error'])}", status_code=302)
+            return RedirectResponse("/admin/tunnel?ok=named_started", status_code=302)
+        except Exception as e:
+            logger.error("tunnel start-named: %s", e)
+            return RedirectResponse(
+                f"/admin/tunnel?err={quote_plus(str(e))}", status_code=302)
+
+    @app.post("/admin/tunnel/stop")
+    async def admin_tunnel_stop(request: Request):
+        user = get_session_user(request)
+        if not user or not user.get("is_admin"):
+            return RedirectResponse("/login", status_code=302)
+        try:
+            from tunnel import get_manager
+            from db import audit
+            get_manager().stop()
+            audit(user["id"], "tunnel_stop", "Cloudflare tunnel stopped",
+                  object_type="tunnel", object_id="any")
+            return RedirectResponse("/admin/tunnel?ok=stopped", status_code=302)
+        except Exception as e:
+            return RedirectResponse(
+                f"/admin/tunnel?err={quote_plus(str(e))}", status_code=302)
 
     # ─── Health & Status (v7.2.31) ────────────────────────────────────────
     # Login-free endpoints for uptime monitoring (Docker healthcheck,
@@ -6886,5 +6991,24 @@ def create_app(session_secret: str) -> FastAPI:
                         )
                         id_only += 1
         return RedirectResponse(f"/cards?flash=sync_ok&imported={imported}&id_only={id_only}", status_code=303)
+
+    # v7.2.32: persistierter Tunnel-Mode → bei App-Start ggf. wiederherstellen.
+    # In einem separaten Thread, damit ein nicht-erreichbarer Cloudflare-
+    # Endpoint den Boot der Web-UI nicht blockiert.
+    try:
+        import threading as _tunnel_threading
+        from tunnel import auto_start_from_settings
+
+        def _delayed_start():
+            import time as _t
+            _t.sleep(2)  # DB sollte bereit sein, init_db ist vor uns gelaufen
+            try:
+                auto_start_from_settings()
+            except Exception as exc:
+                logger.warning("tunnel auto-start failed: %s", exc)
+
+        _tunnel_threading.Thread(target=_delayed_start, daemon=True).start()
+    except Exception as e:
+        logger.warning("tunnel auto-start scheduling failed: %s", e)
 
     return app

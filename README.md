@@ -38,6 +38,13 @@ Synology NAS / TrueNAS / Unraid / …).
 - Denied tool calls are recorded in the audit log for ongoing compliance review
 - Activation is opt-in via `MCP_RBAC_ENABLED` (defaults to `1` in the bundled `docker-compose.yml`)
 
+**One-click HTTPS via Cloudflare Tunnel (v7.2.32+)**
+- Hosted on a public-IP-only Azure VM, on-prem, or behind NAT? `/admin/tunnel` provides a built-in tunnel manager — no external setup, no port-forwarding, no certbot
+- **Quick Tunnel** mode — anonymous `*.trycloudflare.com` URL in 30 seconds, no Cloudflare account needed (testing/demo)
+- **Named Tunnel** mode — paste a free Cloudflare tunnel token, get persistent HTTPS on your own domain with built-in DDoS/bot protection
+- The active tunnel URL is automatically stored as the `public_url` setting so Connect-Center, OAuth flows, and MCP endpoints all just work
+- Bundled `cloudflared` binary; multi-arch (amd64/arm64); auto-restart on container reboot
+
 **GDPR data subject rights — built-in MCP tools (v7.2.30+)**
 - `printix_personal_data_export` (GDPR Art. 15) — every user can ask their AI assistant *"What data do you have about me?"* and receive a structured ZIP with profile, group memberships, cards, audit-log entries, time-bombs, print statistics and MCP role override
 - `printix_personal_data_purge_request` (GDPR Art. 17) — non-destructive deletion request: records the request in the audit log, sends a structured email to the configured tenant admins with the data summary and the requester's reason, returns a request ID. The admin reviews and executes the deletion via `printix_offboard_user` / `printix_delete_user` within the GDPR Art. 12(3) one-month deadline

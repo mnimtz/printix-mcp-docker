@@ -1,0 +1,173 @@
+{% extends "base.html" %}
+{% block title %}{{ _('tn_title') }} — {{ _('brand_console_name') }}{% endblock %}
+{% block content %}
+<div class="container">
+
+  <div class="card" style="margin-bottom:20px;">
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; flex-wrap:wrap; gap:10px;">
+      <div>
+        <div class="section-title">🌐 {{ _('tn_title') }}</div>
+        <div class="section-sub">{{ _('tn_subtitle') }}</div>
+      </div>
+      <a href="/admin" class="btn btn-secondary btn-sm">← {{ _('mp_back') }}</a>
+    </div>
+
+    {% if flash_ok %}<div class="alert alert-success" style="margin-bottom:14px;">✅ {{ _('mp_saved') }}.</div>{% endif %}
+    {% if flash_err %}<div class="alert alert-error" style="margin-bottom:14px;">⚠ {{ flash_err }}</div>{% endif %}
+
+    {% if not status.get('binary_present', True) %}
+    <div class="alert alert-warning">
+      ⚠ <strong>cloudflared</strong> {{ _('tn_no_binary') }}
+    </div>
+    {% endif %}
+
+    <!-- ── Live Status ──────────────────────────────────────────────── -->
+    {% if status.running %}
+    <div style="padding:18px; background:#dcfce7; border-left:4px solid #16a34a; border-radius:8px; margin-bottom:20px;">
+      <div style="display:flex; align-items:center; gap:14px; margin-bottom:10px;">
+        <div style="font-size:1.8em;">🟢</div>
+        <div style="flex:1;">
+          <div style="font-weight:700; color:#14532d; font-size:1.05em;">
+            {{ _('tn_status_running') }} ({{ status.mode | upper }})
+          </div>
+          <div style="font-size:.85em; color:#166534;">
+            {{ _('tn_status_uptime') }}: {{ (status.uptime_seconds | int) }}s
+          </div>
+        </div>
+        <form method="post" action="/admin/tunnel/stop">
+          <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('{{ _('tn_stop_confirm') }}');">
+            ⏹ {{ _('tn_stop') }}
+          </button>
+        </form>
+      </div>
+      {% if status.url %}
+      <div style="margin-top:8px;">
+        <div style="font-size:.85em; color:#14532d; margin-bottom:4px; font-weight:600;">
+          🔗 {{ _('tn_public_url') }}:
+        </div>
+        <div class="code-block" id="tn-url" style="margin:0;">
+          <button class="copy-btn" onclick="copyToClipboard('tn-url-val', this)">⧉</button>
+          <span id="tn-url-val">{{ status.url }}</span>
+        </div>
+        <div style="font-size:.8em; color:#166534; margin-top:6px;">
+          {{ _('tn_public_url_hint') }}
+        </div>
+      </div>
+      {% else %}
+      <div style="font-size:.85em; color:#92400e; margin-top:6px;">
+        ⏳ {{ _('tn_url_pending') }}
+      </div>
+      {% endif %}
+    </div>
+    {% else %}
+    <div style="padding:18px; background:#fef3c7; border-left:4px solid #f59e0b; border-radius:8px; margin-bottom:20px;">
+      <div style="display:flex; align-items:center; gap:14px;">
+        <div style="font-size:1.6em;">⚫</div>
+        <div>
+          <div style="font-weight:700; color:#78350f;">{{ _('tn_status_off') }}</div>
+          <div style="font-size:.88em; color:#92400e;">{{ _('tn_status_off_sub') }}</div>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+  </div>
+
+  <!-- ── Quick Tunnel ─────────────────────────────────────────────────── -->
+  <div class="card" style="margin-bottom:20px; border-left:4px solid #3b82f6;">
+    <div style="display:flex; align-items:center; gap:10px; margin-bottom:8px;">
+      <div style="font-size:1.5em;">🚀</div>
+      <div>
+        <div class="section-title" style="margin:0;">{{ _('tn_quick_title') }}</div>
+        <div style="font-size:.85em; color:#888;">{{ _('tn_quick_sub') }}</div>
+      </div>
+    </div>
+    <div style="margin:14px 0; font-size:.92em; color:#444; line-height:1.6;">
+      {{ _('tn_quick_body') | safe }}
+    </div>
+    <form method="post" action="/admin/tunnel/start-quick">
+      <button type="submit" class="btn btn-primary"
+              {% if status.running and status.mode == 'quick' %}disabled{% endif %}>
+        {% if status.running and status.mode == 'quick' %}
+          ✓ {{ _('tn_quick_already') }}
+        {% else %}
+          🚀 {{ _('tn_quick_start') }}
+        {% endif %}
+      </button>
+    </form>
+  </div>
+
+  <!-- ── Named Tunnel ─────────────────────────────────────────────────── -->
+  <div class="card" style="margin-bottom:20px; border-left:4px solid #6366f1;">
+    <div style="display:flex; align-items:center; gap:10px; margin-bottom:8px;">
+      <div style="font-size:1.5em;">🏷️</div>
+      <div>
+        <div class="section-title" style="margin:0;">{{ _('tn_named_title') }}</div>
+        <div style="font-size:.85em; color:#888;">{{ _('tn_named_sub') }}</div>
+      </div>
+    </div>
+    <div style="margin:14px 0; font-size:.92em; color:#444; line-height:1.6;">
+      {{ _('tn_named_body') | safe }}
+    </div>
+
+    <form method="post" action="/admin/tunnel/start-named" style="display:flex; flex-direction:column; gap:12px;">
+      <div>
+        <label style="display:block; font-weight:600; color:#003366; margin-bottom:4px; font-size:.9em;">
+          {{ _('tn_named_token') }}
+        </label>
+        <input type="password" name="token" required autocomplete="off"
+               placeholder="eyJhIjoiZGVhZGJlZWY..."
+               class="form-control" style="width:100%; font-family:monospace; font-size:.88em;">
+        <div style="font-size:.78em; color:#888; margin-top:4px;">
+          {{ _('tn_named_token_hint') | safe }}
+        </div>
+      </div>
+      <div>
+        <label style="display:block; font-weight:600; color:#003366; margin-bottom:4px; font-size:.9em;">
+          {{ _('tn_named_host') }}
+        </label>
+        <input type="text" name="public_host"
+               placeholder="mcp.deinedomain.de"
+               value="{{ saved_host }}"
+               class="form-control" style="width:100%;">
+        <div style="font-size:.78em; color:#888; margin-top:4px;">
+          {{ _('tn_named_host_hint') }}
+        </div>
+      </div>
+      <div>
+        <button type="submit" class="btn btn-primary">
+          🔌 {{ _('tn_named_start') }}
+        </button>
+      </div>
+    </form>
+  </div>
+
+  <!-- ── Logs (collapsible) ───────────────────────────────────────────── -->
+  {% if status.logs %}
+  <details class="card" style="margin-bottom:20px;">
+    <summary style="cursor:pointer; font-weight:600; color:#003366;">
+      📋 {{ _('tn_logs') }} ({{ status.logs | length }})
+    </summary>
+    <pre style="background:#1a1a2e; color:#e2e8f0; padding:14px; border-radius:6px; margin-top:14px; max-height:300px; overflow:auto; font-size:.78em; line-height:1.4;">{% for line in status.logs %}{{ line }}
+{% endfor %}</pre>
+  </details>
+  {% endif %}
+
+  {% if status.last_error %}
+  <div class="alert alert-error">
+    <strong>{{ _('mp_error') }}:</strong> {{ status.last_error }}
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+  // Auto-refresh status every 3 seconds while a tunnel is starting up
+  // (URL detection can take a few seconds for Quick Tunnels).
+  {% if status.running and not status.url %}
+  setTimeout(() => window.location.reload(), 3000);
+  {% endif %}
+</script>
+{% endblock %}

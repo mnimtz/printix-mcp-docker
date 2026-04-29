@@ -97,6 +97,24 @@ COPY src/requirements.txt /tmp/requirements.txt
 RUN pip install --no-index --find-links=/wheels -r /tmp/requirements.txt \
     && rm -rf /wheels /tmp/requirements.txt
 
+# v7.2.32: Cloudflare Tunnel Binary (für /admin/tunnel In-App-Setup).
+# Ein-Klick-HTTPS für Endkunden: Quick Tunnel (anonym, *.trycloudflare.com)
+# oder Named Tunnel mit eigenem CF-Token.
+# Multi-Arch: BuildKit setzt TARGETARCH auf amd64 / arm64 / armv7 etc.
+ARG TARGETARCH
+RUN set -eux; \
+    case "${TARGETARCH:-amd64}" in \
+        amd64)  CF_ARCH="amd64" ;; \
+        arm64)  CF_ARCH="arm64" ;; \
+        arm)    CF_ARCH="arm" ;; \
+        386)    CF_ARCH="386" ;; \
+        *)      echo "Unsupported arch: ${TARGETARCH}"; exit 1 ;; \
+    esac; \
+    curl -fsSL "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-${CF_ARCH}" \
+         -o /usr/local/bin/cloudflared; \
+    chmod +x /usr/local/bin/cloudflared; \
+    /usr/local/bin/cloudflared --version
+
 # Anwendungs-Code
 WORKDIR /app
 COPY src/ /app/

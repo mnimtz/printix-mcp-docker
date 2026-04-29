@@ -2,6 +2,76 @@
 
 This project follows [Semantic Versioning](https://semver.org/).
 
+## 7.2.32 (2026-04-29) — Built-in Cloudflare Tunnel manager: one-click HTTPS
+
+### Added
+
+A complete in-app tunnel manager so users with no domain, no Public IP,
+or behind NAT can expose the MCP server to claude.ai / ChatGPT in
+under a minute. Bundled `cloudflared` binary; managed as a subprocess
+inside the existing container. No additional service required.
+
+### Two modes
+
+**Quick Tunnel** — for testing and demos.
+
+- One click → cloudflared launches → random `*.trycloudflare.com`
+  URL is captured from the cloudflared output → URL written into the
+  `public_url` setting → Connect-Center automatically reflects the
+  new URL → ready to paste into claude.ai.
+- No Cloudflare account, no DNS, no token. Free.
+- URL changes on container restart; not for production use.
+
+**Named Tunnel** — for production.
+
+- Admin enters a Cloudflare tunnel token (from the free Zero Trust
+  dashboard) and the public hostname they configured there.
+- Token is Fernet-encrypted before persisting (same pattern as
+  Printix client secrets and OAuth secrets).
+- Persistent URL with full Cloudflare DDoS/bot protection.
+- Auto-restarts on container reboot from the persisted settings.
+
+### Implementation
+
+- New module `src/tunnel.py` — `TunnelManager` singleton manages the
+  cloudflared subprocess, parses the trycloudflare.com URL out of
+  stdout, ring-buffer of last 30 log lines for the admin UI,
+  thread-safe with a single lock.
+- New routes in `src/web/app.py`:
+  - `GET /admin/tunnel` — full status page with Quick / Named forms
+  - `GET /admin/tunnel/status` — JSON for live polling
+  - `POST /admin/tunnel/start-quick` — anonymous Quick Tunnel
+  - `POST /admin/tunnel/start-named` — token-based Named Tunnel
+  - `POST /admin/tunnel/stop` — terminate cloudflared
+- Auto-start at web-app boot via `auto_start_from_settings()` in a
+  daemon thread (so a slow Cloudflare endpoint doesn't block the
+  rest of the web UI from coming up).
+- New template `admin_tunnel.html` with traffic-light status banner,
+  copy-button on the live URL, collapsible cloudflared log pane,
+  and auto-refresh while the URL is being detected.
+- Admin dashboard gets a new "🌐 HTTPS Tunnel" button.
+- Audit log records `tunnel_start_quick`, `tunnel_start_named`,
+  and `tunnel_stop` with the calling admin and the resulting URL.
+
+### Dockerfile
+
+`cloudflared` is added in the runtime stage with multi-arch support
+(amd64, arm64, arm, 386). The binary is downloaded from the official
+GitHub release URL and verified by a `--version` invocation at build
+time, so a broken release blocks the build instead of producing a
+silently broken image. Adds approximately 30 MB to the image size.
+
+### i18n
+
+Full translation set (de / en / no) for all tunnel-related strings —
+status banner, two mode descriptions, token input hint with a link to
+Cloudflare's setup guide, action buttons, log expander label.
+
+### README
+
+New "One-click HTTPS via Cloudflare Tunnel" feature section pointing
+operators at `/admin/tunnel` for VM deployments without DNS.
+
 ## 7.2.31 (2026-04-29) — Health & status endpoints on the web UI port
 
 ### Added
