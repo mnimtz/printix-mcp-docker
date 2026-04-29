@@ -2085,8 +2085,45 @@ def create_app(session_secret: str) -> FastAPI:
 
     # ── Hilfe / Verbindungsanleitung ──────────────────────────────────────────
 
+    @app.get("/my/connect", response_class=HTMLResponse)
+    async def my_connect(request: Request):
+        """Connect-Center — persönliche Zugangsdaten + Schritt-für-Schritt-
+        Anleitungen für alle unterstützten AI-Assistenten. Ersetzt die
+        bisherige /help-Seite ab v7.2.21.
+        """
+        user = require_login(request)
+        if not user:
+            return RedirectResponse("/login", status_code=302)
+
+        base = mcp_base_url_or(request)
+        tenant = None
+        try:
+            # Voller Record inkl. entschlüsselter Secrets — die Seite zeigt
+            # ausschließlich Daten des angemeldeten Users (eigene Tenant-
+            # Zuordnung via user["id"]). Kein Cross-User-Risiko.
+            from db import get_tenant_full_by_user_id
+            tenant = get_tenant_full_by_user_id(user["id"])
+        except Exception as e:
+            logger.warning("connect-center: tenant load failed: %s", e)
+
+        return templates.TemplateResponse("my_connect.html", {
+            "request": request, "user": user, "tenant": tenant,
+            "base_url":           base,
+            "mcp_url":            f"{base}/mcp",
+            "sse_url":            f"{base}/sse",
+            "oauth_authorize_url":f"{base}/oauth/authorize",
+            "oauth_token_url":    f"{base}/oauth/token",
+            **t_ctx(request),
+        })
+
     @app.get("/help", response_class=HTMLResponse)
     async def help_page(request: Request):
+        # v7.2.21: Verschmilzt mit Connect-Center. Alte Bookmarks werden
+        # transparent dorthin weitergeleitet.
+        return RedirectResponse("/my/connect", status_code=302)
+
+    @app.get("/_legacy/help", response_class=HTMLResponse)
+    async def legacy_help_page(request: Request):
         user = require_login(request)
         if not user:
             return RedirectResponse("/login", status_code=302)

@@ -1,0 +1,229 @@
+{% extends "base.html" %}
+{% block title %}Connect-Center — {{ _('brand_console_name') }}{% endblock %}
+{% block content %}
+<div class="container">
+
+  <!-- ─── Header ──────────────────────────────────────────────────────── -->
+  <div class="card" style="margin-bottom:20px; background:linear-gradient(135deg,#eff6ff 0%,#f0f9ff 100%);">
+    <div class="section-title" style="display:flex; align-items:center; gap:10px; margin-bottom:6px;">
+      🔌 Connect-Center
+    </div>
+    <div class="section-sub">
+      Hallo <strong>{{ user.full_name or user.username }}</strong> — hier findest du alles,
+      um deinen AI-Assistenten mit Printix zu verbinden. Zugangsdaten kopieren,
+      Schritt für Schritt verbinden, fertig.
+    </div>
+  </div>
+
+  {% if not tenant %}
+  <div class="alert alert-warning" style="margin-bottom:20px;">
+    ⚠ Du hast noch keinen Printix-Tenant zugeordnet. Bitte Admin kontaktieren
+    oder unter <a href="/setup">Setup</a> die Verbindung herstellen.
+  </div>
+  {% else %}
+
+  <!-- ─── Verbindungsprofil ───────────────────────────────────────────── -->
+  <div class="card" style="margin-bottom:20px;">
+    <div class="section-title" style="margin-bottom:6px;">🪪 Dein Verbindungsprofil</div>
+    <div class="section-sub" style="margin-bottom:18px;">
+      Diese Werte gibst du dem AI-Assistenten. Eine Kopie jeder Zeile reicht — der Inhalt verändert sich nicht.
+    </div>
+
+    <table style="width:100%; border-collapse:collapse;">
+      <tr>
+        <td style="padding:10px 0; width:200px; font-weight:600; color:#003366;">MCP Server URL</td>
+        <td style="padding:10px 0;">
+          <div class="code-block" id="cc-mcp" style="margin:0;">
+            <button class="copy-btn" onclick="copyToClipboard('cc-mcp-val', this)">⧉</button>
+            <span id="cc-mcp-val">{{ mcp_url }}</span>
+          </div>
+          <div style="font-size:.8em; color:#888; margin-top:4px;">
+            Streamable HTTP — empfohlen für claude.ai und Claude Code
+          </div>
+        </td>
+      </tr>
+      <tr>
+        <td style="padding:10px 0; font-weight:600; color:#003366;">SSE-Endpoint</td>
+        <td style="padding:10px 0;">
+          <div class="code-block" id="cc-sse" style="margin:0;">
+            <button class="copy-btn" onclick="copyToClipboard('cc-sse-val', this)">⧉</button>
+            <span id="cc-sse-val">{{ sse_url }}</span>
+          </div>
+          <div style="font-size:.8em; color:#888; margin-top:4px;">
+            Server-Sent Events — wird von ChatGPT-Konnektoren genutzt
+          </div>
+        </td>
+      </tr>
+      <tr>
+        <td style="padding:10px 0; font-weight:600; color:#003366;">OAuth Client ID</td>
+        <td style="padding:10px 0;">
+          <div class="code-block" id="cc-oid" style="margin:0;">
+            <button class="copy-btn" onclick="copyToClipboard('cc-oid-val', this)">⧉</button>
+            <span id="cc-oid-val">{{ tenant.oauth_client_id }}</span>
+          </div>
+        </td>
+      </tr>
+      <tr>
+        <td style="padding:10px 0; font-weight:600; color:#003366;">OAuth Client Secret</td>
+        <td style="padding:10px 0;">
+          {% if tenant.oauth_client_secret %}
+          <div class="code-block" id="cc-osec" style="margin:0; display:flex; align-items:center; gap:8px;">
+            <button class="copy-btn" onclick="copyToClipboard('cc-osec-val', this)">⧉</button>
+            <span id="cc-osec-val" data-real="{{ tenant.oauth_client_secret }}" data-revealed="0" style="flex:1;">••••••••••••••••••••</span>
+            <button type="button" id="cc-reveal-btn" onclick="toggleSecret()" class="btn btn-secondary btn-sm" style="font-size:.78em;">
+              👁 Anzeigen
+            </button>
+          </div>
+          <div style="font-size:.8em; color:#888; margin-top:4px;">
+            Standardmäßig verdeckt. Sichtbar nur nach Klick auf „Anzeigen".
+            Verloren? <a href="/settings#oauth-secret-box">In Einstellungen neu generieren</a>
+          </div>
+          {% else %}
+          <div style="color:#999;">— kein Secret hinterlegt — </div>
+          {% endif %}
+        </td>
+      </tr>
+      <tr>
+        <td style="padding:10px 0; font-weight:600; color:#003366;">OAuth Authorize</td>
+        <td style="padding:10px 0;">
+          <div class="code-block" id="cc-auth" style="margin:0;">
+            <button class="copy-btn" onclick="copyToClipboard('cc-auth-val', this)">⧉</button>
+            <span id="cc-auth-val">{{ oauth_authorize_url }}</span>
+          </div>
+        </td>
+      </tr>
+      <tr>
+        <td style="padding:10px 0; font-weight:600; color:#003366;">OAuth Token</td>
+        <td style="padding:10px 0;">
+          <div class="code-block" id="cc-tok" style="margin:0;">
+            <button class="copy-btn" onclick="copyToClipboard('cc-tok-val', this)">⧉</button>
+            <span id="cc-tok-val">{{ oauth_token_url }}</span>
+          </div>
+        </td>
+      </tr>
+    </table>
+  </div>
+
+  <!-- ─── Plattform-Cards ─────────────────────────────────────────────── -->
+
+  <!-- Claude.ai -->
+  <div class="card" style="margin-bottom:20px; border-left:4px solid #d97757;">
+    <div style="display:flex; align-items:center; gap:10px; margin-bottom:8px;">
+      <div style="font-size:1.6em;">🤖</div>
+      <div>
+        <div class="section-title" style="margin:0;">Claude.ai</div>
+        <div style="font-size:.85em; color:#888;">Plus, Pro, Team oder Enterprise</div>
+      </div>
+    </div>
+    <ol style="padding-left:24px; line-height:1.9; font-size:.94em; margin-top:14px;">
+      <li>Öffne <a href="https://claude.ai/settings/connectors" target="_blank" rel="noopener">claude.ai → Settings → Connectors</a>.</li>
+      <li>Klicke auf <strong>„Add custom connector"</strong>.</li>
+      <li>Name: z.B. <em>Printix</em>. URL einfügen:
+        <div class="code-block" style="margin:6px 0;">
+          <button class="copy-btn" onclick="copyToClipboard('cc-mcp-val', this)">⧉</button>
+          <span>{{ mcp_url }}</span>
+        </div>
+      </li>
+      <li>Klicke <strong>„Connect"</strong>. Claude leitet auf den Login deines Printix-MCP-Servers weiter.</li>
+      <li>Nach dem Login werden die Tools importiert. Test mit der Frage <em>„Welche Printix-Tools stehen mir zur Verfügung?"</em>.</li>
+    </ol>
+    <div style="margin-top:12px; padding:10px 14px; background:#f7f9fb; border-radius:6px; font-size:.86em; color:#555;">
+      💡 <strong>Trust connector</strong> aktivieren, falls dir die Permission-Prompts pro Tool zu aufdringlich sind — Claude akzeptiert dann unsere ToolAnnotations und prompt nur noch bei wirklich destruktiven Aktionen.
+    </div>
+  </div>
+
+  <!-- ChatGPT -->
+  <div class="card" style="margin-bottom:20px; border-left:4px solid #10a37f;">
+    <div style="display:flex; align-items:center; gap:10px; margin-bottom:8px;">
+      <div style="font-size:1.6em;">💬</div>
+      <div>
+        <div class="section-title" style="margin:0;">ChatGPT</div>
+        <div style="font-size:.85em; color:#888;">Plus, Team oder Enterprise mit MCP-Konnektor-Support</div>
+      </div>
+    </div>
+    <ol style="padding-left:24px; line-height:1.9; font-size:.94em; margin-top:14px;">
+      <li>Öffne <a href="https://chat.openai.com/" target="_blank" rel="noopener">ChatGPT</a> → <strong>Settings → Connectors</strong> (alternativ <em>Custom GPTs</em>).</li>
+      <li>Wähle <strong>„Add new connector"</strong>.</li>
+      <li>Server-URL (SSE-Endpoint):
+        <div class="code-block" style="margin:6px 0;">
+          <button class="copy-btn" onclick="copyToClipboard('cc-sse-val', this)">⧉</button>
+          <span>{{ sse_url }}</span>
+        </div>
+      </li>
+      <li>Authentifizierung: <strong>OAuth 2.0</strong>. Daten aus dem Verbindungsprofil oben einfügen (Client ID, Client Secret, Authorize-URL, Token-URL).</li>
+      <li>Speichern. ChatGPT führt OAuth-Flow durch — danach sind die Tools verfügbar.</li>
+    </ol>
+  </div>
+
+  <!-- Claude Code -->
+  <div class="card" style="margin-bottom:20px; border-left:4px solid #6366f1;">
+    <div style="display:flex; align-items:center; gap:10px; margin-bottom:8px;">
+      <div style="font-size:1.6em;">💻</div>
+      <div>
+        <div class="section-title" style="margin:0;">Claude Code (Desktop CLI)</div>
+        <div style="font-size:.85em; color:#888;">Anthropic's Code-Agent für macOS, Windows, Linux</div>
+      </div>
+    </div>
+    <ol style="padding-left:24px; line-height:1.9; font-size:.94em; margin-top:14px;">
+      <li>Im Terminal:
+        <div class="code-block" style="margin:6px 0;">
+          <button class="copy-btn" onclick="copyToClipboard('cc-cli-cmd', this)">⧉</button>
+          <span id="cc-cli-cmd">claude mcp add --transport http printix {{ mcp_url }}</span>
+        </div>
+      </li>
+      <li>Beim ersten Aufruf wird der Browser für den OAuth-Login geöffnet — anmelden mit deinem Printix-MCP-Account, fertig.</li>
+      <li>Verifizieren mit:
+        <div class="code-block" style="margin:6px 0;">
+          <button class="copy-btn" onclick="copyToClipboard('cc-cli-list', this)">⧉</button>
+          <span id="cc-cli-list">claude mcp list</span>
+        </div>
+      </li>
+    </ol>
+  </div>
+
+  <!-- ─── Was kann ich jetzt? ──────────────────────────────────────────── -->
+  <div class="card" style="background:#fafbfc;">
+    <div class="section-title" style="margin-bottom:10px;">📚 Was kann ich jetzt?</div>
+    <div class="section-sub" style="margin-bottom:14px;">
+      Ein paar Beispielprompts zum Loslegen — alle 127 Tools sind im Handbuch dokumentiert.
+    </div>
+
+    <ul style="padding-left:20px; line-height:1.8; font-size:.92em;">
+      <li><em>„Zeig mir die Top 10 Drucker des letzten Monats nach Druckvolumen."</em></li>
+      <li><em>„Onboarde Sarah Müller, gib ihr HID-Karte 4A3B-2C1D, schick die Welcome-PDF."</em></li>
+      <li><em>„Welche User haben in den letzten 30 Tagen gar nicht gedruckt?"</em></li>
+      <li><em>„Erstelle ein Backup und zeig mir den Status der Capture-Profile."</em></li>
+      <li><em>„Synce die Entra-Gruppe ‚Marketing' mit der gleichnamigen Printix-Gruppe."</em></li>
+    </ul>
+
+    <div style="margin-top:14px; display:flex; gap:8px; flex-wrap:wrap;">
+      <a href="/static/MCP_MANUAL_DE.pdf" target="_blank" class="btn btn-primary btn-sm">📕 Handbuch (DE)</a>
+      <a href="/static/MCP_MANUAL_EN.pdf" target="_blank" class="btn btn-secondary btn-sm">📘 Manual (EN)</a>
+      <a href="/static/MCP_MANUAL_NO.pdf" target="_blank" class="btn btn-secondary btn-sm">📙 Manual (NO)</a>
+    </div>
+  </div>
+
+  {% endif %}
+
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+function toggleSecret() {
+  const span = document.getElementById('cc-osec-val');
+  const btn  = document.getElementById('cc-reveal-btn');
+  if (!span || !btn) return;
+  const revealed = span.dataset.revealed === '1';
+  if (revealed) {
+    span.textContent = '••••••••••••••••••••';
+    span.dataset.revealed = '0';
+    btn.innerHTML = '👁 Anzeigen';
+  } else {
+    span.textContent = span.dataset.real || '';
+    span.dataset.revealed = '1';
+    btn.innerHTML = '🙈 Verbergen';
+  }
+}
+</script>
+{% endblock %}

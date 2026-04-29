@@ -2,6 +2,44 @@
 
 This project follows [Semantic Versioning](https://semver.org/).
 
+## 7.2.21 (2026-04-29) — Connect-Center replaces Help page
+
+### Added
+**`/my/connect`** — a personal connection center for every WebUI user.
+Replaces the old `/help` page (which now redirects here). One screen,
+all the connection data, with copy buttons everywhere and a per-platform
+walkthrough.
+
+The page renders:
+
+- **Personal greeting** with the logged-in user's name
+- **Connection profile card** with copyable MCP Server URL, SSE
+  endpoint, OAuth Authorize URL, Token URL, Client ID, and Client
+  Secret. The Client Secret is masked by default with an explicit
+  "Anzeigen / Verbergen" reveal toggle — secrets are never visible
+  by default in the rendered HTML
+- **Three platform cards** with step-by-step instructions:
+  - **Claude.ai** (custom connector flow)
+  - **ChatGPT** (OAuth-based connector)
+  - **Claude Code** (CLI: `claude mcp add --transport http ...`)
+- **"Was kann ich jetzt?" section** with five example prompts and
+  direct links to the localised handbooks (DE/EN/NO)
+
+### Changed
+- Navigation entry "Hilfe" replaced with "🔌 Connect-Center" (desktop
+  + mobile, both employee and admin role variants).
+- `/help` returns a 302 redirect to `/my/connect` for backwards
+  compatibility with existing bookmarks.
+- The legacy help template remains accessible at `/_legacy/help` for
+  reference until the next release.
+
+### Why
+Connection data was previously scattered across `/help`, `/settings`,
+and `/admin/dashboard`. Users had to assemble OAuth ID + Secret +
+URLs from three different pages and figure out which platform wanted
+which value. The Connect-Center consolidates everything into one
+self-explanatory page that doubles as the primary onboarding artefact.
+
 ## 7.2.20 (2026-04-29) — MCP Permissions UI: active-groups filter (default)
 
 ### Changed
