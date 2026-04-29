@@ -68,6 +68,10 @@ services:
       - "8080:8080"       # web UI (admin, login, dashboard)
       - "8765:8765"       # MCP endpoint (Claude, OAuth, SSE)
       - "8775:8775"       # capture webhook — only relevant when CAPTURE_ENABLED=true
+      # Port 80 — only needed during Auto-TLS (sslip.io + Let's Encrypt)
+      # cert generation & renewal (~30 s every 60-90 days). Otherwise
+      # safe to remove. Required by ACME HTTP-01 challenge protocol.
+      - "80:80"
       # IPP/IPPS only when IPP_PORT is set:
       # - "631:631"
 

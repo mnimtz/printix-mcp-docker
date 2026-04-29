@@ -2,6 +2,73 @@
 
 This project follows [Semantic Versioning](https://semver.org/).
 
+## 7.2.36 (2026-04-29) — 1-click free HTTPS for IP-only setups (sslip.io + Let's Encrypt)
+
+### Added
+
+**`/admin/auto-tls`** — fully automatic HTTPS for users with a fixed
+public IP and no domain. One click, no account, no DNS configuration,
+no manual certbot. Targets the Azure-VM-with-public-IP scenario where
+neither Cloudflare Tunnel (no domain) nor manual cert generation is
+appealing.
+
+What happens behind the click:
+
+1. Public IP detected via `api.ipify.org`
+2. sslip.io hostname generated (`52-143-121-45.sslip.io`) — sslip.io
+   is a free wildcard DNS service that maps any IPv4 to a hostname,
+   no account or signup needed
+3. `certbot certonly --standalone` runs ACME HTTP-01 challenge against
+   that hostname (port 80 opens for ~30 s during the challenge)
+4. Cert + key copied to `/data/tls/cert.pem` and `/data/tls/key.pem`
+5. `tls_enabled=1` set, `public_url` updated
+6. Container restart needed → uvicorn picks up the new cert and the
+   web UI is on HTTPS
+
+**Auto-renewal** runs as a daemon thread inside the web process,
+waking daily and invoking `certbot renew`. Idempotent — only acts
+when the cert has <30 days remaining. No cron setup required.
+
+### UI
+
+The `/admin/auto-tls` page is the prominent green "Free HTTPS"
+option on the admin dashboard, alongside the existing tunnel and
+manual TLS pages. It shows:
+
+- Auto-detected public IP and the resulting sslip.io hostname
+- A short pitch describing when this option is the right choice
+  (fixed IP, no domain, no third-party-routing requirement)
+- One email field + one big green "Set up free HTTPS" button
+- After setup: status banner with cert details, days remaining,
+  manual renewal trigger, and a "How does this work?" details panel
+  documenting all five technical steps
+
+### Implementation
+
+- `src/acme_auto.py` (new, ~250 lines) — IP detection, hostname
+  generation, certbot subprocess wrapper, renewal scheduler thread,
+  status helper.
+- Three new admin routes (status page, request, manual renew).
+- New template `admin_auto_tls.html`.
+- Bundled `certbot` in the Docker image (~30 MB additional).
+- `docker-compose.yml` exposes port 80 by default with a comment
+  explaining it's only required during the ~30 s challenge.
+- Renewal scheduler started at web-app boot via daemon thread.
+- Audit log records `auto_tls_acquired` and `auto_tls_renewed`.
+
+### Three HTTPS options now coexist
+
+The admin dashboard offers three independent paths to HTTPS:
+
+| Option | Best for | Domain required | Auto-renew |
+|--------|----------|-----------------|------------|
+| 🌐 HTTPS Tunnel (Cloudflare) | most users | yes (free if existing) | yes |
+| 🔒 TLS Certificate Import | own CA / commercial cert | yes | no (manual) |
+| 🌍 Free HTTPS (sslip.io+LE) | fixed IP, no domain | **no** | **yes** |
+
+### i18n
+Full translations for all auto-TLS strings in `de` / `en` / `no`.
+
 ## 7.2.35 (2026-04-29) — Bring-your-own-cert: TLS import + tunnel-page wording fix
 
 ### Added

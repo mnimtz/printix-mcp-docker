@@ -2261,6 +2261,96 @@ def create_app(session_secret: str) -> FastAPI:
             media_type="application/pdf",
         )
 
+    # ─── Auto-HTTPS via sslip.io + Let's Encrypt (v7.2.36) ───────────────
+    # 1-Klick HTTPS für Public-IP-only Setups. Kein Cloudflare-Account,
+    # keine Domain, keine manuelle Cert-Generierung — komplett kostenlos.
+
+    @app.get("/admin/auto-tls", response_class=HTMLResponse)
+    async def admin_auto_tls(request: Request):
+        user = get_session_user(request)
+        if not user or not user.get("is_admin"):
+            return RedirectResponse("/login", status_code=302)
+        try:
+            import sys as _ssys
+            _ssys.path.insert(0, "/app")
+            from acme_auto import status as _acme_status, detect_public_ip, hostname_for_ip
+        except Exception as e:
+            logger.error("auto-tls import: %s", e)
+            return RedirectResponse(f"/admin?err={quote_plus(str(e))}", status_code=302)
+        st = _acme_status()
+        # If not yet configured, try to detect IP for the suggestion box
+        suggested_ip = ""
+        suggested_host = ""
+        if not st.get("hostname"):
+            suggested_ip = detect_public_ip()
+            suggested_host = hostname_for_ip(suggested_ip)
+        flash_ok = (request.query_params.get("ok") or "").strip() or None
+        flash_err = (request.query_params.get("err") or "").strip() or None
+        return templates.TemplateResponse("admin_auto_tls.html", {
+            "request": request, "user": user,
+            "st": st,
+            "suggested_ip": suggested_ip,
+            "suggested_host": suggested_host,
+            "flash_ok": flash_ok, "flash_err": flash_err,
+            **t_ctx(request),
+        })
+
+    @app.post("/admin/auto-tls/request")
+    async def admin_auto_tls_request(
+        request: Request,
+        email: str = Form(...),
+    ):
+        user = get_session_user(request)
+        if not user or not user.get("is_admin"):
+            return RedirectResponse("/login", status_code=302)
+        try:
+            import sys as _ssys
+            _ssys.path.insert(0, "/app")
+            from acme_auto import request_cert
+            from db import audit
+            import asyncio as _aio_ssl
+            # certbot blocks for ~30 s — run in thread to avoid stalling event loop
+            result = await _aio_ssl.to_thread(request_cert, email.strip())
+            if result.get("ok"):
+                audit(user["id"], "auto_tls_acquired",
+                      f"Let's Encrypt cert acquired for {result.get('hostname')}",
+                      object_type="auto_tls", object_id=result.get("hostname", ""))
+                return RedirectResponse(
+                    f"/admin/auto-tls?ok={quote_plus('cert_acquired:' + result.get('hostname',''))}",
+                    status_code=302)
+            err = result.get("error", "unknown error")
+            details = result.get("details", "")
+            return RedirectResponse(
+                f"/admin/auto-tls?err={quote_plus(err + (' — ' + details if details else ''))}",
+                status_code=302)
+        except Exception as e:
+            logger.exception("auto-tls request")
+            return RedirectResponse(
+                f"/admin/auto-tls?err={quote_plus(str(e))}", status_code=302)
+
+    @app.post("/admin/auto-tls/renew")
+    async def admin_auto_tls_renew(request: Request):
+        user = get_session_user(request)
+        if not user or not user.get("is_admin"):
+            return RedirectResponse("/login", status_code=302)
+        try:
+            import sys as _ssys
+            _ssys.path.insert(0, "/app")
+            from acme_auto import renew_if_due
+            from db import audit
+            import asyncio as _aio_ssl
+            result = await _aio_ssl.to_thread(renew_if_due, True)  # force=True for manual
+            if result.get("ok"):
+                audit(user["id"], "auto_tls_renewed", "manual renewal triggered",
+                      object_type="auto_tls", object_id="renew")
+                return RedirectResponse("/admin/auto-tls?ok=renewed", status_code=302)
+            return RedirectResponse(
+                f"/admin/auto-tls?err={quote_plus(result.get('error','unknown'))}",
+                status_code=302)
+        except Exception as e:
+            return RedirectResponse(
+                f"/admin/auto-tls?err={quote_plus(str(e))}", status_code=302)
+
     # ─── TLS Certificate Import (v7.2.35) ────────────────────────────────
     # Bring-your-own-certificate als Alternative zu Cloudflare Tunnel:
     # User lädt eigenes Cert + Key hoch, web-UI startet auf HTTPS.
@@ -7147,6 +7237,18 @@ def create_app(session_secret: str) -> FastAPI:
                         )
                         id_only += 1
         return RedirectResponse(f"/cards?flash=sync_ok&imported={imported}&id_only={id_only}", status_code=303)
+
+    # v7.2.36: Auto-TLS (sslip.io + Let's Encrypt) — Renewal-Scheduler
+    # starten. Daemon-Thread, weckt alle 24h und ruft certbot renew wenn
+    # auto_tls_enabled=1 ist. Bei kürzlich-acquirierten Certs (>60 days
+    # remaining) ist das idempotent — keine Action.
+    try:
+        import sys as _acme_sys
+        _acme_sys.path.insert(0, "/app")
+        from acme_auto import start_renewal_scheduler as _acme_start
+        _acme_start()
+    except Exception as e:
+        logger.warning("auto-tls renewal scheduler not started: %s", e)
 
     # v7.2.32: persistierter Tunnel-Mode → bei App-Start ggf. wiederherstellen.
     # In einem separaten Thread, damit ein nicht-erreichbarer Cloudflare-

@@ -97,6 +97,15 @@ COPY src/requirements.txt /tmp/requirements.txt
 RUN pip install --no-index --find-links=/wheels -r /tmp/requirements.txt \
     && rm -rf /wheels /tmp/requirements.txt
 
+# v7.2.36: Certbot für /admin/auto-tls (1-Click Let's Encrypt mit sslip.io).
+# Erlaubt Usern mit fester Public IP aber ohne eigene Domain ein
+# vollautomatisches HTTPS-Setup ohne Cloudflare-Konto, ohne Tailscale-
+# VPN, ohne manuelle CLI-Schritte. ACME HTTP-01 Challenge läuft via
+# port 80 standalone (~30 Sekunden während der Anforderung).
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        certbot \
+    && rm -rf /var/lib/apt/lists/*
+
 # v7.2.32: Cloudflare Tunnel Binary (für /admin/tunnel In-App-Setup).
 # Ein-Klick-HTTPS für Endkunden: Quick Tunnel (anonym, *.trycloudflare.com)
 # oder Named Tunnel mit eigenem CF-Token.

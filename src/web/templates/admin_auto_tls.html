@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+{% block title %}{{ _('atls_title') }} — {{ _('brand_console_name') }}{% endblock %}
+{% block content %}
+<div class="container">
+
+  <div class="card" style="margin-bottom:20px; background:linear-gradient(135deg,#dcfce7 0%,#f0fdf4 100%); border-left:6px solid #16a34a;">
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; flex-wrap:wrap; gap:10px;">
+      <div>
+        <div class="section-title" style="color:#14532d;">🌍 {{ _('atls_title') }}
+          <span style="font-size:.62em; background:#16a34a; color:#fff; padding:3px 10px; border-radius:10px; vertical-align:middle; margin-left:6px;">{{ _('atls_badge_free') }}</span>
+        </div>
+        <div class="section-sub" style="color:#166534;">{{ _('atls_subtitle') }}</div>
+      </div>
+      <a href="/admin" class="btn btn-secondary btn-sm">← {{ _('mp_back') }}</a>
+    </div>
+
+    {% if flash_ok %}<div class="alert alert-success" style="margin-bottom:14px;">✅ {{ flash_ok }}</div>{% endif %}
+    {% if flash_err %}<div class="alert alert-error" style="margin-bottom:14px;">⚠ {{ flash_err }}</div>{% endif %}
+
+    <div style="background:#fff; padding:14px 18px; border-radius:10px; margin-top:12px; font-size:.92em; color:#1a1a1a; line-height:1.65;">
+      {{ _('atls_pitch') | safe }}
+    </div>
+
+    {% if not st.binary_present %}
+    <div class="alert alert-warning" style="margin-top:14px;">
+      ⚠ certbot {{ _('atls_no_binary') }}
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- ── Aktuell läuft? ───────────────────────────────────────────────── -->
+  {% if st.enabled and st.cert and not st.cert.parse_error %}
+  <div class="card" style="margin-bottom:20px;">
+    <div class="section-title" style="margin-bottom:14px;">
+      🔒 {{ _('atls_active_title') }}
+    </div>
+
+    {% if st.cert.expired %}
+    <div style="padding:14px; background:#fee2e2; border-left:4px solid #dc2626; border-radius:8px; margin-bottom:14px;">
+      <strong style="color:#7f1d1d;">⚠ {{ _('tls_status_expired') }}</strong>
+    </div>
+    {% elif st.cert.days_remaining < 30 %}
+    <div style="padding:14px; background:#fef3c7; border-left:4px solid #f59e0b; border-radius:8px; margin-bottom:14px;">
+      <strong style="color:#78350f;">⚠ {{ st.cert.days_remaining }} {{ _('tls_days') }} {{ _('atls_renews_soon') }}</strong>
+    </div>
+    {% else %}
+    <div style="padding:14px; background:#dcfce7; border-left:4px solid #16a34a; border-radius:8px; margin-bottom:14px;">
+      <strong style="color:#14532d;">✓ {{ _('atls_running') }} — {{ st.cert.days_remaining }} {{ _('tls_days') }} {{ _('atls_remaining') }}</strong>
+    </div>
+    {% endif %}
+
+    <table style="width:100%; font-size:.92em;">
+      <tr><td style="padding:4px 12px; font-weight:600; color:#003366; vertical-align:top; width:160px;">{{ _('atls_field_hostname') }}</td>
+          <td style="padding:4px 12px;"><a href="https://{{ st.hostname }}" target="_blank" rel="noopener"><code>https://{{ st.hostname }}</code></a></td></tr>
+      <tr><td style="padding:4px 12px; font-weight:600; color:#003366;">{{ _('atls_field_public_ip') }}</td>
+          <td style="padding:4px 12px;"><code>{{ st.public_ip }}</code></td></tr>
+      <tr><td style="padding:4px 12px; font-weight:600; color:#003366;">{{ _('atls_field_email') }}</td>
+          <td style="padding:4px 12px;">{{ st.email }}</td></tr>
+      <tr><td style="padding:4px 12px; font-weight:600; color:#003366;">{{ _('atls_field_expires') }}</td>
+          <td style="padding:4px 12px;">{{ st.cert.expires }}</td></tr>
+      <tr><td style="padding:4px 12px; font-weight:600; color:#003366;">{{ _('atls_field_last_run') }}</td>
+          <td style="padding:4px 12px;">{{ st.last_run or "—" }}</td></tr>
+      <tr><td style="padding:4px 12px; font-weight:600; color:#003366;">{{ _('atls_field_auto_renew') }}</td>
+          <td style="padding:4px 12px; color:#166534;">{{ _('atls_auto_renew_active') }}</td></tr>
+    </table>
+
+    <div style="margin-top:14px; display:flex; gap:8px; flex-wrap:wrap;">
+      <form method="post" action="/admin/auto-tls/renew" style="display:inline;">
+        <button type="submit" class="btn btn-secondary btn-sm">🔄 {{ _('atls_renew_now') }}</button>
+      </form>
+    </div>
+  </div>
+  {% else %}
+
+  <!-- ── 1-Click Setup ─────────────────────────────────────────────────── -->
+  <div class="card" style="margin-bottom:20px;">
+    <div class="section-title" style="margin-bottom:14px;">⚡ {{ _('atls_setup_title') }}</div>
+
+    <div style="margin-bottom:18px; display:flex; gap:14px; padding:14px; background:#f7f9fb; border-radius:8px;">
+      <div style="font-size:1.4em;">🔍</div>
+      <div style="flex:1;">
+        <div style="font-weight:600; color:#003366; margin-bottom:4px;">{{ _('atls_detected_title') }}</div>
+        {% if suggested_ip %}
+        <div style="font-size:.92em; color:#444;">
+          {{ _('atls_detected_ip') }} <code>{{ suggested_ip }}</code><br>
+          {{ _('atls_detected_host') }} <code>{{ suggested_host }}</code>
+        </div>
+        {% else %}
+        <div style="font-size:.92em; color:#92400e;">⚠ {{ _('atls_detect_failed') }}</div>
+        {% endif %}
+      </div>
+    </div>
+
+    <form method="post" action="/admin/auto-tls/request" style="display:flex; flex-direction:column; gap:14px;">
+      <div>
+        <label style="display:block; font-weight:700; color:#14532d; margin-bottom:4px;">
+          {{ _('atls_email_label') }}
+        </label>
+        <input type="email" name="email" required
+               value="{{ user.email or '' }}"
+               placeholder="du@firma.de"
+               class="form-control" style="width:100%;">
+        <div style="font-size:.78em; color:#666; margin-top:4px;">{{ _('atls_email_hint') }}</div>
+      </div>
+
+      <div style="padding:12px 14px; background:#fef3c7; border-left:3px solid #f59e0b; border-radius:4px; font-size:.86em; color:#78350f;">
+        ⚠ <strong>{{ _('atls_port80_warning_title') }}</strong>: {{ _('atls_port80_warning_body') | safe }}
+      </div>
+
+      <div>
+        <button type="submit" class="btn btn-success" style="font-size:1.05em; padding:12px 24px; background:#16a34a;">
+          🌍 {{ _('atls_button') }}
+        </button>
+      </div>
+    </form>
+  </div>
+  {% endif %}
+
+  <!-- ── How it works ──────────────────────────────────────────────────── -->
+  <details class="card" style="margin-bottom:20px;">
+    <summary style="cursor:pointer; font-weight:600; color:#003366;">📚 {{ _('atls_how_title') }}</summary>
+    <div style="margin-top:14px; font-size:.92em; line-height:1.65; color:#444;">
+      {{ _('atls_how_body') | safe }}
+    </div>
+  </details>
+
+  {% if st.last_error %}
+  <div class="alert alert-error">
+    <strong>{{ _('mp_error') }}:</strong> {{ st.last_error }}
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}
