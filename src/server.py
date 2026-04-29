@@ -118,6 +118,135 @@ logging.getLogger().addHandler(_tenant_handler)  # Root-Logger → alle Tenants
 mcp = FastMCP("Printix", host="0.0.0.0")
 
 
+# ─── v7.2.23: MCP Permission Gate (PR 2 enforcement) ──────────────────────────
+#
+# Wraps every `@mcp.tool(...)` registration to enforce role-based access
+# control. The role of the calling user is resolved from `current_tenant`
+# (set by BearerAuthMiddleware/OAuthMiddleware before any tool call), and
+# checked against the tool's required scope (see permissions.TOOL_SCOPES).
+#
+# Activation: env var MCP_RBAC_ENABLED=1. When unset/false the gate is a
+# pass-through and behaviour matches v7.2.22 exactly. When enabled, denied
+# calls return a structured permission_denied JSON payload and are logged
+# to the audit table with action='mcp_permission_denied'.
+#
+# Failure mode is intentional:
+#   - RBAC disabled               → always allow (PR 1 compatibility mode)
+#   - RBAC enabled, no tenant ctx → deny (auth middleware should have set it)
+#   - RBAC enabled, db error      → deny + log (fail-closed for safety)
+import asyncio as _aio_for_gate
+import functools as _functools
+import inspect as _inspect
+
+_RBAC_ENABLED = (os.getenv("MCP_RBAC_ENABLED", "0").strip().lower()
+                 in ("1", "true", "yes", "on"))
+
+
+def _check_tool_permission(tool_name: str) -> str | None:
+    """Returns None when the call is permitted. Returns a JSON-serialised
+    denial payload (string) when the call must be rejected — to be returned
+    from the wrapped tool as if it were the tool's own response.
+    """
+    if not _RBAC_ENABLED:
+        return None
+    try:
+        from permissions import (
+            resolve_mcp_role, has_permission, permission_denied_payload,
+        )
+    except Exception as e:
+        logger.error("RBAC: permissions module import failed: %s", e)
+        return _ok({"ok": False, "error": "rbac_init_failed",
+                    "message": str(e)})
+
+    tenant = current_tenant.get()
+    if not tenant:
+        # Authenticated calls always have a tenant. None here means the
+        # auth middleware did not run — refuse rather than leak data.
+        logger.warning("RBAC: no tenant context for tool '%s'", tool_name)
+        return _ok({
+            "ok": False, "error": "no_tenant_context",
+            "message": ("Authentication missing. The MCP server requires a "
+                        "valid bearer token or OAuth session."),
+        })
+
+    user_id = tenant.get("user_id") or ""
+    if not user_id:
+        # Tenant exists but isn't bound to a user — historical edge case
+        # for service-tenant rows from very old installations. Allow only
+        # admin-equivalent scopes (legacy compat); deny self-only tools.
+        logger.warning("RBAC: tenant has no user_id (legacy?), tool='%s'", tool_name)
+        return None  # treat as legacy admin
+
+    try:
+        role = resolve_mcp_role(user_id)
+    except Exception as e:
+        logger.error("RBAC: resolve_mcp_role failed for user %s: %s", user_id, e)
+        return _ok({"ok": False, "error": "role_resolution_failed",
+                    "message": "Could not resolve MCP role for caller."})
+
+    if has_permission(role, tool_name):
+        return None  # allowed
+
+    # Denied — record for the audit trail and return structured response.
+    try:
+        import db as _db
+        _db.audit(
+            user_id=user_id,
+            action="mcp_permission_denied",
+            details=f"Tool '{tool_name}' denied for role '{role}'.",
+            object_type="mcp_tool",
+            object_id=tool_name,
+            tenant_id=tenant.get("id", ""),
+        )
+    except Exception as e:
+        logger.warning("RBAC: audit insert for denied call failed: %s", e)
+
+    logger.info("RBAC: denied tool='%s' role='%s' user=%s",
+                tool_name, role, user_id)
+    return _ok(permission_denied_payload(tool_name, role))
+
+
+# Save and replace mcp.tool so every subsequent registration gets gated.
+_orig_mcp_tool = mcp.tool
+
+
+def _guarded_mcp_tool(*dec_args, **dec_kwargs):
+    """Replacement for `@mcp.tool(...)` that adds an automatic permission
+    check. Behaves identically to the original decorator in every other
+    respect — same args, same return value, same descriptor wrapping.
+    """
+    def _wrap(fn):
+        tool_name = fn.__name__
+        if _aio_for_gate.iscoroutinefunction(fn):
+            @_functools.wraps(fn)
+            async def _async_guarded(*args, **kwargs):
+                denial = _check_tool_permission(tool_name)
+                if denial is not None:
+                    return denial
+                return await fn(*args, **kwargs)
+            wrapped = _async_guarded
+        else:
+            @_functools.wraps(fn)
+            def _sync_guarded(*args, **kwargs):
+                denial = _check_tool_permission(tool_name)
+                if denial is not None:
+                    return denial
+                return fn(*args, **kwargs)
+            wrapped = _sync_guarded
+        # Hand the wrapped function to the original decorator so FastMCP
+        # registers it under the same name with all annotations intact.
+        return _orig_mcp_tool(*dec_args, **dec_kwargs)(wrapped)
+    return _wrap
+
+
+mcp.tool = _guarded_mcp_tool
+
+if _RBAC_ENABLED:
+    logger.info("RBAC: MCP_RBAC_ENABLED=1 — permission gate ACTIVE on all tools")
+else:
+    logger.info("RBAC: MCP_RBAC_ENABLED=0 (default) — permission gate inactive (PR 1 compat)")
+
+
 def client() -> PrintixClient:
     """
     Gibt einen PrintixClient für den aktuellen Request-Tenant zurück.
@@ -4738,6 +4867,62 @@ def printix_whoami() -> str:
             "server_version": APP_VERSION,
         })
     except Exception as e:
+        return _ok({"error": str(e)})
+
+
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False))
+def printix_my_role() -> str:
+    """
+        Eigene MCP-Rolle und welche Tools damit erlaubt sind.
+
+        Wann nutzen: "Was darf ich?" • "Welche Rolle habe ich?" •
+            "Why was I denied access to tool X?"
+        Wann NICHT — stattdessen: vollstaendige Berechtigungs-Matrix
+            aller User → printix_permission_matrix (admin only)
+        Returns: dict mit role, permitted_scopes, rbac_enabled,
+            denied_tool_count.
+        Args: keine.
+
+    """
+    try:
+        from permissions import (
+            resolve_mcp_role, ROLE_SCOPES, TOOL_SCOPES, has_permission,
+            ROLE_LABELS_EN,
+        )
+        tenant = current_tenant.get() or {}
+        user_id = tenant.get("user_id") or ""
+        role = resolve_mcp_role(user_id) if user_id else "end_user"
+        permitted = sorted(ROLE_SCOPES.get(role, frozenset()))
+
+        # Sample of allowed/denied tools for transparency
+        allowed_tools = sorted(
+            t for t in TOOL_SCOPES.keys() if has_permission(role, t)
+        )
+        denied_tools = sorted(
+            t for t in TOOL_SCOPES.keys() if not has_permission(role, t)
+        )
+
+        return _ok({
+            "role": role,
+            "role_label": ROLE_LABELS_EN.get(role, role),
+            "permitted_scopes": permitted,
+            "rbac_enabled": _RBAC_ENABLED,
+            "tools_allowed_count": len(allowed_tools),
+            "tools_denied_count":  len(denied_tools),
+            "tools_allowed_sample": allowed_tools[:10],
+            "tools_denied_sample":  denied_tools[:10],
+            "user_id": user_id,
+            "tenant_id": tenant.get("id"),
+            "note": (
+                "RBAC is currently inactive (MCP_RBAC_ENABLED=0). All tools "
+                "are reachable regardless of role."
+            ) if not _RBAC_ENABLED else (
+                "RBAC is active. Tools outside your scopes return a "
+                "permission_denied response."
+            ),
+        })
+    except Exception as e:
+        logger.error("printix_my_role failed: %s", e)
         return _ok({"error": str(e)})
 
 

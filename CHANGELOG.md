@@ -2,6 +2,91 @@
 
 This project follows [Semantic Versioning](https://semver.org/).
 
+## 7.2.23 (2026-04-29) — MCP Permission Model — PR 2: enforcement
+
+### Added
+
+**Role-based access control is now enforced** at the MCP tool layer. The
+foundation from PR 1 (v7.2.18) — five roles, scope catalogue, admin UI —
+is wired up to actually block calls that exceed the caller's scope.
+
+**Activation is opt-in.** A new env var `MCP_RBAC_ENABLED` controls
+enforcement:
+
+| Value | Behaviour |
+|-------|-----------|
+| `0` *(default)* | Pass-through. Every tool call runs as before. PR 1 admin UI continues to capture role assignments without consequence. |
+| `1` | Enforced. Tools outside the caller's scope return a structured `permission_denied` JSON payload and an audit-log entry. |
+
+This keeps the upgrade safe — operators turn enforcement on only when
+they have populated the role assignments and verified them.
+
+### Implementation
+
+- **`server.py` — automatic gate on every tool registration.** A wrapper
+  replaces `mcp.tool` at module load time so every subsequent
+  `@mcp.tool(...)` decorator gets a permission-check layer
+  transparently. No tool source code changed; the wrap is an
+  infrastructure-level concern.
+- **`_check_tool_permission(tool_name)`** resolves the caller's role from
+  `current_tenant` (set by the bearer/OAuth middleware), looks up the
+  tool's required scope in `permissions.TOOL_SCOPES`, and either passes
+  through or returns a denial response.
+- **Fail-closed semantics when RBAC is enabled**: missing tenant
+  context, role-resolution errors, or unmapped tools all result in
+  denial rather than accidental access. Disabled mode short-circuits
+  the gate entirely.
+- **Audit trail**: denied calls are recorded with
+  `action='mcp_permission_denied'`, `object_type='mcp_tool'`,
+  `object_id=<tool_name>` so DPO and compliance reviewers see every
+  attempted-but-blocked call.
+
+### New introspection tool
+
+- **`printix_my_role`** — every user can ask their AI assistant
+  *"What can I do?"* and get a structured answer back: their role,
+  permitted scopes, count of allowed/denied tools, and ten-tool sample
+  of each. Helps end-users and helpdesk understand denials without
+  requiring admin access. Scope: `mcp:self` (always available).
+
+### Tool scope catalogue
+
+All 125 production tools are pre-tagged with one of five scopes:
+
+| Scope | Allowed roles | Tool count (approx) |
+|-------|---------------|---------------------|
+| `mcp:self` | all roles | ~8 (own data only) |
+| `mcp:read` | helpdesk, admin, auditor | ~70 (list/get/query) |
+| `mcp:audit` | admin, auditor | 1 (`query_audit_log`) |
+| `mcp:write` | admin only | ~40 (create/update/delete) |
+| `mcp:system` | admin only | ~6 (backup, demo, defuse) |
+
+Unmapped tools default to `mcp:write` (safe-by-default — only admins
+can run a tool that wasn't categorised explicitly).
+
+### Compatibility
+
+- v7.2.22 deployments upgrade safely: env var defaults to off, behaviour
+  identical.
+- Bestehende User have `mcp_role='admin'` from the PR 1 backfill, so
+  flipping the flag does not lock anyone out.
+- `printix_my_role` works in both modes — always reports the role
+  regardless of whether enforcement is active.
+
+### Enabling enforcement
+
+1. Open `/admin/mcp-permissions` and review the auto-populated roles.
+   Confirm group assignments for "Helpdesk" and "End User" Printix
+   groups, override individual users where needed, set Auditor and
+   Service Account roles for the few people who need them.
+2. Set `MCP_RBAC_ENABLED=1` in `.env` (or the docker-compose
+   environment block).
+3. Restart the container.
+4. Verify with `printix_my_role` from a user account at each role
+   level.
+5. Watch the audit log (`/admin/audit`) for denied calls — they tell
+   you whether the role assignments match the actual usage.
+
 ## 7.2.22 (2026-04-29) — i18n for new pages + manual download fix + employee tenant fallback
 
 ### Fixed

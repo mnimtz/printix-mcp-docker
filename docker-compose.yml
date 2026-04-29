@@ -45,6 +45,13 @@ services:
       # false = webhooks go through MCP_PORT (8765). [default]
       CAPTURE_ENABLED: ${CAPTURE_ENABLED:-false}
 
+      # --- MCP role-based access control (v7.2.23+) --------------------------
+      # 0 = inactive (default). All authenticated users can call any tool.
+      # 1 = enforce roles configured under /admin/mcp-permissions. Tools
+      #     outside the caller's scopes return permission_denied JSON.
+      # Roles + GDPR mapping are documented at /admin/mcp-permissions.
+      MCP_RBAC_ENABLED: ${MCP_RBAC_ENABLED:-0}
+
       # --- IPP/IPPS listener (cloud print) ------------------------------------
       # 0 = disabled (IPP only runs on WEB_PORT). 631 = standard IPP port.
       IPP_PORT: ${IPP_PORT:-0}
