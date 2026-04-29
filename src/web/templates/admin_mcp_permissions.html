@@ -19,6 +19,39 @@
       <div class="alert alert-error" style="margin-bottom:14px;">⚠ {{ _('mp_error') }}: {{ flash_err }}</div>
     {% endif %}
 
+    <!-- v7.2.24: RBAC status banner -->
+    {% if rbac_enabled %}
+    <div style="margin-bottom:16px; padding:14px 16px; background:#dcfce7; border-left:4px solid #16a34a; border-radius:4px; display:flex; align-items:center; gap:12px;">
+      <div style="font-size:1.5em;">🔒</div>
+      <div style="flex:1;">
+        <div style="font-weight:600; color:#14532d; margin-bottom:2px;">
+          {{ _('mp_rbac_active_title') }}
+        </div>
+        <div style="font-size:.88em; color:#166534;">
+          {{ _('mp_rbac_active_sub') }}
+        </div>
+      </div>
+      <div style="padding:4px 12px; background:#16a34a; color:#fff; border-radius:12px; font-size:.78em; font-weight:600; white-space:nowrap;">
+        MCP_RBAC_ENABLED=1
+      </div>
+    </div>
+    {% else %}
+    <div style="margin-bottom:16px; padding:14px 16px; background:#fef3c7; border-left:4px solid #f59e0b; border-radius:4px; display:flex; align-items:center; gap:12px;">
+      <div style="font-size:1.5em;">⚠️</div>
+      <div style="flex:1;">
+        <div style="font-weight:600; color:#78350f; margin-bottom:2px;">
+          {{ _('mp_rbac_inactive_title') }}
+        </div>
+        <div style="font-size:.88em; color:#92400e;">
+          {{ _('mp_rbac_inactive_sub') | safe }}
+        </div>
+      </div>
+      <div style="padding:4px 12px; background:#f59e0b; color:#fff; border-radius:12px; font-size:.78em; font-weight:600; white-space:nowrap;">
+        MCP_RBAC_ENABLED=0
+      </div>
+    </div>
+    {% endif %}
+
     <details style="margin-bottom:8px;">
       <summary style="cursor:pointer; font-weight:600; color:#003366;">
         ℹ️ {{ _('mp_legend_summary') }}

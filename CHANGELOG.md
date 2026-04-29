@@ -2,6 +2,19 @@
 
 This project follows [Semantic Versioning](https://semver.org/).
 
+## 7.2.24 (2026-04-29) — MCP Permissions: RBAC status banner
+
+### Added
+A prominent status banner at the top of `/admin/mcp-permissions` shows
+at a glance whether RBAC enforcement is currently active. The banner is
+green with a lock icon when enforcement is on, amber with a warning icon
+when off — and includes the literal `MCP_RBAC_ENABLED=0/1` value as a
+chip so the admin can copy/paste it into a support ticket if needed.
+
+The amber inactive-banner explains in one sentence what to do to enable
+enforcement (set the env var and restart the container). Translations
+in `de`, `en`, and `no`.
+
 ## 7.2.23 (2026-04-29) — MCP Permission Model — PR 2: enforcement
 
 ### Added

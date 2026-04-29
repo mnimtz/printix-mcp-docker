@@ -3348,6 +3348,12 @@ def create_app(session_secret: str) -> FastAPI:
             role_labels = _perm.ROLE_LABELS_EN
             role_descriptions = _perm.ROLE_DESCRIPTIONS_EN
 
+        # v7.2.24: RBAC-Status (env var MCP_RBAC_ENABLED) prominent oben
+        # auf der Seite anzeigen, damit der Admin sofort sieht, ob die
+        # Rollen nur erfasst werden oder bereits scharf erzwungen werden.
+        rbac_enabled = (os.getenv("MCP_RBAC_ENABLED", "0").strip().lower()
+                        in ("1", "true", "yes", "on"))
+
         return templates.TemplateResponse("admin_mcp_permissions.html", {
             "request": request, "user": user,
             "users": users_view,
@@ -3360,6 +3366,7 @@ def create_app(session_secret: str) -> FastAPI:
             "group_assignable_roles": _perm.GROUP_ASSIGNABLE_ROLES,
             "role_labels": role_labels,
             "role_descriptions": role_descriptions,
+            "rbac_enabled": rbac_enabled,
             "flash_ok": flash_ok, "flash_err": flash_err,
             **ctx,
         })

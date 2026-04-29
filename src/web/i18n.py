@@ -1014,6 +1014,10 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "mp_status_pending":     "wartet",
         "mp_global_admin":       "Global Admin",
         "mp_pr1_note":           "Diese Seite verwaltet die Daten — Erzwingung erfolgt mit dem nächsten Versionsupdate. Bestehende Benutzer wurden auf admin gesetzt, damit niemand ausgesperrt wird.",
+        "mp_rbac_active_title":   "RBAC ist aktiv — Berechtigungen werden erzwungen",
+        "mp_rbac_active_sub":     "Tools außerhalb der Rolle des Aufrufers werden abgelehnt und im Audit-Log protokolliert. Änderungen an Rollen werden sofort wirksam.",
+        "mp_rbac_inactive_title": "RBAC ist inaktiv — Pass-Through-Modus",
+        "mp_rbac_inactive_sub":   "Rollen werden hier zwar erfasst, aber <strong>nicht</strong> erzwungen. Jeder authentifizierte User darf weiterhin jedes Tool aufrufen. Zum Aktivieren <code>MCP_RBAC_ENABLED=1</code> in der docker-compose-Umgebung setzen und Container neu starten.",
     },
 
     # ──────────────────────────────────────────────────────────────────────
@@ -1992,6 +1996,10 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "mp_status_pending":     "pending",
         "mp_global_admin":       "Global Admin",
         "mp_pr1_note":           "This page manages the data — enforcement ships with the next version. Existing users were migrated to admin so nobody gets locked out at activation.",
+        "mp_rbac_active_title":   "RBAC is active — permissions are enforced",
+        "mp_rbac_active_sub":     "Tools outside the caller's role are rejected and recorded in the audit log. Role changes take effect immediately.",
+        "mp_rbac_inactive_title": "RBAC is inactive — pass-through mode",
+        "mp_rbac_inactive_sub":   "Roles are captured here but <strong>not</strong> enforced. Every authenticated user can still call every tool. To activate, set <code>MCP_RBAC_ENABLED=1</code> in your docker-compose environment and restart the container.",
     },
 
     # ──────────────────────────────────────────────────────────────────────
@@ -6518,6 +6526,10 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "mp_status_pending":     "venter",
         "mp_global_admin":       "Global Admin",
         "mp_pr1_note":           "Denne siden administrerer dataene — håndhevelse kommer i neste versjon. Eksisterende brukere ble migrert til admin slik at ingen blir låst ute ved aktivering.",
+        "mp_rbac_active_title":   "RBAC er aktiv — tillatelser håndheves",
+        "mp_rbac_active_sub":     "Verktøy utenfor anroperens rolle avvises og logges i revisjonsloggen. Endringer i roller trer i kraft umiddelbart.",
+        "mp_rbac_inactive_title": "RBAC er inaktiv — gjennomslippsmodus",
+        "mp_rbac_inactive_sub":   "Roller registreres her, men håndheves <strong>ikke</strong>. Alle autentiserte brukere kan fortsatt kalle alle verktøy. For å aktivere, sett <code>MCP_RBAC_ENABLED=1</code> i docker-compose-miljøet og start containeren på nytt.",
     },
 
     # ──────────────────────────────────────────────────────────────────────
