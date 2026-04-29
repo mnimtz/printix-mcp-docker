@@ -2,6 +2,45 @@
 
 This project follows [Semantic Versioning](https://semver.org/).
 
+## 7.2.26 (2026-04-29) — Permission Matrix PDF + README update + RBAC default flip
+
+### Added
+
+**Permission Matrix PDF** — second compliance document downloadable
+from `/admin/mcp-permissions`. Auto-generated from
+`permissions.TOOL_SCOPES` and provides a complete, auditable list of:
+
+- Role-to-scope summary matrix (✓ / — for every role × scope pair)
+- All 127 production tools grouped by required scope (`mcp:self`,
+  `mcp:read`, `mcp:audit`, `mcp:write`, `mcp:system`)
+- Per-scope explanation and the list of allowed roles
+- Default-fallback note: tools without an explicit scope tag default
+  to `mcp:write` (admin-only — safe-by-default for unknown tools)
+
+This is the document an admin or auditor pulls when they need to prove
+exactly which roles can invoke which tools. Source markdown lives in
+`docs/PERMISSION_MATRIX.md`; rendered PDF in
+`src/web/assets/manuals/MCP_PERMISSION_MATRIX.pdf`. Served from
+`/manuals/permission-matrix.pdf` (admin-only, login-gated).
+
+### Changed
+
+- **`docker-compose.yml` default for `MCP_RBAC_ENABLED` flipped from
+  `0` to `1`.** Fresh installs now ship with role-based access control
+  active by default; existing deployments are unaffected because their
+  own compose file or `.env` overrides the upstream default.
+- **README** — added a "GDPR-compliant role-based access control"
+  feature section, a "Per-user Connect-Center" section, and a new
+  `MCP_RBAC_ENABLED` row in the configuration table that links to the
+  bundled GDPR Compliance Guide PDF.
+- New i18n key `mp_matrix_pdf` in `de`, `en`, `no`.
+
+### Internal
+
+- The PDF is regenerated from `TOOL_SCOPES` via a one-shot script in
+  the build step. To regenerate manually, re-run the embedded Python
+  block under `docs/` and re-render with pandoc + headless Chrome.
+
 ## 7.2.25 (2026-04-29) — GDPR Compliance Guide (PDF download)
 
 ### Added

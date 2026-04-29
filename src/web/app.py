@@ -2139,6 +2139,34 @@ def create_app(session_secret: str) -> FastAPI:
         # transparent dorthin weitergeleitet.
         return RedirectResponse("/my/connect", status_code=302)
 
+    @app.get("/manuals/permission-matrix.pdf")
+    async def download_permission_matrix(request: Request):
+        """v7.2.26: Download the Permission Matrix PDF.
+
+        Comprehensive list of all 125 MCP tools grouped by scope, with
+        the role-to-scope summary at the top. Auto-generated from
+        permissions.TOOL_SCOPES at build time.
+        """
+        user = require_login(request)
+        if not user:
+            return RedirectResponse("/login", status_code=302)
+        if not user.get("is_admin"):
+            return JSONResponse({"detail": "Admin access required."}, status_code=403)
+        path = os.path.join(
+            os.path.dirname(__file__), "assets", "manuals",
+            "MCP_PERMISSION_MATRIX.pdf",
+        )
+        if not os.path.isfile(path):
+            return JSONResponse(
+                {"detail": "Permission matrix not bundled in this image."},
+                status_code=404,
+            )
+        return FileResponse(
+            path,
+            filename="Printix_MCP_Permission_Matrix.pdf",
+            media_type="application/pdf",
+        )
+
     @app.get("/manuals/gdpr-compliance.pdf")
     async def download_gdpr_compliance(request: Request):
         """v7.2.25: Download the GDPR Compliance Guide.

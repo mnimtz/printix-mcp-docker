@@ -46,11 +46,14 @@ services:
       CAPTURE_ENABLED: ${CAPTURE_ENABLED:-false}
 
       # --- MCP role-based access control (v7.2.23+) --------------------------
-      # 0 = inactive (default). All authenticated users can call any tool.
-      # 1 = enforce roles configured under /admin/mcp-permissions. Tools
-      #     outside the caller's scopes return permission_denied JSON.
-      # Roles + GDPR mapping are documented at /admin/mcp-permissions.
-      MCP_RBAC_ENABLED: ${MCP_RBAC_ENABLED:-0}
+      # 1 = enforce roles configured under /admin/mcp-permissions [default
+      #     for fresh installs]. Tools outside the caller's scopes return a
+      #     permission_denied JSON payload and are recorded in the audit log.
+      # 0 = pass-through. All authenticated users can call any tool. Use
+      #     this only if you need to roll back enforcement temporarily.
+      # Roles + GDPR mapping documented in the in-app PDF accessible from
+      # /admin/mcp-permissions ("GDPR Compliance Guide").
+      MCP_RBAC_ENABLED: ${MCP_RBAC_ENABLED:-1}
 
       # --- IPP/IPPS listener (cloud print) ------------------------------------
       # 0 = disabled (IPP only runs on WEB_PORT). 631 = standard IPP port.

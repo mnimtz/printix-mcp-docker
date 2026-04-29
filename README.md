@@ -24,11 +24,26 @@ Synology NAS / TrueNAS / Unraid / …).
 
 ## Feature overview
 
-**AI-assistant integration — 127 MCP tools**
+**AI-assistant integration — 125 MCP tools**
 - MCP server for [claude.ai](https://claude.ai) (Streamable HTTP), ChatGPT (SSE) and Claude Code (CLI)
 - Built-in OAuth 2.0 endpoints — no manual token juggling
 - All tools ship with structured docstrings (when-to-use / when-NOT / returns / args + concrete example prompts) so the AI picks the right tool reliably
 - See [`docs/MCP_MANUAL_EN.md`](docs/MCP_MANUAL_EN.md) / [`docs/MCP_MANUAL_DE.md`](docs/MCP_MANUAL_DE.md) for the complete tool catalogue
+
+**GDPR-compliant role-based access control (v7.2.23+)**
+- Five built-in roles mapped to GDPR articles: End User (Art. 15-22), Helpdesk (Art. 32 — separation of duties), Admin (Art. 24), Auditor / DPO (Art. 37-39), Service Account (Art. 28+32)
+- Two assignment paths: per-user override **and** per-Printix-group default ("highest role wins" on multi-group membership)
+- Live status banner on `/admin/mcp-permissions` shows whether enforcement is active
+- Built-in compliance documentation: every customer-hosted instance ships with a GDPR Compliance Guide (PDF) downloadable from the admin UI
+- Denied tool calls are recorded in the audit log for ongoing compliance review
+- Activation is opt-in via `MCP_RBAC_ENABLED` (defaults to `1` in the bundled `docker-compose.yml`)
+
+**Per-user Connect-Center (v7.2.21+)**
+- One-page personal connection profile at `/my/connect`
+- All connection data (MCP URL, OAuth ID, Secret with reveal toggle, SSE endpoint, Authorize/Token URLs) in copy-buttoned cards
+- Step-by-step instructions per platform (Claude.ai, ChatGPT, Claude Code CLI)
+- Direct downloads for the localised user manuals (DE / EN / NO)
+- Localised in DE / EN / NO; non-DE locales default to English
 
 **Workflow tools (v6.8.x / v7.2.x — AI-driven workflows)**
 - `printix_print_self` — AI generates a PDF inline and queues it on the caller's own secure-print queue (auto-PDL conversion to PCL XL)
@@ -253,6 +268,7 @@ The most important environment variables:
 |---|---|---|
 | `MCP_PUBLIC_URL` | *(empty)* | Public URL (tunnel/proxy, e.g. `https://mcp.example.com`). Can be overridden at runtime under `/admin/settings` — the DB setting takes precedence. |
 | `MCP_LOG_LEVEL` | `info` | `debug` \| `info` \| `warning` \| `error` \| `critical` |
+| `MCP_RBAC_ENABLED` | `1` *(in compose; `0` if compose is bypassed)* | **Role-based access control** for MCP tool calls. `1` enforces the roles configured at `/admin/mcp-permissions`; tools outside the caller's scope return a `permission_denied` payload and an audit-log entry. `0` is pass-through (anyone can call any tool). See the [GDPR Compliance Guide](src/web/assets/manuals/MCP_GDPR_COMPLIANCE_GUIDE.pdf) shipped in the image. |
 | `CAPTURE_ENABLED` | `false` | Separate capture server on port 8775 instead of going through the MCP port |
 | `IPP_PORT` | `0` | IPP listener port *(0 = disabled, 631 = default)* |
 | `IPPS_CERTFILE` / `IPPS_KEYFILE` | *(empty)* | TLS certificate for IPPS *(when `IPP_PORT` is set)* |
