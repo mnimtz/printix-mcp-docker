@@ -2834,15 +2834,73 @@ def create_app(session_secret: str) -> FastAPI:
         if not user or not user.get("is_admin"):
             return RedirectResponse("/login", status_code=302)
         try:
-            from db import get_all_users, count_tenants
+            from db import (
+                get_all_users, count_tenants,
+                get_tenant_full_by_user_id, _find_tenant_owner_user_id,
+            )
             users        = get_all_users()
             tenant_count = count_tenants()
         except Exception:
             users = []; tenant_count = 0
+
+        # v7.2.37: Server-Info-Karte zeigt jetzt OAuth Client ID + Secret
+        # (Reveal-Toggle wie im Connect-Center) und MCP-Port-URL —
+        # damit der Admin alle Werte für claude.ai/ChatGPT-Konfiguration
+        # auf der Dashboard-Seite findet, ohne erst zum Connect-Center
+        # navigieren zu müssen.
+        admin_tenant: dict | None = None
+        try:
+            admin_tenant = get_tenant_full_by_user_id(user["id"])
+            if not admin_tenant:
+                # Single-Tenant-Fallback wie im Connect-Center
+                owner_id = _find_tenant_owner_user_id()
+                if owner_id and owner_id != user["id"]:
+                    admin_tenant = get_tenant_full_by_user_id(owner_id)
+        except Exception as e:
+            logger.warning("admin_dashboard: tenant load failed: %s", e)
+
+        # MCP-Port-URLs separat: der MCP-Server läuft auf Port 8765
+        # (claude.ai/ChatGPT-Endpoint). Wenn public_url konfiguriert ist,
+        # wird's tunnelseitig geroutet — sonst direkter Host-Aufruf
+        # mit explizitem Port.
+        web_base = mcp_base_url_or(request)
+        # MCP_PORT aus Env oder Default
+        mcp_port_env = (os.environ.get("MCP_PORT", "") or "8765").strip()
+        # Wenn Public-URL gesetzt, MCP läuft i.d.R. unter same-host
+        # (Cloudflare Tunnel mit /mcp-Path-Routing oder separate Subdomain).
+        # Wir zeigen beides: die "saubere" public_url + die Direktadresse mit Port.
+        from urllib.parse import urlparse
+        try:
+            parsed = urlparse(web_base)
+            host_only = parsed.hostname or "localhost"
+            scheme = parsed.scheme or "http"
+        except Exception:
+            host_only = "localhost"
+            scheme = "http"
+
+        # Direkte Adressen für claude.ai (mit Port) — wichtig wenn KEIN
+        # Tunnel mit Path-Routing konfiguriert ist
+        mcp_direct = f"{scheme}://{host_only}:{mcp_port_env}/mcp"
+        sse_direct = f"{scheme}://{host_only}:{mcp_port_env}/sse"
+
+        # Ergänzende Tunnel-Info, falls aktiv
+        tunnel_info = {}
+        try:
+            from tunnel import get_manager as _tunnel_mgr
+            tunnel_info = _tunnel_mgr().status() or {}
+        except Exception:
+            pass
+
         return templates.TemplateResponse("admin_dashboard.html", {
             "request": request, "user": user,
             "users": users, "tenant_count": tenant_count,
-            "base_url": mcp_base_url_or(request), **t_ctx(request),
+            "base_url": web_base,
+            "admin_tenant": admin_tenant,
+            "mcp_port": mcp_port_env,
+            "mcp_direct_url": mcp_direct,
+            "sse_direct_url": sse_direct,
+            "tunnel_info": tunnel_info,
+            **t_ctx(request),
         })
 
     @app.get("/admin/users", response_class=HTMLResponse)

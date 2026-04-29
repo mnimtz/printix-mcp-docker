@@ -37,34 +37,142 @@
     </div>
   </div>
 
-  <!-- Server-Info -->
-  <div class="card">
-    <div class="section-title" style="margin-bottom:12px;">{{ _('admin_server_info') }}</div>
-    <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
+  <!-- ── Server-Info ──────────────────────────────────────────────────── -->
+  <div class="card" style="margin-bottom:20px;">
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
+      <div class="section-title" style="margin:0;">{{ _('admin_server_info') }}</div>
+      <a href="/my/connect" class="btn btn-secondary btn-sm">→ {{ _('admin_open_connect') }}</a>
+    </div>
+    <div class="section-sub" style="margin-bottom:14px;">{{ _('admin_server_info_sub') }}</div>
+
+    {% if tunnel_info and tunnel_info.running and tunnel_info.url %}
+    <div style="padding:10px 14px; background:#dcfce7; border-left:4px solid #16a34a; border-radius:6px; margin-bottom:14px; display:flex; align-items:center; gap:10px;">
+      <div>🟢</div>
+      <div style="flex:1; font-size:.9em;">
+        <strong style="color:#14532d;">{{ _('admin_tunnel_active') }}:</strong>
+        <code style="margin-left:6px;">{{ tunnel_info.url }}</code>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Web UI / Admin Block -->
+    <div style="font-weight:600; color:#003366; margin-bottom:6px; font-size:.92em;">🖥️ {{ _('admin_si_web') }}</div>
+    <div style="overflow-x:auto;-webkit-overflow-scrolling:touch; margin-bottom:18px;">
     <table>
       <tr>
-        <th style="width:180px;">{{ _('admin_mcp_url') }}</th>
+        <th style="width:180px;">{{ _('admin_si_web_url') }}</th>
         <td>
-          <div class="code-block" id="srv-mcp">
+          <div class="code-block" id="si-web" style="margin:0;">
+            <button class="copy-btn" onclick="copyToClipboard('si-web-val', this)">⧉</button>
+            <span id="si-web-val">{{ base_url }}</span>
+          </div>
+          <div style="font-size:.78em; color:#888; margin-top:4px;">{{ _('admin_si_web_hint') }}</div>
+        </td>
+      </tr>
+      <tr><th>{{ _('admin_healthcheck') }}</th><td><code>{{ base_url }}/health</code></td></tr>
+    </table>
+    </div>
+
+    <!-- MCP Block (für claude.ai/ChatGPT) -->
+    <div style="font-weight:600; color:#003366; margin-bottom:6px; font-size:.92em;">🤖 {{ _('admin_si_mcp') }}</div>
+    <div class="section-sub" style="margin-bottom:8px; font-size:.85em;">{{ _('admin_si_mcp_hint') | safe }}</div>
+    <div style="overflow-x:auto;-webkit-overflow-scrolling:touch; margin-bottom:18px;">
+    <table>
+      <tr>
+        <th style="width:180px;">{{ _('admin_mcp_url') }}<br><span style="font-weight:400; font-size:.75em; color:#888;">{{ _('admin_si_mcp_via_tunnel') }}</span></th>
+        <td>
+          <div class="code-block" id="srv-mcp" style="margin:0;">
             <button class="copy-btn" onclick="copyToClipboard('srv-mcp-val', this)">⧉</button>
             <span id="srv-mcp-val">{{ base_url }}/mcp</span>
           </div>
+          <div style="font-size:.78em; color:#888; margin-top:4px;">{{ _('admin_si_mcp_url_hint') }}</div>
+        </td>
+      </tr>
+      <tr>
+        <th>{{ _('admin_si_mcp_direct') }}<br><span style="font-weight:400; font-size:.75em; color:#888;">{{ _('admin_si_mcp_port_label') }}: {{ mcp_port }}</span></th>
+        <td>
+          <div class="code-block" id="srv-mcp-direct" style="margin:0;">
+            <button class="copy-btn" onclick="copyToClipboard('srv-mcp-direct-val', this)">⧉</button>
+            <span id="srv-mcp-direct-val">{{ mcp_direct_url }}</span>
+          </div>
+          <div style="font-size:.78em; color:#888; margin-top:4px;">{{ _('admin_si_mcp_direct_hint') }}</div>
         </td>
       </tr>
       <tr>
         <th>{{ _('admin_sse_url') }}</th>
         <td>
-          <div class="code-block" id="srv-sse">
+          <div class="code-block" id="srv-sse" style="margin:0;">
             <button class="copy-btn" onclick="copyToClipboard('srv-sse-val', this)">⧉</button>
             <span id="srv-sse-val">{{ base_url }}/sse</span>
           </div>
         </td>
       </tr>
-      <tr><th>{{ _('admin_oauth_authorize') }}</th><td><code>{{ base_url }}/oauth/authorize</code></td></tr>
-      <tr><th>{{ _('admin_oauth_token') }}</th><td><code>{{ base_url }}/oauth/token</code></td></tr>
-      <tr><th>{{ _('admin_healthcheck') }}</th><td><code>{{ base_url }}/health</code></td></tr>
     </table>
     </div>
+
+    <!-- OAuth Block -->
+    <div style="font-weight:600; color:#003366; margin-bottom:6px; font-size:.92em;">🔑 {{ _('admin_si_oauth') }}</div>
+    <div class="section-sub" style="margin-bottom:8px; font-size:.85em;">{{ _('admin_si_oauth_hint') }}</div>
+    <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
+    <table>
+      <tr><th style="width:180px;">{{ _('admin_oauth_authorize') }}</th><td><code>{{ base_url }}/oauth/authorize</code></td></tr>
+      <tr><th>{{ _('admin_oauth_token') }}</th><td><code>{{ base_url }}/oauth/token</code></td></tr>
+      {% if admin_tenant and admin_tenant.oauth_client_id %}
+      <tr>
+        <th>{{ _('admin_si_oauth_id') }}</th>
+        <td>
+          <div class="code-block" id="si-oid" style="margin:0;">
+            <button class="copy-btn" onclick="copyToClipboard('si-oid-val', this)">⧉</button>
+            <span id="si-oid-val">{{ admin_tenant.oauth_client_id }}</span>
+          </div>
+        </td>
+      </tr>
+      {% endif %}
+      {% if admin_tenant and admin_tenant.oauth_client_secret %}
+      <tr>
+        <th>{{ _('admin_si_oauth_secret') }}</th>
+        <td>
+          <div class="code-block" id="si-osec" style="margin:0; display:flex; align-items:center; gap:8px;">
+            <button class="copy-btn" onclick="copyToClipboard('si-osec-val', this)">⧉</button>
+            <span id="si-osec-val" data-real="{{ admin_tenant.oauth_client_secret }}" data-revealed="0" style="flex:1;">••••••••••••••••••••</span>
+            <button type="button" id="si-reveal-btn" onclick="toggleSecret()" class="btn btn-secondary btn-sm" style="font-size:.78em;">
+              👁 <span id="si-reveal-label">{{ _('cc_reveal') }}</span>
+            </button>
+          </div>
+          <div style="font-size:.78em; color:#888; margin-top:4px;">{{ _('admin_si_oauth_secret_hint') }} <a href="/settings#oauth-secret-box">/settings</a>.</div>
+        </td>
+      </tr>
+      {% else %}
+      <tr>
+        <th>{{ _('admin_si_oauth_secret') }}</th>
+        <td>
+          <span style="color:#999;">— {{ _('admin_si_no_secret') }} —</span>
+        </td>
+      </tr>
+      {% endif %}
+    </table>
+    </div>
+
   </div>
 </div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+function toggleSecret() {
+  const span = document.getElementById('si-osec-val');
+  const lbl  = document.getElementById('si-reveal-label');
+  if (!span) return;
+  const revealed = span.dataset.revealed === '1';
+  if (revealed) {
+    span.textContent = '••••••••••••••••••••';
+    span.dataset.revealed = '0';
+    if (lbl) lbl.textContent = "{{ _('cc_reveal') }}";
+  } else {
+    span.textContent = span.dataset.real || '';
+    span.dataset.revealed = '1';
+    if (lbl) lbl.textContent = "{{ _('cc_hide') }}";
+  }
+}
+</script>
 {% endblock %}

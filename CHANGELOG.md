@@ -2,6 +2,45 @@
 
 This project follows [Semantic Versioning](https://semver.org/).
 
+## 7.2.37 (2026-04-29) — Server-Info: OAuth credentials + MCP port URL on the dashboard
+
+### Changed
+The "Server Info" card on `/admin` now shows everything an admin needs
+to wire up claude.ai or ChatGPT, without leaving the dashboard:
+
+**Three logical blocks** (was previously one flat table):
+
+- **🖥️ Web management UI** — admin URL + healthcheck endpoint
+- **🤖 MCP server** — both the public-tunnel-style URL
+  (`https://your-host/mcp`) AND the direct port URL
+  (`https://your-host:8765/mcp`) with explanatory hints about which
+  to use when. The previous version only showed the tunnel-style
+  URL; users hitting Cloudflare Tunnel without /mcp path-routing
+  would silently get 404s without realising the MCP server is on
+  a separate port.
+- **🔑 OAuth credentials** — Authorize/Token URLs plus the **OAuth
+  Client ID and Client Secret** with the same reveal-toggle the
+  Connect-Center already uses. Saves a click for the most common
+  ChatGPT-connector setup flow.
+
+**Tunnel status banner** — when a Cloudflare Tunnel is active, a
+green banner at the top of the Server Info card surfaces the live
+public URL. Eliminates "is my tunnel even running?" confusion.
+
+### Implementation
+
+- `admin_dashboard` route now also loads the owner-tenant record
+  (with the `parent_user_id` fallback we already use elsewhere)
+  and computes both the tunnel-style and direct-port MCP URLs.
+- Template rewritten with three subsection headings, copy-buttons
+  on every value, and the standard reveal-toggle on the secret.
+- Single source of truth: same `cc_reveal` / `cc_hide` translation
+  keys as the Connect-Center, same `toggleSecret()` JS pattern.
+
+### i18n
+Eighteen new keys per language for the new sections, hints, and
+tunnel-active banner. Localised in `de` / `en` / `no`.
+
 ## 7.2.36 (2026-04-29) — 1-click free HTTPS for IP-only setups (sslip.io + Let's Encrypt)
 
 ### Added
