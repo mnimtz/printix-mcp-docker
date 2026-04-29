@@ -2,6 +2,61 @@
 
 This project follows [Semantic Versioning](https://semver.org/).
 
+## 7.2.29 (2026-04-29) — `/logs` page: web-side tenant log handler + employee fallback
+
+### Fixed
+**`/logs` was always empty in the web UI**, even on tenants where the
+MCP server clearly was active. Two layered bugs:
+
+1. **No web-side log handler.** The MCP server process (port 8765)
+   has a `_TenantDBHandler` that writes records into the
+   `tenant_logs` table when an authenticated tool call is in flight.
+   The web UI process (port 8080) is a separate Python process that
+   never installed the equivalent handler — meaning every login,
+   admin save, capture configuration change, and OAuth flow happened
+   silently and produced zero log rows. The `/logs` page therefore
+   showed nothing for users who interact only with the web interface.
+
+2. **Employees fell through tenant lookup.** Same single-tenant model
+   bug we fixed for the Connect-Center in v7.2.22: employees do not
+   own a `tenants` row, so `get_tenant_by_user_id(employee.id)`
+   returns `None` and the route returned an empty list even if logs
+   existed.
+
+### Fix
+
+- New `_WebTenantDBHandler` in `web/app.py` is attached to the root
+  logger at module import time. It writes web-side records into
+  `tenant_logs` with the same category mapping the MCP-side handler
+  uses (PRINTIX_API / SQL / AUTH / CAPTURE / SYSTEM). The owner
+  tenant ID is resolved lazily on first emit and cached, with a 5 s
+  retry cooldown to handle a fresh install where the tenant doesn't
+  yet exist when the first request arrives.
+- A thread-local reentrancy guard prevents `add_tenant_log` from
+  triggering further emit calls (the DB module itself uses
+  `logger.info` / `logger.warning` internally — without the guard
+  the first failed write would loop).
+- `/logs` route now applies the same parent-tenant fallback chain as
+  the Connect-Center: own tenant → parent's tenant → first owner-
+  admin tenant. Employees see the shared logs of the single tenant
+  they belong to.
+
+### What you'll see now
+
+Activity that produces log rows after this update:
+
+- All web UI requests at INFO and above (filterable in the page)
+- Login / OAuth / Bearer auth events under the AUTH category
+- Capture configuration changes (already partially logged in
+  v7.2.x; now consistent)
+- Settings saves, role changes (already logged via the audit table;
+  the in-process logger output now also hits `/logs`)
+- All MCP tool calls executed against the bearer token (these went
+  through the MCP-side handler before and continue to do so)
+
+The main page filter still defaults to DEBUG; flip to INFO if it
+becomes too noisy under load.
+
 ## 7.2.28 (2026-04-29) — Hotfix: group member counts always 0
 
 ### Fixed

@@ -93,6 +93,99 @@ async def _trigger_printix_user_sync(tenant: dict) -> dict:
     return await _asyncio.to_thread(_do_sync)
 
 
+# v7.2.29: Web-UI Tenant-Log-Handler.
+# Der MCP-Server (server.py) hat einen _TenantDBHandler der bei
+# authentifizierten Tool-Calls in tenant_logs schreibt. Die Web-UI lief
+# bisher OHNE einen solchen Handler — alle Web-Aktivität (Login,
+# Settings-Saves, Capture-Konfig, Admin-Aktionen) blieb daher unsichtbar
+# in der /logs-Anzeige. Dieser Handler füllt die Lücke.
+#
+# Single-Tenant-Setup: alle Web-Aktivität gehört zum einzigen Tenant des
+# Owner-Admins. Wir holen die Tenant-ID lazy beim ersten Emit und cachen
+# sie — die DB-Lookups bei jedem Log-Record würden sonst spürbar Latenz
+# in jeden Request einbauen.
+import threading as _web_log_threading
+import time as _web_log_time
+
+class _WebTenantDBHandler(logging.Handler):
+    """Schreibt Web-UI-Logs in tenant_logs.
+
+    Tenant-ID wird einmalig pro Prozess via _find_tenant_owner_user_id
+    aufgelöst. Re-Lookup mit 5-Sekunden-Cooldown nach Misserfolg, falls
+    der Tenant erst nach App-Start angelegt wird (frische Installation).
+    Reentrancy-Schutz via thread-local Flag — verhindert, dass
+    add_tenant_log selbst Log-Records erzeugt die wieder hier landen.
+    """
+    _CATEGORY_MAP = {
+        "printix_client": "PRINTIX_API",
+        "reporting":      "SQL",
+        "sql":            "SQL",
+        "auth":           "AUTH",
+        "oauth":          "AUTH",
+        "capture":        "CAPTURE",
+    }
+    _emit_local = _web_log_threading.local()
+
+    def __init__(self):
+        super().__init__()
+        self._cached_tid: str = ""
+        self._last_attempt: float = 0.0
+
+    def _resolve_tid(self) -> str:
+        if self._cached_tid:
+            return self._cached_tid
+        now = _web_log_time.monotonic()
+        if now - self._last_attempt < 5.0:
+            return ""
+        self._last_attempt = now
+        try:
+            from db import _find_tenant_owner_user_id, get_tenant_by_user_id
+            uid = _find_tenant_owner_user_id()
+            if not uid:
+                return ""
+            t = get_tenant_by_user_id(uid)
+            if t and t.get("id"):
+                self._cached_tid = t["id"]
+        except Exception:
+            return ""
+        return self._cached_tid
+
+    def emit(self, record: logging.LogRecord) -> None:
+        # Reentrancy-Schutz: wenn add_tenant_log selbst loggt, nicht zurückkommen
+        if getattr(self._emit_local, "in_emit", False):
+            return
+        try:
+            self._emit_local.in_emit = True
+            tid = self._resolve_tid()
+            if not tid:
+                return
+            name_lower = record.name.lower()
+            category = "SYSTEM"
+            for key, cat in self._CATEGORY_MAP.items():
+                if key in name_lower:
+                    category = cat
+                    break
+            try:
+                msg = self.format(record)
+            except Exception:
+                msg = record.getMessage()
+            from db import add_tenant_log
+            add_tenant_log(tid, record.levelname, category, msg)
+        except Exception:
+            pass  # niemals Server crashen wegen Logging
+        finally:
+            self._emit_local.in_emit = False
+
+
+_web_tenant_handler = _WebTenantDBHandler()
+_web_tenant_handler.setFormatter(logging.Formatter("%(name)s: %(message)s"))
+_web_tenant_handler.setLevel(logging.INFO)
+# An Root-Logger hängen — fängt Records aus printix.web, uvicorn,
+# fastapi, capture, oauth etc. ein. add_tenant_log selbst geht aufgrund
+# des Reentrancy-Schutzes nicht in Schleife.
+logging.getLogger().addHandler(_web_tenant_handler)
+
+
 def create_app(session_secret: str) -> FastAPI:
     app = FastAPI(title="Printix Management Console", docs_url=None, redoc_url=None)
 
@@ -3922,9 +4015,23 @@ def create_app(session_secret: str) -> FastAPI:
             return RedirectResponse("/login", status_code=302)
         tc = t_ctx(request)
         try:
-            from db import get_tenant_by_user_id, get_tenant_logs
+            # v7.2.29: Single-Tenant-Fallback — Employees haben keine
+            # eigene tenants-Zeile, hängen via parent_user_id am Owner.
+            # Gleiche Resolution wie im Connect-Center.
+            from db import (
+                get_tenant_by_user_id, get_tenant_logs,
+                _find_tenant_owner_user_id,
+            )
             tenant = get_tenant_by_user_id(user["id"])
-            tid    = tenant["id"] if tenant else None
+            if not tenant:
+                parent_id = (user.get("parent_user_id") or "").strip()
+                if parent_id:
+                    tenant = get_tenant_by_user_id(parent_id)
+                if not tenant:
+                    owner_id = _find_tenant_owner_user_id()
+                    if owner_id:
+                        tenant = get_tenant_by_user_id(owner_id)
+            tid = tenant["id"] if tenant else None
             entries = get_tenant_logs(tid, min_level=min_level, category=category) if tid else []
         except Exception as e:
             logger.error("Logs-Fehler: %s", e)
