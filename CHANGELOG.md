@@ -2,6 +2,36 @@
 
 This project follows [Semantic Versioning](https://semver.org/).
 
+## 7.2.45 (2026-04-29) — Server-Info: drop misleading "port 8765" direct URL
+
+### Fixed UX
+
+The Server-Info card on `/admin` previously listed two MCP URLs:
+
+- "MCP URL via öffentliche URL" → tunnel-style `/mcp`
+- "MCP Direkt (mit Port): 8765" → `https://host:8765/mcp`
+
+The second one was misleading: port 8765 only speaks plain HTTP, and
+most cloud NSGs / firewalls don't expose it. Customers tried it,
+got `Connection refused` or `ERR_SSL_PROTOCOL_ERROR`, and assumed the
+proxy was broken. Since v7.2.43 the proxy on the web port handles
+`/mcp` internally, the "direct" row added noise without value.
+
+Removed. The Server-Info card now shows just one clear path:
+
+```
+🤖 MCP server (for AI assistants)
+   The built-in proxy forwards /mcp, /sse, /oauth, /.well-known
+   internally to the MCP server port — you only need the web port
+   reachable from outside.
+
+   MCP URL:   <base>/mcp
+   SSE URL:   <base>/sse
+```
+
+Cleaner, no misleading port-8765 references. New i18n keys
+`admin_si_mcp_hint_v2` and `admin_si_mcp_url_hint_v2` in de/en/no.
+
 ## 7.2.44 (2026-04-29) — Auto-TLS public_url now includes the web port
 
 ### Fixed
