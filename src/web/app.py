@@ -7496,7 +7496,7 @@ def create_app(session_secret: str) -> FastAPI:
     @app.api_route("/sse", methods=["GET", "POST"])
     @app.api_route("/sse/{rest:path}", methods=["GET", "POST"])
     async def sse_proxy(request: Request, rest: str = ""):
-        return await _proxy_to_mcp(request, "/sse" + (("/" + rest) if rest else ""), stream=True)
+        return await _proxy_to_mcp(request, "/sse" + (("/" + rest) if rest else ""))
 
     @app.api_route("/oauth/{rest:path}", methods=["GET", "POST"])
     async def oauth_proxy(request: Request, rest: str):
@@ -7506,9 +7506,15 @@ def create_app(session_secret: str) -> FastAPI:
     async def wellknown_proxy(request: Request, rest: str):
         return await _proxy_to_mcp(request, "/.well-known/" + rest)
 
-    async def _proxy_to_mcp(request: Request, path: str, stream: bool = False):
-        """Internal request forwarder to the MCP server on localhost.
-        Uses httpx async streaming so SSE connections work."""
+    async def _proxy_to_mcp(request: Request, path: str):
+        """Streaming-by-default Forwarder zum MCP-Server auf localhost.
+
+        v7.2.43: Always-streaming. MCP Streamable-HTTP-Transport liefert
+        bei GET /mcp eine SSE-Stream-Response (langlebig). Mit dem alten
+        non-streaming Pfad hing httpx 300s und der Client sah "empty
+        reply from server". Mit `client.send(req, stream=True)` reichen
+        wir Status + Headers sofort durch und streamen den Body.
+        """
         try:
             import httpx as _httpx
         except Exception as e:
@@ -7516,11 +7522,12 @@ def create_app(session_secret: str) -> FastAPI:
                 {"detail": f"MCP proxy unavailable: httpx not installed ({e})"},
                 status_code=503,
             )
+        from fastapi.responses import StreamingResponse
 
         mcp_port = (os.environ.get("MCP_PORT", "") or "8765").strip()
         target = f"http://127.0.0.1:{mcp_port}{path}"
 
-        # Header durchreichen, ohne Hop-by-Hop-Header die uvicorn selbst setzt
+        # Hop-by-hop-Header rausstreichen
         excluded_request = {
             "host", "content-length", "connection", "keep-alive", "transfer-encoding",
             "upgrade", "proxy-authenticate", "proxy-authorization", "te", "trailers",
@@ -7532,73 +7539,63 @@ def create_app(session_secret: str) -> FastAPI:
 
         body = await request.body() if request.method in ("POST", "PUT", "PATCH") else None
 
-        if stream:
-            # Streaming: SSE etc. — Connection bleibt offen, Daten werden
-            # tröpfchenweise weitergereicht. Wir starten den httpx-Stream
-            # und reichen ihn als StreamingResponse durch.
-            from fastapi.responses import StreamingResponse
-            client = _httpx.AsyncClient(timeout=None)
-
-            async def _gen():
-                try:
-                    async with client.stream(
-                        request.method, target,
-                        params=request.query_params,
-                        content=body,
-                        headers=forward_headers,
-                    ) as resp:
-                        async for chunk in resp.aiter_raw():
-                            yield chunk
-                finally:
-                    try:
-                        await client.aclose()
-                    except Exception:
-                        pass
-
-            # Status + Header der ersten Antwort übernehmen — wir machen
-            # einen "headed-then-stream"-Trick: erst short HEAD-style probe,
-            # dann den echten Stream. Hier vereinfacht: einmal kurz öffnen
-            # für Status + Headers und dann re-open für Body. Pragmatisch:
-            # geben StreamingResponse mit 200 zurück und lassen den
-            # Generator die Bytes weiterleiten (Status-Code-Mismatch
-            # bleibt dabei selten relevant für SSE, das ist immer 200).
-            return StreamingResponse(_gen(), status_code=200,
-                                       media_type="text/event-stream")
-        else:
-            # Nicht-streaming: normaler Request/Response
-            async with _httpx.AsyncClient(timeout=300) as client:
-                try:
-                    resp = await client.request(
-                        request.method, target,
-                        params=request.query_params,
-                        content=body,
-                        headers=forward_headers,
-                    )
-                except _httpx.ConnectError as ce:
-                    return JSONResponse(
-                        {"detail": f"MCP server not reachable on localhost:{mcp_port} ({ce})"},
-                        status_code=502,
-                    )
-                except Exception as e:
-                    return JSONResponse(
-                        {"detail": f"MCP proxy error: {e}"},
-                        status_code=502,
-                    )
-            # Response-Header durchreichen, gleiche Liste an Hop-by-Hop
-            excluded_response = {
-                "content-length", "connection", "keep-alive", "transfer-encoding",
-                "upgrade", "proxy-authenticate", "te", "trailers",
-            }
-            out_headers = {
-                k: v for k, v in resp.headers.items()
-                if k.lower() not in excluded_response
-            }
-            return Response(
-                content=resp.content,
-                status_code=resp.status_code,
-                headers=out_headers,
-                media_type=resp.headers.get("content-type"),
+        client = _httpx.AsyncClient(timeout=None)
+        try:
+            req = client.build_request(
+                request.method, target,
+                params=request.query_params,
+                content=body,
+                headers=forward_headers,
             )
+            resp = await client.send(req, stream=True)
+        except _httpx.ConnectError as ce:
+            try:
+                await client.aclose()
+            except Exception:
+                pass
+            return JSONResponse(
+                {"detail": f"MCP server not reachable on localhost:{mcp_port} ({ce})"},
+                status_code=502,
+            )
+        except Exception as e:
+            try:
+                await client.aclose()
+            except Exception:
+                pass
+            return JSONResponse(
+                {"detail": f"MCP proxy error: {e}"},
+                status_code=502,
+            )
+
+        excluded_response = {
+            "content-length", "connection", "keep-alive", "transfer-encoding",
+            "upgrade", "proxy-authenticate", "te", "trailers",
+        }
+        out_headers = {
+            k: v for k, v in resp.headers.items()
+            if k.lower() not in excluded_response
+        }
+
+        async def _stream():
+            try:
+                async for chunk in resp.aiter_raw():
+                    yield chunk
+            finally:
+                try:
+                    await resp.aclose()
+                except Exception:
+                    pass
+                try:
+                    await client.aclose()
+                except Exception:
+                    pass
+
+        return StreamingResponse(
+            _stream(),
+            status_code=resp.status_code,
+            headers=out_headers,
+            media_type=resp.headers.get("content-type"),
+        )
 
     # v7.2.32: persistierter Tunnel-Mode → bei App-Start ggf. wiederherstellen.
     # In einem separaten Thread, damit ein nicht-erreichbarer Cloudflare-

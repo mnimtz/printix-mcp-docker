@@ -2,6 +2,56 @@
 
 This project follows [Semantic Versioning](https://semver.org/).
 
+## 7.2.43 (2026-04-29) — Hotfix: MCP-proxy was not streaming → "Empty reply from server"
+
+### Fixed
+
+The v7.2.42 proxy used a non-streaming HTTP client for `/mcp` and
+`/oauth`, but the MCP Streamable-HTTP transport returns an SSE-style
+event-stream response for `GET /mcp`. The proxy hung waiting for the
+end of the stream (300 s default timeout) and either timed out or
+closed the connection without forwarding any bytes — `curl` saw
+"Empty reply from server".
+
+### Fix
+
+All four proxy families (`/mcp`, `/sse`, `/oauth`, `/.well-known`)
+now use `httpx`'s streaming API:
+
+```python
+req  = client.build_request(method, target, ...)
+resp = await client.send(req, stream=True)   # ← streaming
+return StreamingResponse(_aiter_raw(resp), status_code=resp.status_code,
+                         headers=resp.headers,
+                         media_type=resp.headers["content-type"])
+```
+
+This works for both:
+- Immediate request/response (POST /mcp with JSON body) — single
+  chunk, streamed but small
+- Long-lived SSE streams (GET /mcp, GET /sse) — chunks as they arrive
+
+The upstream status code, headers and content-type are passed
+through faithfully (previously SSE was hardcoded to 200 +
+text/event-stream — wrong for OAuth responses).
+
+### Verification
+
+```bash
+curl -v http://localhost:8080/mcp
+# v7.2.42: "Empty reply from server" — bug
+# v7.2.43: returns the MCP server's response (auth challenge, etc.)
+```
+
+Through Cloudflare Quick Tunnel:
+
+```bash
+curl -v https://*.trycloudflare.com/mcp
+# v7.2.43: same response as direct access
+```
+
+claude.ai connector setup completes via the tunnel URL end-to-end.
+
 ## 7.2.42 (2026-04-29) — MCP-proxy on web port (Quick Tunnel single-URL fix)
 
 ### Fixed
