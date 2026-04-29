@@ -161,10 +161,38 @@ def _remove_sqlite_sidecars(target: Path) -> None:
 
 
 def _restore_to_target(extracted_file: Path, target: Path, kind: str) -> None:
+    """v7.2.40: copy + atomic-replace via temp-file in target dir.
+
+    Previously used os.replace(extracted_file, target) which fails with
+    EXDEV (Errno 18, "Invalid cross-device link") in Docker because
+    /tmp (tmpfs/overlay) and /data (mounted volume) are different file
+    systems and rename() can only operate within one fs.
+
+    Approach now:
+      1. Copy from /tmp into the same directory as the target
+         (= same filesystem).
+      2. os.replace() the temp file onto the target — atomic on the
+         target filesystem.
+    Atomicity matters for SQLite (no half-replaced DB visible to a
+    concurrent reader).
+    """
     target.parent.mkdir(parents=True, exist_ok=True)
     if kind == "sqlite":
         _remove_sqlite_sidecars(target)
-    os.replace(extracted_file, target)
+
+    staging = target.with_suffix(target.suffix + ".restore-staging")
+    try:
+        if staging.exists():
+            staging.unlink()
+        shutil.copy2(extracted_file, staging)
+        os.replace(staging, target)
+    except Exception:
+        if staging.exists():
+            try:
+                staging.unlink()
+            except Exception:
+                pass
+        raise
 
 
 def restore_backup(uploaded_zip_path: str) -> dict:

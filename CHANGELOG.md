@@ -2,6 +2,38 @@
 
 This project follows [Semantic Versioning](https://semver.org/).
 
+## 7.2.40 (2026-04-29) — Hotfix: backup restore fails with EXDEV cross-device error
+
+### Fixed
+
+**Backup restore broke with `[Errno 18] Invalid cross-device link`** in
+the Docker image. Root cause: `_restore_to_target()` used
+`os.replace(extracted_file, target)` to move the extracted backup
+artefacts from `/tmp/printix-restore-…` into `/data/`. In Docker `/tmp`
+is a tmpfs/overlayfs and `/data` is a mounted volume — different
+file systems, and the Linux kernel allows `rename()` only within one
+filesystem. The bug went unnoticed in single-fs dev environments.
+
+### Fix
+
+Two-step copy via a staging file in the target directory:
+
+1. `shutil.copy2(extracted_file, target.with_suffix(".restore-staging"))`
+   — same filesystem as the target, no EXDEV.
+2. `os.replace(staging, target)` — atomic rename on the target
+   filesystem.
+
+Atomic replace matters for SQLite restores, so concurrent readers
+never see a half-written DB file. The staging file is cleaned up on
+any error path.
+
+### Verification
+
+After the upgrade: open `/admin/settings → Backup & restore`,
+upload a previously created backup ZIP, click Restore. The error
+panel that previously showed "Errno 18 / Invalid cross-device link"
+should now show success.
+
 ## 7.2.39 (2026-04-29) — Pro features with activation codes (Basic/Pro tier)
 
 ### Added
