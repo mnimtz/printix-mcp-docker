@@ -137,7 +137,12 @@
             <div style="font-weight:500;">{{ g.name }}</div>
             <div style="font-size:.78em; color:#888;"><code>{{ g.id }}</code></div>
           </td>
-          <td style="padding:8px 10px;">{{ g.member_count if g.member_count else "—" }}</td>
+          <td style="padding:8px 10px;">
+            {% if g.member_count == 0 %}—
+            {% elif g.member_count < 0 %}<span title="Members present, exact count not exposed by Printix /groups/&lt;id&gt;">?</span>
+            {% else %}{{ g.member_count }}
+            {% endif %}
+          </td>
           <td style="padding:8px 10px;">
             <form method="post" action="/admin/mcp-permissions/group-role" style="display:flex; gap:6px; align-items:center;">
               <input type="hidden" name="group_id" value="{{ g.id }}">

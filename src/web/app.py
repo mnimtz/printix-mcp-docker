@@ -3307,10 +3307,16 @@ def create_app(session_secret: str) -> FastAPI:
                     return raw if isinstance(raw, list) else []
 
                 fetched = await _aio.to_thread(_fetch_groups)
+
+                # v7.2.28: Listen-Response liefert keinen Member-Count.
+                # Pro Gruppe parallel get_group(gid) aufrufen — der
+                # Detail-Endpoint hat HAL `_links.users` aus dem wir
+                # die echte Mitgliederzahl ableiten. Mit ~20-50 Gruppen
+                # parallelisiert via asyncio.gather sind das ca. 1 s.
+                stub_groups: list[dict] = []
                 for g in fetched or []:
                     if not isinstance(g, dict):
                         continue
-                    # Group-ID aus _links.self.href oder direkten id-Feldern
                     gid = ""
                     links = g.get("_links") or {}
                     self_link = (links.get("self") or {}).get("href") or ""
@@ -3320,24 +3326,77 @@ def create_app(session_secret: str) -> FastAPI:
                         gid = str(g.get("id") or g.get("groupId") or "")
                     if not gid:
                         continue
-                    # member_count robust ermitteln — Printix gibt mal
-                    # 'memberCount', mal 'members' (int oder list) zurück
-                    raw_mc = g.get("memberCount")
-                    if raw_mc is None:
-                        raw_mc = g.get("members")
-                    if isinstance(raw_mc, list):
-                        member_count = len(raw_mc)
-                    elif isinstance(raw_mc, (int, float)):
-                        member_count = int(raw_mc)
-                    else:
-                        try:
-                            member_count = int(str(raw_mc).strip()) if raw_mc else 0
-                        except Exception:
-                            member_count = 0
-                    live_groups.append({
+                    stub_groups.append({
                         "id": gid,
                         "name": g.get("name") or g.get("displayName") or gid,
-                        "member_count": member_count,
+                        "raw": g,
+                    })
+
+                async def _resolve_member_count(gid: str, raw_g: dict) -> int:
+                    """Versucht ohne Detail-Call auszukommen, fällt sonst
+                    auf get_group(gid) zurück. Liefert 0 bei Fehler.
+
+                    Strategie:
+                      1) Listen-Response auf bekannte Count-Felder prüfen
+                      2) get_group(gid) holen — dort sind oft 'members'
+                         als eingebettetes Array oder ein 'memberCount'
+                         Feld vorhanden
+                      3) Fallback 0
+                    """
+                    # Schritt 1: Cheap path — manche Tenants liefern doch was
+                    for key in ("memberCount", "userCount", "numMembers",
+                                "numUsers", "size", "totalMembers"):
+                        v = raw_g.get(key)
+                        if isinstance(v, (int, float)):
+                            return int(v)
+                    members_field = raw_g.get("members")
+                    if isinstance(members_field, list):
+                        return len(members_field)
+
+                    # Schritt 2: Detail-Call
+                    try:
+                        gobj = await _aio.to_thread(lambda: px.get_group(gid))
+                    except Exception as exc:
+                        logger.debug("get_group(%s) failed: %s", gid, exc)
+                        return 0
+                    if not isinstance(gobj, dict):
+                        return 0
+                    # 2a: Eingebettete Member-Listen
+                    for key in ("members", "users", "memberUsers"):
+                        v = gobj.get(key)
+                        if isinstance(v, list):
+                            return len(v)
+                    # 2b: Count-Felder im Detail-Response
+                    for key in ("memberCount", "userCount", "numMembers",
+                                "numUsers", "size", "totalMembers"):
+                        v = gobj.get(key)
+                        if isinstance(v, (int, float)):
+                            return int(v)
+                    # 2c: HAL-Hinweis vorhanden? Wenn _links.users existiert,
+                    # nehmen wir das als Indikator für "hat Mitglieder"
+                    # (count unbekannt — geben -1 zurück, Template zeigt "?")
+                    ul = ((gobj.get("_links") or {}).get("users") or {}).get("href")
+                    if ul:
+                        return -1
+                    return 0
+
+                counts = await _aio.gather(
+                    *[_resolve_member_count(s["id"], s["raw"]) for s in stub_groups],
+                    return_exceptions=True,
+                )
+
+                for stub, mc in zip(stub_groups, counts):
+                    gid = stub["id"]
+                    if isinstance(mc, Exception):
+                        mc_val = 0
+                    elif isinstance(mc, (int, float)):
+                        mc_val = int(mc)
+                    else:
+                        mc_val = 0
+                    live_groups.append({
+                        "id": gid,
+                        "name": stub["name"],
+                        "member_count": mc_val,
                         "current_role": (group_role_map.get(gid) or {}).get("mcp_role", ""),
                     })
             else:
@@ -3346,17 +3405,17 @@ def create_app(session_secret: str) -> FastAPI:
             logger.warning("MCP-Permissions: list_groups failed: %s", e)
             groups_error = "api_error"
 
-        # Aktiv-Filter: standardmäßig nur Gruppen mit member_count > 0 ODER
-        # Gruppen die bereits eine MCP-Rolle zugewiesen haben (damit eine
-        # bewusste Zuweisung nicht durch Wegfiltern unsichtbar wird, falls
-        # die Mitglieder temporär ausgesynct wurden).
+        # Aktiv-Filter: standardmäßig zeigen wir Gruppen die mindestens
+        # einen Mitglieder-Hinweis liefern (member_count > 0 ODER -1 für
+        # "HAL-Link vorhanden, exakte Zahl unbekannt") oder die bereits
+        # eine MCP-Rolle zugewiesen haben.
         # Toggle via ?show_all=1 — UI-Link unten in der Sektion.
         show_all = (request.query_params.get("show_all") or "").strip() in ("1", "true", "yes")
         total_live = len(live_groups)
         if not show_all:
             live_groups = [
                 g for g in live_groups
-                if (isinstance(g["member_count"], int) and g["member_count"] > 0)
+                if (isinstance(g["member_count"], int) and g["member_count"] != 0)
                 or g["current_role"]
             ]
         hidden_count = total_live - len(live_groups)

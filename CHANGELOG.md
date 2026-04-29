@@ -2,6 +2,43 @@
 
 This project follows [Semantic Versioning](https://semver.org/).
 
+## 7.2.28 (2026-04-29) — Hotfix: group member counts always 0
+
+### Fixed
+**Every Printix group on `/admin/mcp-permissions` showed 0 members**,
+which combined with the active-only filter introduced in v7.2.20 hid
+the entire group list from the operator. User confirmed real groups
+do have members ("DACH Sales Team has 2 users in Printix").
+
+Root cause: `client.list_groups()` returns lightweight metadata only —
+no `memberCount`, no embedded `members` array. The richer view lives
+behind `client.get_group(gid)` (the same endpoint
+`printix_get_group_members` already uses internally), but the
+permissions UI was only consuming the list response.
+
+### Fix
+For every group returned by `list_groups()` the route now:
+1. Tries the cheap path first — checks the list-response for any
+   count-shaped field (`memberCount`, `userCount`, `numMembers`,
+   `numUsers`, `size`, `totalMembers`) or an embedded `members` list.
+2. Falls back to `get_group(gid)` and inspects the same set of fields
+   on the detail response, plus the embedded `members` / `users` /
+   `memberUsers` arrays.
+3. As a last resort: if the detail response carries an HAL
+   `_links.users` href, treats the group as "has members, exact count
+   unknown" and renders `?` in the table cell.
+
+The detail calls run in parallel via `asyncio.gather` + `to_thread`,
+so the per-page latency for ~30 groups stays around one second.
+
+### UX
+- Active-filter is now `member_count != 0` (not `> 0`), so groups in
+  the "members exist but count unknown" bucket also remain visible
+  with the default filter.
+- Member-count column shows `—` for genuinely empty, the integer
+  count when known, or `?` (with hover hint) when only the existence
+  is detectable.
+
 ## 7.2.27 (2026-04-29) — Hotfix: user MCP-role override never re-displayed
 
 ### Fixed
