@@ -171,8 +171,13 @@ def request_cert(email: str, public_ip: str = "") -> dict:
         set_setting(SETTING_LAST_ERROR, "")
         # Tell the existing TLS-import flag to load cert at next uvicorn start
         set_setting("tls_enabled", "1")
-        # public_url base — use sslip.io hostname so Connect-Center reflects it
-        set_setting("public_url", f"https://{hostname}")
+        # public_url base — Connect-Center, OAuth-Redirects und MCP-URLs
+        # alle hängen daran. v7.2.44: Port-Suffix mitgeben falls der
+        # Container-Port nicht 443 ist (Default 8080). Sonst landet jeder
+        # Link auf Port 443, der typisch in Azure-NSGs blockiert ist.
+        web_port = (os.environ.get("WEB_PORT", "") or "8080").strip()
+        port_suffix = "" if web_port in ("443", "") else f":{web_port}"
+        set_setting("public_url", f"https://{hostname}{port_suffix}")
     except Exception as e:
         logger.warning("ACME: settings persist failed: %s", e)
 

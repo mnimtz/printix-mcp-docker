@@ -2,6 +2,51 @@
 
 This project follows [Semantic Versioning](https://semver.org/).
 
+## 7.2.44 (2026-04-29) — Auto-TLS public_url now includes the web port
+
+### Fixed
+
+When Auto-TLS (sslip.io + Let's Encrypt) finished successfully, it
+saved the `public_url` setting as `https://<ip-dashed>.sslip.io`
+without a port suffix. That URL implies port 443 — but uvicorn binds
+the cert on port 8080 (the WEB_PORT). Result: every Connect-Center
+link, every OAuth redirect, every MCP-tool URL pointed at port 443
+which is typically blocked by Azure NSG / cloud firewall (only
+required port 80 was opened earlier for the ACME challenge).
+
+User-visible symptom: `https://20-52-1-199.sslip.io/health` → timeout,
+but `https://20-52-1-199.sslip.io:8080/health` → works.
+
+### Fix
+
+`acme_auto.py:request_cert()` now appends the WEB_PORT to the saved
+`public_url` whenever it isn't 443:
+
+```python
+web_port = os.environ.get("WEB_PORT", "8080")
+suffix   = "" if web_port == "443" else f":{web_port}"
+set_setting("public_url", f"https://{hostname}{suffix}")
+```
+
+After this fix, fresh Auto-TLS activations save `public_url` as
+`https://<hash>.sslip.io:8080`, and every link in the UI lands on the
+right port.
+
+### Heal an already-broken install
+
+If you already activated Auto-TLS on v7.2.36–7.2.43, your
+`public_url` is wrong. Either re-activate (deactivate + re-activate
+Auto-TLS in the UI) or fix it directly:
+
+```bash
+docker exec printix-mcp sqlite3 /data/printix_multi.db \
+  "UPDATE settings SET value='https://20-52-1-199.sslip.io:8080' \
+   WHERE key='public_url';"
+```
+
+Replace the hostname with your own. Then refresh `/my/connect` — the
+copyable URLs should now include `:8080`.
+
 ## 7.2.43 (2026-04-29) — Hotfix: MCP-proxy was not streaming → "Empty reply from server"
 
 ### Fixed
