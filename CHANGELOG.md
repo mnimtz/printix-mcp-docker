@@ -2,6 +2,58 @@
 
 This project follows [Semantic Versioning](https://semver.org/).
 
+## 7.2.18 (2026-04-29) — MCP Permission Model — PR 1: Schema + Persistence + Admin UI
+
+### Added
+GDPR-compliant role-based access control foundation for MCP tool access.
+This is **PR 1 of a three-part rollout**. PR 1 ships data structures and
+the admin interface; enforcement (`@require_scope` decorator and
+`tools/list` filter) follows in PR 2.
+
+**Five roles** mapped to GDPR articles:
+
+| Role | GDPR reference |
+|------|----------------|
+| `end_user` | Art. 15-22 (data subject rights) |
+| `helpdesk` | Art. 32 (technical and organisational measures — separation of duties) |
+| `admin` | Art. 24 (controller obligations) |
+| `auditor` | Art. 37-39 (Data Protection Officer) |
+| `service_account` | Art. 28 (processor) + Art. 32 (accountability) |
+
+**Two assignment paths** — per user (explicit override) and per Printix
+group (default for all members). When a user belongs to multiple groups
+with different role assignments, the highest role wins. Auditor and
+Service Account are explicit-only; they cannot be assigned via groups
+because they are personal/system designations, not organisational scopes.
+
+### Changes
+- **`db.py`** — idempotent migration adds `users.mcp_role` column plus two
+  new tables `mcp_group_roles` and `user_group_cache`. Existing users are
+  backfilled to `mcp_role='admin'` so PR 2 enforcement does not lock
+  anyone out at activation time.
+- **`permissions.py`** (new, ~190 lines) — role catalogue, role rank,
+  bilingual labels and descriptions, `resolve_mcp_role()` (PR 1: explicit
+  override only; PR 2 will wire up group resolution against
+  `printix_list_groups`).
+- **`db.py` CRUD helpers** — `set_user_mcp_role`, `get_user_mcp_role`,
+  `set_group_mcp_role`, `get_group_mcp_role`, `list_group_mcp_roles`,
+  `delete_group_mcp_role`, `get_user_group_cache`, `set_user_group_cache`.
+- **`web/app.py`** — three new admin routes: `GET /admin/mcp-permissions`
+  (UI), `POST /admin/mcp-permissions/user-role`, `POST /admin/mcp-permissions/group-role`.
+  All actions audited via the existing `audit_log` table.
+- **`templates/admin_mcp_permissions.html`** (new) — two-section admin
+  UI: live Printix groups with role dropdown (queried via
+  `printix_client.list_groups`); user override list with full role
+  catalogue.
+- **`templates/admin_dashboard.html`** — new "🔐 MCP Permissions" entry
+  in the admin actions row.
+
+### Compatibility
+PR 1 is **fully backwards-compatible**. No MCP-call behaviour changes;
+the admin can populate roles now so they are ready when PR 2 activates
+enforcement. Cache TTL for the group-membership lookup is 5 minutes,
+deliberately conservative until live performance data exists.
+
 ## 7.2.17 (2026-04-28) — Toggle persistence bug: two more missing links
 
 ### Fixed

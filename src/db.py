@@ -483,6 +483,55 @@ def init_db() -> None:
                 "ADD COLUMN on_success TEXT NOT NULL DEFAULT 'move'"
             )
 
+    # v7.2.18: MCP-Role Permission Layer (PR 1 — Schema + Persistence).
+    # Pro User eine optional explizite MCP-Rolle (Override). Pro Printix-
+    # Gruppe eine optionale MCP-Rolle (Default-Vergabe). User-Gruppen-
+    # Mitgliedschaft wird gecached (TTL ~5 min), um Printix-API-Roundtrips
+    # bei jedem MCP-Call zu vermeiden.
+    #
+    # Backwards-Compat: Bestehende globale Admins werden auf mcp_role='admin'
+    # gesetzt, alle anderen bestehenden User auf 'admin' (PR 1 schaltet
+    # Enforcement noch NICHT scharf — niemand wird ausgesperrt). Erst PR 2
+    # aktiviert den Decorator und Tools/List-Filter; bis dahin bleibt das
+    # Verhalten identisch zu v7.2.17.
+    with _conn() as conn:
+        existing_users_cols = {
+            r[1] for r in conn.execute("PRAGMA table_info(users)").fetchall()
+        }
+        if "mcp_role" not in existing_users_cols:
+            conn.execute(
+                "ALTER TABLE users ADD COLUMN mcp_role TEXT NOT NULL DEFAULT ''"
+            )
+            # Backfill: bestehende User bekommen 'admin' als sichere Default-
+            # Override, damit beim Aktivieren von Enforcement (PR 2) niemand
+            # plötzlich ohne Rechte dasteht. Der Admin kann dann bewusst
+            # umstellen (z.B. einzelne User auf 'end_user' / 'helpdesk',
+            # oder Override entfernen damit Gruppen-Resolve greift).
+            conn.execute("UPDATE users SET mcp_role = 'admin'")
+            logger.info(
+                "Migration v7.2.18: mcp_role-Spalte angelegt; bestehende "
+                "User-Defaults auf 'admin' gesetzt"
+            )
+
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS mcp_group_roles (
+                group_id    TEXT PRIMARY KEY,
+                group_name  TEXT NOT NULL,
+                mcp_role    TEXT NOT NULL,
+                assigned_by TEXT NOT NULL DEFAULT '',
+                created_at  TEXT NOT NULL,
+                updated_at  TEXT NOT NULL
+            )
+        """)
+
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS user_group_cache (
+                user_id   TEXT PRIMARY KEY,
+                group_ids TEXT NOT NULL DEFAULT '[]',
+                cached_at TEXT NOT NULL
+            )
+        """)
+
     logger.info("DB initialisiert: %s", DB_PATH)
 
 
@@ -1040,6 +1089,186 @@ def _user_public(user: dict) -> dict:
         "created_at": user.get("created_at", ""),
         "entra_oid":  user.get("entra_oid", ""),
     }
+
+
+# ─── MCP Permissions (v7.2.18) ────────────────────────────────────────────────
+#
+# Persistence layer for the MCP role model. The actual decorator that
+# enforces these roles ships in PR 2; here we only store and retrieve.
+#
+# See src/permissions.py for the role catalogue and resolution logic.
+
+def set_user_mcp_role(user_id: str, mcp_role: str) -> bool:
+    """Sets (or clears) the explicit per-user MCP role override.
+
+    Pass an empty string to clear the override and fall back to the
+    group-derived role (PR 2) or the default end_user.
+
+    Returns True on success, False if the user does not exist.
+    """
+    if not user_id:
+        return False
+    role = (mcp_role or "").strip().lower()
+    # Validate against the known role list. Empty string is allowed
+    # (means "clear override"). Anything else is rejected for safety.
+    valid = {"", "end_user", "helpdesk", "admin", "auditor", "service_account"}
+    if role not in valid:
+        logger.warning("set_user_mcp_role: rejected unknown role '%s'", role)
+        return False
+    with _conn() as conn:
+        cur = conn.execute(
+            "UPDATE users SET mcp_role = ? WHERE id = ?",
+            (role, user_id),
+        )
+        return cur.rowcount > 0
+
+
+def get_user_mcp_role(user_id: str) -> str:
+    """Returns the explicit override only (no group resolution).
+
+    For the resolved/effective role use permissions.resolve_mcp_role().
+    """
+    if not user_id:
+        return ""
+    with _conn() as conn:
+        row = conn.execute(
+            "SELECT mcp_role FROM users WHERE id = ?", (user_id,)
+        ).fetchone()
+    if not row:
+        return ""
+    return (row["mcp_role"] or "").strip().lower()
+
+
+def set_group_mcp_role(
+    group_id: str,
+    group_name: str,
+    mcp_role: str,
+    assigned_by: str = "",
+) -> bool:
+    """Upserts an MCP-role assignment for a Printix group.
+
+    Pass mcp_role='' to remove the assignment (delete the row).
+    """
+    if not group_id:
+        return False
+    role = (mcp_role or "").strip().lower()
+    valid_assignable = {"", "end_user", "helpdesk", "admin"}
+    if role not in valid_assignable:
+        logger.warning(
+            "set_group_mcp_role: rejected non-assignable role '%s' for group %s",
+            role, group_id,
+        )
+        return False
+    now = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    with _conn() as conn:
+        if role == "":
+            cur = conn.execute(
+                "DELETE FROM mcp_group_roles WHERE group_id = ?", (group_id,)
+            )
+            return cur.rowcount > 0 or True  # idempotent delete
+        existing = conn.execute(
+            "SELECT group_id FROM mcp_group_roles WHERE group_id = ?",
+            (group_id,),
+        ).fetchone()
+        if existing:
+            conn.execute(
+                "UPDATE mcp_group_roles SET group_name = ?, mcp_role = ?, "
+                "assigned_by = ?, updated_at = ? WHERE group_id = ?",
+                (group_name, role, assigned_by, now, group_id),
+            )
+        else:
+            conn.execute(
+                "INSERT INTO mcp_group_roles "
+                "(group_id, group_name, mcp_role, assigned_by, created_at, updated_at) "
+                "VALUES (?, ?, ?, ?, ?, ?)",
+                (group_id, group_name, role, assigned_by, now, now),
+            )
+    return True
+
+
+def get_group_mcp_role(group_id: str) -> str:
+    """Returns the MCP role assigned to a Printix group, or '' if none."""
+    if not group_id:
+        return ""
+    with _conn() as conn:
+        row = conn.execute(
+            "SELECT mcp_role FROM mcp_group_roles WHERE group_id = ?",
+            (group_id,),
+        ).fetchone()
+    if not row:
+        return ""
+    return (row["mcp_role"] or "").strip().lower()
+
+
+def list_group_mcp_roles() -> list[dict]:
+    """Returns all current group→role assignments, newest first."""
+    with _conn() as conn:
+        rows = conn.execute(
+            "SELECT group_id, group_name, mcp_role, assigned_by, "
+            "       created_at, updated_at "
+            "FROM mcp_group_roles ORDER BY updated_at DESC"
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def delete_group_mcp_role(group_id: str) -> bool:
+    """Removes the MCP-role assignment for a Printix group."""
+    if not group_id:
+        return False
+    with _conn() as conn:
+        cur = conn.execute(
+            "DELETE FROM mcp_group_roles WHERE group_id = ?", (group_id,)
+        )
+    return cur.rowcount > 0
+
+
+def get_user_group_cache(user_id: str, ttl_seconds: int = 300) -> list[str] | None:
+    """Returns the cached Printix-group membership for a user.
+
+    Returns None if the cache is empty or stale (older than ttl_seconds).
+    Returns [] for users with no group memberships (cache hit, empty set).
+    """
+    import json as _json
+    if not user_id:
+        return None
+    with _conn() as conn:
+        row = conn.execute(
+            "SELECT group_ids, cached_at FROM user_group_cache WHERE user_id = ?",
+            (user_id,),
+        ).fetchone()
+    if not row:
+        return None
+    cached_at = row["cached_at"] or ""
+    try:
+        ts = datetime.fromisoformat(cached_at)
+        age = (datetime.now(timezone.utc) - ts).total_seconds()
+        if age > ttl_seconds:
+            return None
+    except Exception:
+        return None
+    try:
+        v = _json.loads(row["group_ids"] or "[]")
+        return [str(x) for x in v] if isinstance(v, list) else []
+    except Exception:
+        return None
+
+
+def set_user_group_cache(user_id: str, group_ids: list[str]) -> None:
+    """Stores or refreshes the Printix-group membership cache for a user."""
+    import json as _json
+    if not user_id:
+        return
+    payload = _json.dumps([str(x) for x in (group_ids or [])])
+    now = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    with _conn() as conn:
+        conn.execute(
+            "INSERT INTO user_group_cache (user_id, group_ids, cached_at) "
+            "VALUES (?, ?, ?) "
+            "ON CONFLICT(user_id) DO UPDATE SET "
+            "  group_ids = excluded.group_ids, "
+            "  cached_at = excluded.cached_at",
+            (user_id, payload, now),
+        )
 
 
 # ─── Entra ID SSO ───────────────────────────────────────────────────────────

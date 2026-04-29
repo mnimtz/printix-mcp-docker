@@ -3107,6 +3107,187 @@ def create_app(session_secret: str) -> FastAPI:
             logger.error("Reset-PW-Fehler: %s", e)
         return RedirectResponse(f"/admin/users/{user_id}/edit?pw_saved=1", status_code=302)
 
+    # ─── MCP Permissions (v7.2.18) ────────────────────────────────────────────
+    # GDPR-konformes Rollenmodell für MCP-Tool-Zugriffe.
+    # PR 1: Schema + Persistence + UI. PR 2 wird Decorator + tools/list-Filter
+    # nachreichen — bis dahin werden Rollen erfasst aber NICHT erzwungen.
+    @app.get("/admin/mcp-permissions", response_class=HTMLResponse)
+    async def admin_mcp_permissions(request: Request):
+        user = get_session_user(request)
+        if not user or not user.get("is_admin"):
+            return RedirectResponse("/login", status_code=302)
+        import asyncio as _aio
+        try:
+            from db import (
+                get_all_users, get_tenant_full_by_user_id,
+                list_group_mcp_roles,
+            )
+            import permissions as _perm
+        except Exception as e:
+            logger.error("MCP-Permissions: Import-Fehler: %s", e)
+            return RedirectResponse("/admin?err=import_error", status_code=302)
+
+        all_users = get_all_users() or []
+        group_role_rows = list_group_mcp_roles() or []
+        group_role_map = {r["group_id"]: r for r in group_role_rows}
+
+        # Live-Liste der aktiven Printix-Gruppen via Tenant-Credentials des
+        # angemeldeten Admins. Bei Fehlern (keine Credentials, API down)
+        # zeigen wir nur die bereits zugewiesenen Gruppen aus der DB.
+        live_groups: list[dict] = []
+        groups_error = ""
+        try:
+            tenant_full = get_tenant_full_by_user_id(user["id"])
+            if tenant_full and (tenant_full.get("print_client_id")
+                                or tenant_full.get("shared_client_id")):
+                px = _make_printix_client(tenant_full)
+
+                def _fetch_groups():
+                    raw = px.list_groups(page=0, size=200)
+                    if isinstance(raw, dict):
+                        return raw.get("groups", raw.get("content", []))
+                    return raw if isinstance(raw, list) else []
+
+                fetched = await _aio.to_thread(_fetch_groups)
+                for g in fetched or []:
+                    if not isinstance(g, dict):
+                        continue
+                    # Group-ID aus _links.self.href oder direkten id-Feldern
+                    gid = ""
+                    links = g.get("_links") or {}
+                    self_link = (links.get("self") or {}).get("href") or ""
+                    if self_link:
+                        gid = self_link.rstrip("/").split("/")[-1]
+                    if not gid:
+                        gid = str(g.get("id") or g.get("groupId") or "")
+                    if not gid:
+                        continue
+                    live_groups.append({
+                        "id": gid,
+                        "name": g.get("name") or g.get("displayName") or gid,
+                        "member_count": g.get("memberCount") or g.get("members") or "",
+                        "current_role": (group_role_map.get(gid) or {}).get("mcp_role", ""),
+                    })
+            else:
+                groups_error = "no_credentials"
+        except Exception as e:
+            logger.warning("MCP-Permissions: list_groups failed: %s", e)
+            groups_error = "api_error"
+
+        # Auch DB-Zuordnungen anzeigen, deren Gruppe nicht (mehr) in der
+        # Live-Liste ist — hilft beim Aufräumen verwaister Mappings.
+        live_ids = {g["id"] for g in live_groups}
+        orphan_groups = [
+            {"id": r["group_id"], "name": r["group_name"],
+             "member_count": "", "current_role": r["mcp_role"], "_orphan": True}
+            for r in group_role_rows
+            if r["group_id"] not in live_ids
+        ]
+
+        # Pro User: explizite Override + (für PR 2 vorbereitet) Quelle
+        users_view = []
+        for u in all_users:
+            override = (u.get("mcp_role") or "").strip().lower()
+            users_view.append({
+                "id": u.get("id", ""),
+                "username": u.get("username", ""),
+                "email": u.get("email", ""),
+                "full_name": u.get("full_name", ""),
+                "is_admin": bool(u.get("is_admin")),
+                "status": u.get("status", ""),
+                "mcp_role_override": override,
+                # PR 2: hier wird die resolved Rolle inkl. "via Gruppe XY"
+                # angezeigt. PR 1 zeigt nur den Override-Wert oder Default.
+                "mcp_role_resolved": override or "end_user",
+                "mcp_role_source": "override" if override else "default",
+            })
+
+        flash_ok = (request.query_params.get("ok") or "").strip() or None
+        flash_err = (request.query_params.get("err") or "").strip() or None
+
+        return templates.TemplateResponse("admin_mcp_permissions.html", {
+            "request": request, "user": user,
+            "users": users_view,
+            "live_groups": live_groups,
+            "orphan_groups": orphan_groups,
+            "groups_error": groups_error,
+            "all_roles": _perm.ALL_ROLES,
+            "group_assignable_roles": _perm.GROUP_ASSIGNABLE_ROLES,
+            "role_labels": _perm.ROLE_LABELS_DE,
+            "role_descriptions": _perm.ROLE_DESCRIPTIONS_DE,
+            "flash_ok": flash_ok, "flash_err": flash_err,
+            **t_ctx(request),
+        })
+
+    @app.post("/admin/mcp-permissions/user-role")
+    async def admin_mcp_set_user_role(
+        request: Request,
+        user_id: str = Form(...),
+        mcp_role: str = Form(""),
+    ):
+        admin = get_session_user(request)
+        if not admin or not admin.get("is_admin"):
+            return RedirectResponse("/login", status_code=302)
+        try:
+            from db import set_user_mcp_role, audit
+            ok = set_user_mcp_role(user_id, mcp_role)
+            if ok:
+                audit(
+                    admin["id"], "mcp_set_user_role",
+                    f"User {user_id} → mcp_role='{mcp_role or '(cleared)'}'",
+                    object_type="user", object_id=user_id,
+                )
+                return RedirectResponse(
+                    "/admin/mcp-permissions?ok=user_role_updated",
+                    status_code=302,
+                )
+            return RedirectResponse(
+                "/admin/mcp-permissions?err=user_not_found", status_code=302,
+            )
+        except Exception as e:
+            logger.error("MCP-Permissions user-role POST: %s", e)
+            return RedirectResponse(
+                "/admin/mcp-permissions?err=update_failed", status_code=302,
+            )
+
+    @app.post("/admin/mcp-permissions/group-role")
+    async def admin_mcp_set_group_role(
+        request: Request,
+        group_id: str = Form(...),
+        group_name: str = Form(""),
+        mcp_role: str = Form(""),
+    ):
+        admin = get_session_user(request)
+        if not admin or not admin.get("is_admin"):
+            return RedirectResponse("/login", status_code=302)
+        try:
+            from db import set_group_mcp_role, audit
+            ok = set_group_mcp_role(
+                group_id=group_id,
+                group_name=group_name or group_id,
+                mcp_role=mcp_role,
+                assigned_by=admin.get("id", ""),
+            )
+            if ok:
+                action = "mcp_clear_group_role" if not mcp_role else "mcp_set_group_role"
+                audit(
+                    admin["id"], action,
+                    f"Group {group_name or group_id} → '{mcp_role or '(cleared)'}'",
+                    object_type="printix_group", object_id=group_id,
+                )
+                return RedirectResponse(
+                    "/admin/mcp-permissions?ok=group_role_updated",
+                    status_code=302,
+                )
+            return RedirectResponse(
+                "/admin/mcp-permissions?err=invalid_role", status_code=302,
+            )
+        except Exception as e:
+            logger.error("MCP-Permissions group-role POST: %s", e)
+            return RedirectResponse(
+                "/admin/mcp-permissions?err=update_failed", status_code=302,
+            )
+
     @app.get("/admin/audit", response_class=HTMLResponse)
     async def admin_audit(request: Request):
         user = get_session_user(request)
