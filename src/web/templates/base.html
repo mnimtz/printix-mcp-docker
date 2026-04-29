@@ -582,7 +582,7 @@
             {% if user.role_type == 'employee' %}
               {# v6.4.2: Employees sehen nur ihren eigenen Self-Service-Bereich #}
               <a href="/my">{{ _('nav_my_portal') }}</a>
-              <a href="/my/connect">🔌 Connect-Center</a>
+              <a href="/my/connect">🔌 {{ _('cc_nav_label') }}</a>
               <a href="/logout">{{ _('nav_logout') }}</a>
             {% else %}
               {# v6.7.109: Reihenfolge — Administration, Einstellungen, dann Dashboard und Rest. #}
@@ -596,7 +596,7 @@
               <a href="/capture">{{ _('nav_capture') }}</a>
               {% if user.is_admin %}<a href="/guestprint">{{ _('nav_guestprint') }}</a>{% endif %}
               <a href="/logs">{{ _('nav_logs') }}</a>
-              <a href="/my/connect">🔌 Connect-Center</a>
+              <a href="/my/connect">🔌 {{ _('cc_nav_label') }}</a>
               {# v7.0.0: Roadmap-Nav-Link ausgeblendet. Routen /roadmap bleiben
                  für Bestandsdaten via direkt-URL erreichbar. #}
               <a href="/logout">{{ _('nav_logout') }}</a>
@@ -638,7 +638,7 @@
       {% if user.role_type == 'employee' %}
         {# v6.4.2: Employees sehen nur ihren eigenen Self-Service-Bereich #}
         <a href="/my"        onclick="closeMobileMenu()">🧑‍💼 {{ _('nav_my_portal') }}</a>
-        <a href="/my/connect" onclick="closeMobileMenu()">🔌 Connect-Center</a>
+        <a href="/my/connect" onclick="closeMobileMenu()">🔌 {{ _('cc_nav_label') }}</a>
         <a href="/logout"    onclick="closeMobileMenu()">🚪 {{ _('nav_logout') }}</a>
       {% else %}
         {# v6.7.109: Reihenfolge — Administration, Einstellungen, dann Dashboard und Rest. #}
@@ -654,7 +654,7 @@
         <a href="/capture"   onclick="closeMobileMenu()">📥 {{ _('nav_capture') }}</a>
         {% if user.is_admin %}<a href="/guestprint" onclick="closeMobileMenu()">📮 {{ _('nav_guestprint') }}</a>{% endif %}
         <a href="/logs"      onclick="closeMobileMenu()">📋 {{ _('nav_logs') }}</a>
-        <a href="/my/connect" onclick="closeMobileMenu()">🔌 Connect-Center</a>
+        <a href="/my/connect" onclick="closeMobileMenu()">🔌 {{ _('cc_nav_label') }}</a>
         {# v7.0.0: Roadmap-Nav-Link ausgeblendet (Mobile). #}
         <a href="/logout"    onclick="closeMobileMenu()">🚪 {{ _('nav_logout') }}</a>
       {% endif %}

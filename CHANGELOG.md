@@ -2,6 +2,41 @@
 
 This project follows [Semantic Versioning](https://semver.org/).
 
+## 7.2.22 (2026-04-29) — i18n for new pages + manual download fix + employee tenant fallback
+
+### Fixed
+- **Manual download links 404** — Connect-Center pointed at
+  `/static/MCP_MANUAL_*.pdf`, but the project has no `/static` mount and
+  the PDFs were never copied into the container image. Manuals are now
+  shipped under `src/web/assets/manuals/` and served from
+  `/manuals/{lang}.pdf` with proper `application/pdf` headers and
+  download filename.
+- **Employees saw "no Printix tenant assigned"** in the Connect-Center
+  even though every user shares the single-tenant configuration. Cause:
+  `get_tenant_full_by_user_id` is keyed on the user's own `id`, but
+  employees don't own a tenant row — they hang off the admin's tenant
+  via `parent_user_id`. The route now falls back to the parent's tenant,
+  and from there to any admin-owned tenant, so the page renders
+  correctly for every user role.
+
+### Added
+- **i18n keys** for the Connect-Center and the MCP Permissions admin
+  page in `de`, `en`, and `no`. The Connect-Center previously rendered
+  in German only — every label, hint, step text, example prompt,
+  reveal toggle and manual button is now translated. Same for the
+  Permissions page (groups section, user override list, role legend,
+  active/all filter, orphan cleanup confirmation).
+- **Role labels are language-aware**: `ROLE_LABELS_EN` / `ROLE_LABELS_DE`
+  picked at request time; non-DE locales default to English.
+- Nav entry uses `cc_nav_label` so the Connect-Center label appears in
+  the user's chosen language.
+
+### Internal
+- New helper route `/manuals/{lang}.pdf` (login-gated). Lang whitelist:
+  `de`, `en`, `no`.
+- Connect-Center now uses `get_tenant_full_by_user_id` chained with
+  `parent_user_id` and `_find_tenant_owner_user_id` fallbacks.
+
 ## 7.2.21 (2026-04-29) — Connect-Center replaces Help page
 
 ### Added

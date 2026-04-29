@@ -221,3 +221,225 @@ def parse_group_id_list(raw: str | None) -> list[str]:
         return [str(x) for x in v] if isinstance(v, list) else []
     except Exception:
         return []
+
+
+# ─── PR 2: Scope catalogue + permission gate ─────────────────────────────────
+#
+# Five scopes describe what kind of action a tool performs. Each tool is
+# tagged with exactly one scope. The role-to-scopes map below decides
+# which roles are allowed to execute which scopes.
+#
+# Scope semantics:
+#   mcp:self    — own data only (user-id arg must equal token holder)
+#   mcp:read    — read-only across the tenant
+#   mcp:write   — create / update / delete operations
+#   mcp:audit   — audit-log access
+#   mcp:system  — backups, demo data, time-bomb engine, system commands
+
+SCOPE_SELF   = "mcp:self"
+SCOPE_READ   = "mcp:read"
+SCOPE_WRITE  = "mcp:write"
+SCOPE_AUDIT  = "mcp:audit"
+SCOPE_SYSTEM = "mcp:system"
+
+ALL_SCOPES: tuple[str, ...] = (
+    SCOPE_SELF, SCOPE_READ, SCOPE_WRITE, SCOPE_AUDIT, SCOPE_SYSTEM,
+)
+
+# Role → set of permitted scopes. Auditor gets read + audit (DPO pattern:
+# can investigate but not change anything). Service Account is intentionally
+# empty — its scopes are whitelisted per-token in a future PR; for now any
+# call from a service account is denied unless RBAC is disabled.
+ROLE_SCOPES: dict[str, frozenset[str]] = {
+    ROLE_END_USER:        frozenset({SCOPE_SELF}),
+    ROLE_HELPDESK:        frozenset({SCOPE_SELF, SCOPE_READ}),
+    ROLE_ADMIN:           frozenset({SCOPE_SELF, SCOPE_READ, SCOPE_WRITE,
+                                     SCOPE_AUDIT, SCOPE_SYSTEM}),
+    ROLE_AUDITOR:         frozenset({SCOPE_READ, SCOPE_AUDIT}),
+    ROLE_SERVICE_ACCOUNT: frozenset(),
+}
+
+# Tool → required scope. Default for unmapped tools = SCOPE_WRITE
+# (safe-by-default: deny end_user / auditor on unknown tools until
+# explicitly tagged).
+TOOL_SCOPES: dict[str, str] = {
+    # ─── End-User self-service (truly self by design) ──────────────────────
+    # These tools either take no user-id arg (print_self uses tenant context)
+    # or are stateless helpers that don't access other users' data.
+    "printix_print_self":               SCOPE_SELF,
+    "printix_session_print":            SCOPE_SELF,
+    "printix_whoami":                   SCOPE_SELF,
+    "printix_status":                   SCOPE_SELF,
+    "printix_my_role":                  SCOPE_SELF,
+    "printix_explain_error":            SCOPE_SELF,
+    "printix_suggest_next_action":      SCOPE_SELF,
+    "printix_generate_id_code":         SCOPE_SELF,
+
+    # ─── Tools that touch other users' data — require write privileges ─────
+    # quick_print and register_card take an explicit user/recipient arg and
+    # would let end_user act on behalf of someone else. Mapped to WRITE so
+    # only helpdesk+admin can use them.
+    "printix_quick_print":              SCOPE_WRITE,
+    "printix_register_card":            SCOPE_WRITE,
+    "printix_card_enrol_assist":        SCOPE_WRITE,
+
+    # ─── Read-only across the tenant ───────────────────────────────────────
+    "printix_list_admins":              SCOPE_READ,
+    "printix_list_backups":             SCOPE_READ,
+    "printix_list_capture_profiles":    SCOPE_READ,
+    "printix_list_card_profiles":       SCOPE_READ,
+    "printix_list_cards":               SCOPE_READ,
+    "printix_list_cards_by_tenant":     SCOPE_READ,
+    "printix_list_design_options":      SCOPE_READ,
+    "printix_list_feature_requests":    SCOPE_READ,
+    "printix_list_groups":              SCOPE_READ,
+    "printix_list_jobs":                SCOPE_READ,
+    "printix_list_networks":            SCOPE_READ,
+    "printix_list_printers":            SCOPE_READ,
+    "printix_list_report_templates":    SCOPE_READ,
+    "printix_list_schedules":           SCOPE_READ,
+    "printix_list_sites":               SCOPE_READ,
+    "printix_list_snmp_configs":        SCOPE_READ,
+    "printix_list_timebombs":           SCOPE_READ,
+    "printix_list_users":               SCOPE_READ,
+    "printix_list_workstations":        SCOPE_READ,
+    "printix_get_card_details":         SCOPE_READ,
+    "printix_get_card_profile":         SCOPE_READ,
+    "printix_get_feature_request":      SCOPE_READ,
+    "printix_get_group":                SCOPE_READ,
+    "printix_get_group_members":        SCOPE_READ,
+    "printix_get_job":                  SCOPE_READ,
+    "printix_get_network":              SCOPE_READ,
+    "printix_get_network_context":      SCOPE_READ,
+    "printix_get_printer":              SCOPE_READ,
+    "printix_get_queue_context":        SCOPE_READ,
+    "printix_get_report_template":      SCOPE_READ,
+    "printix_get_site":                 SCOPE_READ,
+    "printix_get_snmp_config":          SCOPE_READ,
+    "printix_get_snmp_context":         SCOPE_READ,
+    "printix_get_user":                 SCOPE_READ,
+    "printix_get_user_card_context":    SCOPE_READ,
+    "printix_get_user_groups":          SCOPE_READ,
+    "printix_get_workstation":          SCOPE_READ,
+    "printix_find_user":                SCOPE_READ,
+    "printix_find_orphaned_mappings":   SCOPE_READ,
+    "printix_search_card":              SCOPE_READ,
+    "printix_search_card_mappings":     SCOPE_READ,
+    "printix_query_anomalies":          SCOPE_READ,
+    "printix_query_any":                SCOPE_READ,
+    "printix_query_cost_report":        SCOPE_READ,
+    "printix_query_print_stats":        SCOPE_READ,
+    "printix_query_top_printers":       SCOPE_READ,
+    "printix_query_top_users":          SCOPE_READ,
+    "printix_query_trend":              SCOPE_READ,
+    "printix_top_printers":             SCOPE_READ,
+    "printix_top_users":                SCOPE_READ,
+    "printix_describe_capture_profile": SCOPE_READ,
+    "printix_describe_user_print_pattern": SCOPE_READ,
+    "printix_resolve_printer":          SCOPE_READ,
+    "printix_resolve_recipients":       SCOPE_READ,
+    "printix_inactive_users":           SCOPE_READ,
+    "printix_jobs_stuck":               SCOPE_READ,
+    "printix_compare_periods":          SCOPE_READ,
+    "printix_cost_by_department":       SCOPE_READ,
+    "printix_print_history_natural":    SCOPE_READ,
+    "printix_print_trends":             SCOPE_READ,
+    "printix_printer_health_report":    SCOPE_READ,
+    "printix_network_printers":         SCOPE_READ,
+    "printix_site_summary":             SCOPE_READ,
+    "printix_tenant_summary":           SCOPE_READ,
+    "printix_permission_matrix":        SCOPE_READ,
+    "printix_reporting_status":         SCOPE_READ,
+    "printix_sso_status":               SCOPE_READ,
+    "printix_capture_status":           SCOPE_READ,
+    "printix_card_audit":               SCOPE_READ,
+    "printix_decode_card_value":        SCOPE_READ,
+    "printix_transform_card_value":     SCOPE_READ,
+    "printix_diagnose_user":            SCOPE_READ,
+    "printix_quota_guard":              SCOPE_READ,
+    "printix_user_360":                 SCOPE_READ,
+    "printix_suggest_profile":          SCOPE_READ,
+    "printix_natural_query":            SCOPE_READ,
+    "printix_preview_report":           SCOPE_READ,
+    "printix_get_network_context":      SCOPE_READ,
+
+    # ─── Audit-only ────────────────────────────────────────────────────────
+    "printix_query_audit_log":          SCOPE_AUDIT,
+
+    # ─── System administration ─────────────────────────────────────────────
+    "printix_create_backup":            SCOPE_SYSTEM,
+    "printix_demo_generate":            SCOPE_SYSTEM,
+    "printix_demo_rollback":            SCOPE_SYSTEM,
+    "printix_demo_setup_schema":        SCOPE_SYSTEM,
+    "printix_demo_status":              SCOPE_SYSTEM,
+    "printix_defuse_timebomb":          SCOPE_SYSTEM,
+
+    # ─── Mutations (default for all not explicitly listed) ─────────────────
+    "printix_create_user":              SCOPE_WRITE,
+    "printix_delete_user":              SCOPE_WRITE,
+    "printix_offboard_user":            SCOPE_WRITE,
+    "printix_onboard_user":             SCOPE_WRITE,
+    "printix_welcome_user":             SCOPE_WRITE,
+    "printix_create_site":              SCOPE_WRITE,
+    "printix_update_site":              SCOPE_WRITE,
+    "printix_delete_site":              SCOPE_WRITE,
+    "printix_create_network":           SCOPE_WRITE,
+    "printix_update_network":           SCOPE_WRITE,
+    "printix_delete_network":           SCOPE_WRITE,
+    "printix_create_snmp_config":       SCOPE_WRITE,
+    "printix_delete_snmp_config":       SCOPE_WRITE,
+    "printix_create_group":             SCOPE_WRITE,
+    "printix_delete_group":             SCOPE_WRITE,
+    "printix_save_report_template":     SCOPE_WRITE,
+    "printix_delete_report_template":   SCOPE_WRITE,
+    "printix_schedule_report":          SCOPE_WRITE,
+    "printix_update_schedule":          SCOPE_WRITE,
+    "printix_delete_schedule":          SCOPE_WRITE,
+    "printix_run_report_now":           SCOPE_WRITE,
+    "printix_bulk_import_cards":        SCOPE_WRITE,
+    "printix_delete_card":              SCOPE_WRITE,
+    "printix_submit_job":               SCOPE_WRITE,
+    "printix_complete_upload":          SCOPE_WRITE,
+    "printix_change_job_owner":         SCOPE_WRITE,
+    "printix_delete_job":               SCOPE_WRITE,
+    "printix_send_to_user":             SCOPE_WRITE,
+    "printix_send_to_capture":          SCOPE_WRITE,
+    "printix_print_to_recipients":      SCOPE_WRITE,
+    "printix_sync_entra_group_to_printix": SCOPE_WRITE,
+    "printix_send_test_email":          SCOPE_WRITE,
+}
+
+
+def get_tool_scope(tool_name: str) -> str:
+    """Returns the scope a tool requires. Unmapped tools default to WRITE
+    (safe-by-default: end_user/auditor cannot execute unknown tools)."""
+    return TOOL_SCOPES.get(tool_name, SCOPE_WRITE)
+
+
+def role_has_scope(role: str, scope: str) -> bool:
+    """True if the role grants the given scope."""
+    permitted = ROLE_SCOPES.get(normalize_role(role) or ROLE_END_USER, frozenset())
+    return scope in permitted
+
+
+def has_permission(role: str, tool_name: str) -> bool:
+    """True if the role is allowed to invoke this tool."""
+    return role_has_scope(role, get_tool_scope(tool_name))
+
+
+def permission_denied_payload(tool_name: str, role: str) -> dict:
+    """Standardised denial payload used by the gate wrapper."""
+    return {
+        "ok": False,
+        "error": "permission_denied",
+        "message": (
+            f"Tool '{tool_name}' requires scope '{get_tool_scope(tool_name)}', "
+            f"but your role '{role or 'end_user'}' does not include it."
+        ),
+        "your_role": role or ROLE_END_USER,
+        "required_scope": get_tool_scope(tool_name),
+        "hint": (
+            "Contact the tenant administrator to elevate your MCP role, "
+            "or use a different tool that matches your current scope."
+        ),
+    }

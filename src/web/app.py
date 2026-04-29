@@ -2098,11 +2098,28 @@ def create_app(session_secret: str) -> FastAPI:
         base = mcp_base_url_or(request)
         tenant = None
         try:
-            # Voller Record inkl. entschlüsselter Secrets — die Seite zeigt
-            # ausschließlich Daten des angemeldeten Users (eigene Tenant-
-            # Zuordnung via user["id"]). Kein Cross-User-Risiko.
-            from db import get_tenant_full_by_user_id
+            # v7.2.22: Single-Tenant-Fallback — Employees haben in der Regel
+            # KEINE eigene tenants-Zeile (v7.0.0-Refactor entfernte Orphan-
+            # Tenants). Sie hängen via users.parent_user_id am Owner-Admin.
+            # Für die Anzeige im Connect-Center bedeutet das: zuerst eigenen
+            # Tenant probieren; sonst auf den Tenant des parent_user_id
+            # zurückfallen (= der einzige existierende Tenant in diesem
+            # Single-Tenant-Setup).
+            from db import (
+                get_tenant_full_by_user_id, get_user_by_id,
+            )
             tenant = get_tenant_full_by_user_id(user["id"])
+            if not tenant:
+                # Fallback 1: parent_user_id (employee → admin)
+                parent_id = (user.get("parent_user_id") or "").strip()
+                if parent_id:
+                    tenant = get_tenant_full_by_user_id(parent_id)
+                # Fallback 2: irgendein Admin-Tenant (defensive)
+                if not tenant:
+                    from db import _find_tenant_owner_user_id
+                    owner_id = _find_tenant_owner_user_id()
+                    if owner_id and owner_id != user["id"]:
+                        tenant = get_tenant_full_by_user_id(owner_id)
         except Exception as e:
             logger.warning("connect-center: tenant load failed: %s", e)
 
@@ -2121,6 +2138,37 @@ def create_app(session_secret: str) -> FastAPI:
         # v7.2.21: Verschmilzt mit Connect-Center. Alte Bookmarks werden
         # transparent dorthin weitergeleitet.
         return RedirectResponse("/my/connect", status_code=302)
+
+    @app.get("/manuals/{lang}.pdf")
+    async def download_manual(lang: str, request: Request):
+        """v7.2.22: Liefert das MCP-Handbuch als PDF aus.
+
+        Quelle: src/web/assets/manuals/MCP_MANUAL_<LANG>.pdf
+        Erlaubt: de, en, no. Andere Sprachen → 404.
+        """
+        user = require_login(request)
+        if not user:
+            return RedirectResponse("/login", status_code=302)
+        lang = (lang or "").strip().lower()
+        if lang not in ("de", "en", "no"):
+            return JSONResponse(
+                {"detail": f"Manual not available for language '{lang}'."},
+                status_code=404,
+            )
+        path = os.path.join(
+            os.path.dirname(__file__), "assets", "manuals",
+            f"MCP_MANUAL_{lang.upper()}.pdf",
+        )
+        if not os.path.isfile(path):
+            return JSONResponse(
+                {"detail": "Manual file missing on server."},
+                status_code=404,
+            )
+        return FileResponse(
+            path,
+            filename=f"MCP_MANUAL_{lang.upper()}.pdf",
+            media_type="application/pdf",
+        )
 
     @app.get("/_legacy/help", response_class=HTMLResponse)
     async def legacy_help_page(request: Request):
@@ -3290,6 +3338,16 @@ def create_app(session_secret: str) -> FastAPI:
         flash_ok = (request.query_params.get("ok") or "").strip() or None
         flash_err = (request.query_params.get("err") or "").strip() or None
 
+        # Sprach-abhängige Rollen-Labels: für Sprachen mit eigener
+        # Übersetzung (de) eigene Dicts, sonst englische Defaults.
+        ctx = t_ctx(request)
+        if ctx.get("lang") == "de":
+            role_labels = _perm.ROLE_LABELS_DE
+            role_descriptions = _perm.ROLE_DESCRIPTIONS_DE
+        else:
+            role_labels = _perm.ROLE_LABELS_EN
+            role_descriptions = _perm.ROLE_DESCRIPTIONS_EN
+
         return templates.TemplateResponse("admin_mcp_permissions.html", {
             "request": request, "user": user,
             "users": users_view,
@@ -3300,10 +3358,10 @@ def create_app(session_secret: str) -> FastAPI:
             "hidden_inactive_count": hidden_count,
             "all_roles": _perm.ALL_ROLES,
             "group_assignable_roles": _perm.GROUP_ASSIGNABLE_ROLES,
-            "role_labels": _perm.ROLE_LABELS_DE,
-            "role_descriptions": _perm.ROLE_DESCRIPTIONS_DE,
+            "role_labels": role_labels,
+            "role_descriptions": role_descriptions,
             "flash_ok": flash_ok, "flash_err": flash_err,
-            **t_ctx(request),
+            **ctx,
         })
 
     @app.post("/admin/mcp-permissions/user-role")
