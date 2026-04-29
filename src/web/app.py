@@ -832,6 +832,25 @@ def create_app(session_secret: str) -> FastAPI:
                 "username": username, "entra_enabled": entra_on, **tc,
             })
 
+        # v7.2.41: Pro-Feature-Gate auf Login-Ebene.
+        # Free-Tier ist Admin-only WebUI. Nicht-Admin-User existieren nur als
+        # MCP-Permission-Subjects, kein Web-UI-Zugriff. Pro-Feature
+        # `print_job_mgmt` schaltet das Employee-Portal /my frei.
+        if not user.get("is_admin"):
+            try:
+                import sys as _ls
+                _ls.path.insert(0, "/app")
+                from license import is_feature_enabled
+                if not is_feature_enabled("print_job_mgmt"):
+                    return templates.TemplateResponse("login.html", {
+                        "request": request,
+                        "error": _("login_employee_locked"),
+                        "username": username, "entra_enabled": entra_on, **tc,
+                    })
+            except Exception as _le:
+                logger.warning("login pro-gate check failed: %s", _le)
+                # bei Fehler: durchlassen, lieber als Lockout
+
         request.session["user_id"] = user["id"]
         try:
             audit(user["id"], "login", "Eingeloggt")

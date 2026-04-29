@@ -581,7 +581,7 @@
           {% if user %}
             {% if user.role_type == 'employee' %}
               {# v6.4.2: Employees sehen nur ihren eigenen Self-Service-Bereich #}
-              <a href="/my">{{ _('nav_my_portal') }}</a>
+              {% if pro_print_job_mgmt_enabled %}<a href="/my">{{ _('nav_my_portal') }}</a>{% else %}<a href="/my" title="{{ _('lic_locked_badge') }}" style="opacity:.6;">🔒 {{ _('nav_my_portal') }}</a>{% endif %}
               <a href="/my/connect">🔌 {{ _('cc_nav_label') }}</a>
               <a href="/logout">{{ _('nav_logout') }}</a>
             {% else %}
@@ -590,7 +590,7 @@
               <a href="/settings">{{ _('nav_settings') }}</a>
               <a href="/dashboard">{{ _('nav_dashboard') }}</a>
               <a href="/tenant">{{ _('nav_tenant') }}</a>
-              <a href="/my">{{ _('nav_my_portal') }}</a>
+              {% if pro_print_job_mgmt_enabled %}<a href="/my">{{ _('nav_my_portal') }}</a>{% else %}<a href="/my" title="{{ _('lic_locked_badge') }}" style="opacity:.6;">🔒 {{ _('nav_my_portal') }}</a>{% endif %}
               <a href="/cards">{{ _('nav_cards') }}</a>
               <a href="/reports">{{ _('nav_reports') }}</a>
               {% if pro_capture_enabled %}<a href="/capture">{{ _('nav_capture') }}</a>{% else %}<a href="/capture" title="{{ _('lic_locked_badge') }}" style="opacity:.6;">🔒 {{ _('nav_capture') }}</a>{% endif %}
@@ -637,7 +637,7 @@
     {% if user %}
       {% if user.role_type == 'employee' %}
         {# v6.4.2: Employees sehen nur ihren eigenen Self-Service-Bereich #}
-        <a href="/my"        onclick="closeMobileMenu()">🧑‍💼 {{ _('nav_my_portal') }}</a>
+        {% if pro_print_job_mgmt_enabled %}<a href="/my" onclick="closeMobileMenu()">🧑‍💼 {{ _('nav_my_portal') }}</a>{% else %}<a href="/my" onclick="closeMobileMenu()" style="opacity:.6;">🔒 {{ _('nav_my_portal') }}</a>{% endif %}
         <a href="/my/connect" onclick="closeMobileMenu()">🔌 {{ _('cc_nav_label') }}</a>
         <a href="/logout"    onclick="closeMobileMenu()">🚪 {{ _('nav_logout') }}</a>
       {% else %}

@@ -1045,6 +1045,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "lic_locked_how":        "Wie schalte ich das frei?",
         "lic_locked_how_body":   "Pro-Features werden mit einem Aktivierungscode freigeschaltet. <strong>Fragen Sie Ihren Ansprechpartner</strong> nach dem Code und geben Sie ihn unter <em>Server-Einstellungen → Pro-Features</em> ein.",
         "lic_locked_cta":        "Code eingeben",
+        "login_employee_locked": "Anmeldung für normale Benutzer ist auf dieser Installation nicht aktiviert (Free Tier). Bitte deinen Administrator um Aktivierung des Pro-Features 'Print Job Management'.",
         "mp_gdpr_pdf":            "GDPR Compliance Guide (PDF)",
         "mp_matrix_pdf":          "Permission Matrix (PDF)",
 
@@ -2192,6 +2193,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "lic_locked_how":        "How do I unlock this?",
         "lic_locked_how_body":   "Pro features are unlocked with an activation code. <strong>Please ask your contact person</strong> for the code and enter it under <em>Server settings → Pro features</em>.",
         "lic_locked_cta":        "Enter code",
+        "login_employee_locked": "Login for regular users is not enabled on this installation (Free Tier). Please ask your administrator to activate the Pro feature \"Print Job Management\".",
         "mp_gdpr_pdf":            "GDPR Compliance Guide (PDF)",
         "mp_matrix_pdf":          "Permission Matrix (PDF)",
 
@@ -6887,6 +6889,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "lic_locked_how":        "Hvordan låser jeg opp dette?",
         "lic_locked_how_body":   "Pro-funksjoner låses opp med en aktiveringskode. <strong>Vennligst spør kontaktpersonen din</strong> om koden og skriv den inn under <em>Server-innstillinger → Pro-funksjoner</em>.",
         "lic_locked_cta":        "Skriv inn kode",
+        "login_employee_locked": "Innlogging for vanlige brukere er ikke aktivert på denne installasjonen (Free Tier). Be administratoren din om å aktivere Pro-funksjonen «Print Job Management».",
         "mp_gdpr_pdf":            "GDPR-veiledning (PDF)",
         "mp_matrix_pdf":          "Tillatelsesmatrise (PDF)",
 

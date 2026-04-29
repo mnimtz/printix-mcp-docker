@@ -194,11 +194,41 @@ def register_employee_routes(
     # MITARBEITER SELF-SERVICE (/my/*)
     # ══════════════════════════════════════════════════════════════════════
 
+    # ── Pro-Feature-Gate (v7.2.41) — print_job_mgmt ────────────────────────
+    def _printjob_locked_response(request, user):
+        """Liefert die Locked-Feature-Seite zurück, wenn print_job_mgmt
+        Pro-Feature nicht aktiviert ist. /my ist im DE-UI als
+        'Printjob Management' beschriftet — also gehört es zum gleichnamigen
+        Pro-Feature-Slot."""
+        try:
+            import sys as _ls
+            _ls.path.insert(0, "/app")
+            from license import is_feature_enabled, PRO_FEATURES
+            if is_feature_enabled("print_job_mgmt"):
+                return None
+            info = PRO_FEATURES.get("print_job_mgmt", {})
+            ctx = t_ctx(request) if t_ctx else {}
+            lang = ctx.get("lang", "en")
+            return templates.TemplateResponse("feature_locked.html", {
+                "request": request, "user": user,
+                "feature_icon":  info.get("icon", "🎫"),
+                "feature_label": info.get(f"label_{lang}", info.get("label_en", "Pro Feature")),
+                "feature_desc":  info.get(f"description_{lang}", info.get("description_en", "")),
+                **ctx,
+            })
+        except Exception:
+            return None
+
     @app.get("/my", response_class=HTMLResponse)
     async def my_dashboard(request: Request):
         user = _require_employee(request)
         if not user:
             return RedirectResponse("/login", status_code=302)
+
+        # Pro-Feature-Gate
+        locked = _printjob_locked_response(request, user)
+        if locked is not None:
+            return locked
 
         from cloudprint.db_extensions import (
             get_delegations_for_owner, get_delegations_for_delegate,
@@ -222,6 +252,10 @@ def register_employee_routes(
         user = _require_employee(request)
         if not user:
             return RedirectResponse("/login", status_code=302)
+
+        locked = _printjob_locked_response(request, user)
+        if locked is not None:
+            return locked
 
         from cloudprint.db_extensions import (
             get_tenant_for_user, get_cloudprint_jobs_for_employee,

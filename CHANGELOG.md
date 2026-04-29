@@ -2,6 +2,51 @@
 
 This project follows [Semantic Versioning](https://semver.org/).
 
+## 7.2.41 (2026-04-29) — Pro feature gating extended: Print Job Management (/my)
+
+### Fixed/Added
+
+The Pro feature `print_job_mgmt` previously had no actual gate — it was a
+"reserved license slot" but didn't lock anything. Customer expectation
+is that the German UI label "Printjob Management" (which is what the
+employee portal `/my` is called in `nav_my_portal`) IS the gated feature.
+
+This release wires up the gate properly.
+
+### Two-layer enforcement
+
+**Layer 1 — Login gate.** Non-admin users (`is_admin=False`) cannot log
+into the web UI when `print_job_mgmt` is locked. The login form rejects
+their credentials with the explicit message:
+> *"Anmeldung für normale Benutzer ist auf dieser Installation nicht
+> aktiviert (Free Tier). Bitte deinen Administrator um Aktivierung des
+> Pro-Features 'Print Job Management'."*
+
+This matches the customer's mental model: in Free Tier, regular users
+exist as **MCP-permission subjects** (RBAC roles, tool access), but the
+web UI is admin-only. Pro Tier unlocks employee self-service.
+
+**Layer 2 — Route gate.** If somehow an employee already has a session
+(e.g. license was active and got revoked), the `/my` and `/my/jobs`
+routes return the standard `feature_locked.html` page with the
+"Printjob Management" badge and description.
+
+**Nav-link masking.** The `/my` link in the desktop and mobile nav-bars
+shows a 🔒 prefix and dimmed colour when the feature is inactive, same
+pattern as `/capture` and `/guestprint`.
+
+### Implementation
+
+- `employee_routes.py` — new `_printjob_locked_response()` helper, gates
+  `/my` and `/my/jobs`. (Sub-routes like `/my/upload`, `/my/delegation`
+  are reachable only via /my, so gating the entry points covers them
+  for normal navigation. Bookmark deep-links would still reach the
+  raw routes — these can be gated incrementally if needed.)
+- `web/app.py:login_post()` — pre-session check for non-admin login
+  blocked when feature locked.
+- `base.html` — nav-link masking like the other Pro features.
+- New i18n key `login_employee_locked` in `de`, `en`, `no`.
+
 ## 7.2.40 (2026-04-29) — Hotfix: backup restore fails with EXDEV cross-device error
 
 ### Fixed
