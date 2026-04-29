@@ -2,6 +2,45 @@
 
 This project follows [Semantic Versioning](https://semver.org/).
 
+## 7.2.33 (2026-04-29) — Tunnel page UX: Named Tunnel as primary, Quick Tunnel as advanced
+
+### Changed
+
+The first cut of the tunnel page presented Quick Tunnel and Named
+Tunnel as equal options, which mis-priced them. Quick Tunnel's URL
+changes on every container restart, so it cannot be registered
+permanently in claude.ai or ChatGPT — it is only useful for a
+30-second smoke test. Named Tunnel is the path 99% of users want.
+
+The page now reflects that:
+
+- **Named Tunnel section is the prominent default**, green-bordered,
+  marked with a **RECOMMENDED** badge.
+- A built-in **5-step setup wizard** (collapsible, open by default
+  on first visit) walks the admin from "create a Cloudflare account"
+  through "paste the token here" with direct deep-links to:
+  - Cloudflare sign-up
+  - Cloudflare Zero Trust dashboard
+- The Named Tunnel form fields are now numbered (1. token, 2. domain)
+  to match the wizard.
+- The submit button reads **"Connect"** instead of "Start Named
+  Tunnel" — clearer in the context of an already-numbered flow.
+- **Quick Tunnel is moved into a collapsible details section**
+  near the bottom, summary line "30-second tests only — URL changes
+  on every restart". Inside, a yellow warning panel reiterates that
+  the URL is anonymous and changes on restart, so it cannot be
+  registered permanently in claude.ai/ChatGPT.
+
+### Translations
+Five new keys added across `de` / `en` / `no`:
+`tn_named_sub_v2`, `tn_named_badge_recommended`, `tn_named_wizard`,
+`tn_named_step1` through `tn_named_step5`, `tn_status_off_sub_v2`,
+`tn_quick_summary`, `tn_quick_warning_title`, `tn_quick_warning_body`.
+
+### No backend changes
+The tunnel manager itself (subprocess control, persistence, audit
+log) is unchanged from v7.2.32. This release is pure UX.
+
 ## 7.2.32 (2026-04-29) — Built-in Cloudflare Tunnel manager: one-click HTTPS
 
 ### Added
