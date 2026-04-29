@@ -2,6 +2,20 @@
 
 This project follows [Semantic Versioning](https://semver.org/).
 
+## 7.2.19 (2026-04-29) — Hotfix: `from_json` Jinja filter never registered in Docker repo
+
+### Fixed
+**`/admin/settings` returned 500 Internal Server Error** with
+`TemplateRuntimeError: No filter named 'from_json' found.` since v7.2.15
+(when settings.html started using the filter). The v7.2.17 CHANGELOG
+described this fix, but the code change was only landed in the
+HA-Addon sister repository — the Docker repo never received it.
+
+The filter is now registered on the Jinja environment in
+`web/app.py` right after `Jinja2Templates(...)`. None-tolerant: empty
+string, `None`, already-a-list, and already-a-dict all pass through
+without raising.
+
 ## 7.2.18 (2026-04-29) — MCP Permission Model — PR 1: Schema + Persistence + Admin UI
 
 ### Added

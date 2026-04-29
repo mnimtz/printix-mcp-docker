@@ -98,6 +98,25 @@ def create_app(session_secret: str) -> FastAPI:
 
     templates = Jinja2Templates(directory=TEMPLATES_DIR)
 
+    # v7.2.19: Jinja-Filter `from_json` — settings.html nutzt
+    # `{{ tenant.notify_events | from_json }}` um den im DB-Feld als JSON-
+    # Array gespeicherten Wert zu Python-Listen zu parsen. Ohne diesen
+    # Filter scheitert die Settings-Seite mit
+    # `TemplateRuntimeError: No filter named 'from_json' found.`
+    # (Bug shipped in v7.2.17 — CHANGELOG behauptete den Fix, der Code
+    # wurde aber nur im HA-Addon-Schwesterprojekt registriert, nie hier.)
+    def _from_json_filter(value):
+        import json as _json
+        if value in (None, "", b""):
+            return []
+        if isinstance(value, (list, dict)):
+            return value
+        try:
+            return _json.loads(value)
+        except Exception:
+            return []
+    templates.env.filters["from_json"] = _from_json_filter
+
     def current_app_version() -> str:
         version_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "VERSION")
         try:
