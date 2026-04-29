@@ -9,7 +9,10 @@
         <div class="section-title">🔐 {{ _('mp_title') }}</div>
         <div class="section-sub">{{ _('mp_subtitle') }}</div>
       </div>
-      <a href="/admin" class="btn btn-secondary btn-sm">← {{ _('mp_back') }}</a>
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <a href="/manuals/gdpr-compliance.pdf" target="_blank" class="btn btn-primary btn-sm">📄 {{ _('mp_gdpr_pdf') }}</a>
+        <a href="/admin" class="btn btn-secondary btn-sm">← {{ _('mp_back') }}</a>
+      </div>
     </div>
 
     {% if flash_ok %}

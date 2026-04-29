@@ -2139,6 +2139,32 @@ def create_app(session_secret: str) -> FastAPI:
         # transparent dorthin weitergeleitet.
         return RedirectResponse("/my/connect", status_code=302)
 
+    @app.get("/manuals/gdpr-compliance.pdf")
+    async def download_gdpr_compliance(request: Request):
+        """v7.2.25: Download the GDPR Compliance Guide.
+
+        Single English-language PDF that explains the role model, scopes,
+        audit posture, and Article-by-Article coverage. Linked from
+        /admin/mcp-permissions for procurement and DPO review.
+        """
+        user = require_login(request)
+        if not user:
+            return RedirectResponse("/login", status_code=302)
+        path = os.path.join(
+            os.path.dirname(__file__), "assets", "manuals",
+            "MCP_GDPR_COMPLIANCE_GUIDE.pdf",
+        )
+        if not os.path.isfile(path):
+            return JSONResponse(
+                {"detail": "GDPR Compliance Guide not bundled in this image."},
+                status_code=404,
+            )
+        return FileResponse(
+            path,
+            filename="Printix_MCP_GDPR_Compliance_Guide.pdf",
+            media_type="application/pdf",
+        )
+
     @app.get("/manuals/{lang}.pdf")
     async def download_manual(lang: str, request: Request):
         """v7.2.22: Liefert das MCP-Handbuch als PDF aus.

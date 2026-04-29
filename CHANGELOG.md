@@ -2,6 +2,39 @@
 
 This project follows [Semantic Versioning](https://semver.org/).
 
+## 7.2.25 (2026-04-29) — GDPR Compliance Guide (PDF download)
+
+### Added
+**Customer-facing English-language compliance document** linked from
+the top of `/admin/mcp-permissions`. The administrator can hand this
+PDF directly to a procurement reviewer, internal DPO, or external
+auditor without extra preparation.
+
+The guide covers:
+- Customer-hosted deployment model and the Article 28 implication
+  (Tungsten is not a processor of metadata that flows through MCP).
+- The five-role catalogue with GDPR article mapping
+  (End User → Art. 5/15-22, Helpdesk → Art. 32, Admin → Art. 24,
+  Auditor → Art. 37-39, Service Account → Art. 28+32).
+- Two assignment paths (per-user override + per-Printix-group default)
+  with worked examples and the highest-role-wins rule.
+- Permission-scope catalogue with the role-to-scope matrix.
+- Audit-trail structure (`audit_log` schema + denied-call logging).
+- GDPR Article-by-Article coverage (5(1)(c), 5(1)(f), 17, 24, 25,
+  28, 30, 32, 37-39) plus EU AI Act Art. 50 transparency.
+- Operational controls (Fernet, TLS, OAuth+PKCE, tool annotations).
+- Verification checklist for ongoing compliance review.
+
+PDF is bundled in the image at
+`src/web/assets/manuals/MCP_GDPR_COMPLIANCE_GUIDE.pdf` and served
+under `/manuals/gdpr-compliance.pdf` (login-gated, like the user
+manuals shipped earlier).
+
+### Changes
+- New "📄 GDPR Compliance Guide (PDF)" button on
+  `/admin/mcp-permissions` next to the "Back" button.
+- i18n key `mp_gdpr_pdf` in `de`, `en`, `no`.
+
 ## 7.2.24 (2026-04-29) — MCP Permissions: RBAC status banner
 
 ### Added
