@@ -75,27 +75,17 @@
 
     <!-- MCP Block (für claude.ai/ChatGPT) -->
     <div style="font-weight:600; color:#003366; margin-bottom:6px; font-size:.92em;">🤖 {{ _('admin_si_mcp') }}</div>
-    <div class="section-sub" style="margin-bottom:8px; font-size:.85em;">{{ _('admin_si_mcp_hint') | safe }}</div>
+    <div class="section-sub" style="margin-bottom:8px; font-size:.85em;">{{ _('admin_si_mcp_hint_v2') | safe }}</div>
     <div style="overflow-x:auto;-webkit-overflow-scrolling:touch; margin-bottom:18px;">
     <table>
       <tr>
-        <th style="width:180px;">{{ _('admin_mcp_url') }}<br><span style="font-weight:400; font-size:.75em; color:#888;">{{ _('admin_si_mcp_via_tunnel') }}</span></th>
+        <th style="width:180px;">{{ _('admin_mcp_url') }}</th>
         <td>
           <div class="code-block" id="srv-mcp" style="margin:0;">
             <button class="copy-btn" onclick="copyToClipboard('srv-mcp-val', this)">⧉</button>
             <span id="srv-mcp-val">{{ base_url }}/mcp</span>
           </div>
-          <div style="font-size:.78em; color:#888; margin-top:4px;">{{ _('admin_si_mcp_url_hint') }}</div>
-        </td>
-      </tr>
-      <tr>
-        <th>{{ _('admin_si_mcp_direct') }}<br><span style="font-weight:400; font-size:.75em; color:#888;">{{ _('admin_si_mcp_port_label') }}: {{ mcp_port }}</span></th>
-        <td>
-          <div class="code-block" id="srv-mcp-direct" style="margin:0;">
-            <button class="copy-btn" onclick="copyToClipboard('srv-mcp-direct-val', this)">⧉</button>
-            <span id="srv-mcp-direct-val">{{ mcp_direct_url }}</span>
-          </div>
-          <div style="font-size:.78em; color:#888; margin-top:4px;">{{ _('admin_si_mcp_direct_hint') }}</div>
+          <div style="font-size:.78em; color:#888; margin-top:4px;">{{ _('admin_si_mcp_url_hint_v2') }}</div>
         </td>
       </tr>
       <tr>
