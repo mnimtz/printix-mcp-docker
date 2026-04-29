@@ -81,20 +81,66 @@
 
     <!-- Step-by-step setup wizard -->
     <details {% if not status.running or status.mode != 'named' %}open{% endif %} style="margin:18px 0;">
-      <summary style="cursor:pointer; font-weight:600; color:#14532d;">📋 {{ _('tn_named_wizard') }}</summary>
-      <ol style="padding-left:24px; line-height:1.8; margin-top:12px; color:#1a1a1a;">
-        <li>
-          {{ _('tn_named_step1') | safe }}
-          <a href="https://dash.cloudflare.com/sign-up" target="_blank" rel="noopener" class="btn btn-secondary btn-sm" style="margin-left:6px;">→ Cloudflare Sign-up</a>
-        </li>
-        <li>{{ _('tn_named_step2') | safe }}</li>
-        <li>
-          {{ _('tn_named_step3') | safe }}
-          <a href="https://one.dash.cloudflare.com/" target="_blank" rel="noopener" class="btn btn-secondary btn-sm" style="margin-left:6px;">→ Zero Trust Dashboard</a>
-        </li>
-        <li>{{ _('tn_named_step4') | safe }}</li>
-        <li>{{ _('tn_named_step5') | safe }}</li>
-      </ol>
+      <summary style="cursor:pointer; font-weight:600; color:#14532d; font-size:1.02em;">📋 {{ _('tn_named_wizard') }}</summary>
+      <div style="margin-top:16px;">
+
+        <!-- Step 1 -->
+        <div style="display:flex; gap:14px; margin-bottom:18px; padding:14px; background:#fff; border-radius:8px; border:1px solid #bbf7d0;">
+          <div style="flex-shrink:0; width:32px; height:32px; background:#16a34a; color:#fff; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:700;">1</div>
+          <div style="flex:1;">
+            <div style="font-weight:700; color:#14532d; margin-bottom:6px;">{{ _('tn_step1_title') }}</div>
+            <div style="font-size:.92em; color:#444; line-height:1.6; margin-bottom:8px;">{{ _('tn_step1_body') | safe }}</div>
+            <a href="https://dash.cloudflare.com/sign-up" target="_blank" rel="noopener" class="btn btn-primary btn-sm">→ Cloudflare Sign-up</a>
+          </div>
+        </div>
+
+        <!-- Step 2 -->
+        <div style="display:flex; gap:14px; margin-bottom:18px; padding:14px; background:#fff; border-radius:8px; border:1px solid #bbf7d0;">
+          <div style="flex-shrink:0; width:32px; height:32px; background:#16a34a; color:#fff; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:700;">2</div>
+          <div style="flex:1;">
+            <div style="font-weight:700; color:#14532d; margin-bottom:6px;">{{ _('tn_step2_title') }}</div>
+            <div style="font-size:.92em; color:#444; line-height:1.6;">{{ _('tn_step2_body') | safe }}</div>
+          </div>
+        </div>
+
+        <!-- Step 3 -->
+        <div style="display:flex; gap:14px; margin-bottom:18px; padding:14px; background:#fff; border-radius:8px; border:1px solid #bbf7d0;">
+          <div style="flex-shrink:0; width:32px; height:32px; background:#16a34a; color:#fff; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:700;">3</div>
+          <div style="flex:1;">
+            <div style="font-weight:700; color:#14532d; margin-bottom:6px;">{{ _('tn_step3_title') }}</div>
+            <div style="font-size:.92em; color:#444; line-height:1.6; margin-bottom:8px;">{{ _('tn_step3_body') | safe }}</div>
+            <a href="https://one.dash.cloudflare.com/" target="_blank" rel="noopener" class="btn btn-primary btn-sm">→ Zero Trust Dashboard</a>
+          </div>
+        </div>
+
+        <!-- Step 4 -->
+        <div style="display:flex; gap:14px; margin-bottom:18px; padding:14px; background:#fff; border-radius:8px; border:1px solid #bbf7d0;">
+          <div style="flex-shrink:0; width:32px; height:32px; background:#16a34a; color:#fff; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:700;">4</div>
+          <div style="flex:1;">
+            <div style="font-weight:700; color:#14532d; margin-bottom:6px;">{{ _('tn_step4_title') }}</div>
+            <div style="font-size:.92em; color:#444; line-height:1.6;">{{ _('tn_step4_body') | safe }}</div>
+          </div>
+        </div>
+
+        <!-- Step 5 -->
+        <div style="display:flex; gap:14px; margin-bottom:18px; padding:14px; background:#fff; border-radius:8px; border:1px solid #bbf7d0;">
+          <div style="flex-shrink:0; width:32px; height:32px; background:#16a34a; color:#fff; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:700;">5</div>
+          <div style="flex:1;">
+            <div style="font-weight:700; color:#14532d; margin-bottom:6px;">{{ _('tn_step5_title') }}</div>
+            <div style="font-size:.92em; color:#444; line-height:1.6;">{{ _('tn_step5_body') | safe }}</div>
+          </div>
+        </div>
+
+        <!-- Step 6 - tie to form -->
+        <div style="display:flex; gap:14px; margin-bottom:8px; padding:14px; background:#dcfce7; border-radius:8px; border:2px solid #16a34a;">
+          <div style="flex-shrink:0; width:32px; height:32px; background:#14532d; color:#fff; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:700;">6</div>
+          <div style="flex:1;">
+            <div style="font-weight:700; color:#14532d; margin-bottom:6px;">{{ _('tn_step6_title') }}</div>
+            <div style="font-size:.92em; color:#1a1a1a; line-height:1.6;">{{ _('tn_step6_body') | safe }}</div>
+          </div>
+        </div>
+
+      </div>
     </details>
 
     <form method="post" action="/admin/tunnel/start-named" style="display:flex; flex-direction:column; gap:14px; padding:14px; background:#fff; border-radius:8px; border:1px solid #bbf7d0;">

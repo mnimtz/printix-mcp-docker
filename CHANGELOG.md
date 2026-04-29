@@ -2,6 +2,40 @@
 
 This project follows [Semantic Versioning](https://semver.org/).
 
+## 7.2.34 (2026-04-29) — Tunnel page: detailed in-line setup wizard
+
+### Changed
+
+The Step-by-step wizard on `/admin/tunnel` is now a complete walkthrough,
+not a placeholder. Each of the six steps is rendered as its own
+numbered card with a title and a body that includes:
+
+- Step 1 — direct link to Cloudflare sign-up
+- Step 2 — three concrete domain options (move existing, buy new at
+  ~10€/year, or just delegate a subdomain via CNAME) so the operator
+  knows what to do regardless of their starting point
+- Step 3 — exact click sequence in the Zero Trust dashboard
+- Step 4 — explicit warning that the cloudflared install commands
+  shown by Cloudflare must NOT be executed (we handle that internally)
+  but the embedded token must be copied
+- Step 5 — a small configuration table with the four required field
+  values (Subdomain, Domain, Service Type, URL) so the user can't
+  mistype the localhost:8080 service URL
+- Step 6 — explicit hand-off to the form below ("paste the token from
+  step 4 and the subdomain from step 5"), highlighted in a
+  contrasting green block to mark the end of the wizard
+
+### Translations
+Six new key pairs (`tn_step1_title` / `tn_step1_body` through
+`tn_step6_title` / `tn_step6_body`) in `de` / `en` / `no`. Localised
+domain price examples per region (10€ for de, $10 for en, 100kr for no).
+
+### Visual
+Each step is a flex-row with a green numbered avatar on the left and
+the title/body on the right. The 6th step uses a darker green
+background and a thicker border to mark the transition from "go to
+Cloudflare" to "come back here and submit the form".
+
 ## 7.2.33 (2026-04-29) — Tunnel page UX: Named Tunnel as primary, Quick Tunnel as advanced
 
 ### Changed
