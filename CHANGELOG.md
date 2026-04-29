@@ -2,6 +2,28 @@
 
 This project follows [Semantic Versioning](https://semver.org/).
 
+## 7.2.27 (2026-04-29) — Hotfix: user MCP-role override never re-displayed
+
+### Fixed
+**`/admin/mcp-permissions` would always show "no override"** for every
+user after a save+refresh, even though the value was correctly written
+to the database. Both the user override save (PR 1) and the new RBAC
+enforcement (PR 2) appeared to be ignoring the data.
+
+Root cause: `db._user_public()` filters the SELECT result down to a
+"safe" public dict before returning it. The list of permitted fields
+was authored before the `mcp_role` column existed and the new field
+was being silently dropped on the read path. UPDATE worked; SELECT
+came back clean.
+
+Fix: include `mcp_role` in the `_user_public()` projection. This also
+fixes RBAC role resolution at MCP-call time, which goes through the
+same code path via `db.get_user_by_id()`.
+
+Single-line change. Affects every page that reads user records —
+admin lists, RBAC gate, audit display, employee dashboards. All now
+see the persisted `mcp_role` value.
+
 ## 7.2.26 (2026-04-29) — Permission Matrix PDF + README update + RBAC default flip
 
 ### Added

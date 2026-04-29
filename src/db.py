@@ -1088,6 +1088,12 @@ def _user_public(user: dict) -> dict:
         "invitation_accepted_at": user.get("invitation_accepted_at", ""),
         "created_at": user.get("created_at", ""),
         "entra_oid":  user.get("entra_oid", ""),
+        # v7.2.27: MCP role override — needed by /admin/mcp-permissions
+        # to render the User-Override section. Without this, set values
+        # were persisted to the DB but the next page load would always
+        # show "no override" because the field was being filtered out
+        # before the route could read it.
+        "mcp_role":   user.get("mcp_role", ""),
     }
 
 
