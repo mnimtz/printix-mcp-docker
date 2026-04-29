@@ -2,8 +2,8 @@
 
 **Comprehensive list of MCP tools and which roles can invoke them**
 
-- Total tools tagged: **127**
-- Generated for Printix MCP v7.2.26
+- Total tools tagged: **129**
+- Generated for Printix MCP v7.2.30
 - Source of truth: `src/permissions.py` (TOOL_SCOPES, ROLE_SCOPES)
 
 ## Role-to-scope summary
@@ -20,22 +20,24 @@
 
 ## Scope `mcp:self` — Own data only
 
-Tools that act on the caller's own data — print own jobs, look up own status, ask self-introspection questions.
+Tools that act on the caller's own data — print own jobs, look up own status, ask self-introspection questions, exercise own GDPR rights.
 
 **Allowed roles:** End User, Helpdesk, Admin
 
-**Tool count:** 8
+**Tool count:** 10
 
 | # | Tool |
 |---|------|
 | 1 | `printix_explain_error` |
 | 2 | `printix_generate_id_code` |
 | 3 | `printix_my_role` |
-| 4 | `printix_print_self` |
-| 5 | `printix_session_print` |
-| 6 | `printix_status` |
-| 7 | `printix_suggest_next_action` |
-| 8 | `printix_whoami` |
+| 4 | `printix_personal_data_export` |
+| 5 | `printix_personal_data_purge_request` |
+| 6 | `printix_print_self` |
+| 7 | `printix_session_print` |
+| 8 | `printix_status` |
+| 9 | `printix_suggest_next_action` |
+| 10 | `printix_whoami` |
 
 ---
 
@@ -215,4 +217,5 @@ Backups, demo data, time-bomb engine, sensitive system commands.
 - Tools not listed in this document fall back to `mcp:write` by default. This is intentional safe-by-default behaviour: any tool added to the server without an explicit scope tag remains admin-only until an operator categorises it.
 - The Service Account role has no implicit scopes; permissions for non-human tokens are whitelisted explicitly per token.
 - The MCP introspection tool `printix_my_role` is always available regardless of role — every user can ask their AI assistant *"what can I do?"* and get a structured answer back.
+- GDPR data-subject-rights tools (`printix_personal_data_export`, `printix_personal_data_purge_request`) carry scope `mcp:self` so every user can exercise Art. 15 and Art. 17 rights on their own data; the tool body enforces the same self-only restriction at the argument level. Helpdesk and admin roles can additionally act on any subject's data.
 - Denied calls are recorded with `action='mcp_permission_denied'` in the `audit_log` table for compliance review.

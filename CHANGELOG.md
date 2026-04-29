@@ -2,6 +2,81 @@
 
 This project follows [Semantic Versioning](https://semver.org/).
 
+## 7.2.30 (2026-04-29) — GDPR data subject rights: two new MCP tools
+
+### Added
+
+**`printix_personal_data_export` — GDPR Article 15 (right of access)**
+
+Every authenticated user can ask their AI assistant *"What data do
+you have about me?"* and receive a structured ZIP archive on the spot.
+The tool gathers from the live tenant:
+
+- Printix user profile (id, email, name, status, tenant)
+- Group memberships (resolved via the existing reverse-lookup helper)
+- All RFID/HID/Mifare cards mapped to the subject
+- Last 500 audit-log entries authored by the subject
+- Pending and resolved onboarding time-bombs
+- Print statistics for the last 365 days (when SQL reporting is
+  configured)
+- The MCP role override, if set
+
+Output is a ZIP with one JSON per category plus a README.txt
+explaining each artefact. End users are restricted to their own
+record by a self-check inside the tool body; Helpdesk and Admin
+roles can export on behalf of any subject in support of formal
+data-subject access requests.
+
+Scope: `mcp:self` — every role can invoke; the tool body enforces
+the self-or-elevated rule.
+
+**`printix_personal_data_purge_request` — GDPR Article 17 (right to erasure)**
+
+A non-destructive request channel. The tool does **not** delete
+anything by itself — end users are not authorised to remove records.
+Instead it:
+
+1. Compiles the same data summary the export tool produces.
+2. Records the request in the audit log with
+   `action='gdpr_purge_requested'` and a unique `request_id`.
+3. Sends a structured HTML email to the configured `alert_recipients`
+   (tenant administrators) containing the summary, the requester's
+   identity, the optional reason, and a checklist of next steps
+   (review identity → execute deletion → notify subject within
+   one month per Art. 12(3)).
+4. Returns the request ID and the list of notified administrators.
+
+The administrator reviews each request and executes the deletion
+manually via `printix_offboard_user` (preserves audit trail) or
+`printix_delete_user` (full erasure). This deliberate two-step
+design protects against malicious self-purge, accidental data loss,
+and ensures every deletion is traceable to a specific reviewer.
+
+Scope: `mcp:self` — same self-or-elevated semantics as the export
+tool. Helpdesk and Admin can file a request on behalf of another
+user.
+
+### Documentation refresh
+
+- **GDPR Compliance Guide PDF** — added a new "Data Subject Rights"
+  section describing both tools, plus rows for Art. 12(3) and
+  Art. 15 in the article-coverage table. Re-rendered.
+- **Permission Matrix PDF** — auto-regenerated with the two new
+  tools listed under `mcp:self`. 129 production tools tagged.
+- **README** — added a "GDPR data subject rights" feature section
+  and updated the tool count from 125 to 129.
+
+### Internal helpers
+- `_resolve_data_subject(c, email_or_id)` — finds a Printix user by
+  email or UUID; reuses `_collect_all_users`.
+- `_gather_personal_data(c, target)` — single source for both
+  export and purge_request, ensures the request summary in the
+  admin notification matches what would actually be exported.
+- `_build_personal_data_zip(data)` — one ZIP, one JSON per category,
+  README.txt explaining the contents.
+- `_caller_email()` / `_caller_is_admin_or_helpdesk()` — lightweight
+  helpers used by both tools to enforce the self-or-elevated rule.
+
 ## 7.2.29 (2026-04-29) — `/logs` page: web-side tenant log handler + employee fallback
 
 ### Fixed

@@ -366,6 +366,14 @@ TOOL_SCOPES: dict[str, str] = {
     # ─── Audit-only ────────────────────────────────────────────────────────
     "printix_query_audit_log":          SCOPE_AUDIT,
 
+    # ─── GDPR Data Subject Rights (v7.2.30) ────────────────────────────────
+    # Both tools enforce a self-or-elevated check inside the function body
+    # (end users may only act on their own data; helpdesk/admin may act on
+    # any user). The decorator scope below is the *minimum* role that may
+    # invoke the tool at all.
+    "printix_personal_data_export":         SCOPE_SELF,
+    "printix_personal_data_purge_request":  SCOPE_SELF,
+
     # ─── System administration ─────────────────────────────────────────────
     "printix_create_backup":            SCOPE_SYSTEM,
     "printix_demo_generate":            SCOPE_SYSTEM,

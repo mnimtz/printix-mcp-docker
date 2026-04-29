@@ -24,7 +24,7 @@ Synology NAS / TrueNAS / Unraid / …).
 
 ## Feature overview
 
-**AI-assistant integration — 125 MCP tools**
+**AI-assistant integration — 129 MCP tools**
 - MCP server for [claude.ai](https://claude.ai) (Streamable HTTP), ChatGPT (SSE) and Claude Code (CLI)
 - Built-in OAuth 2.0 endpoints — no manual token juggling
 - All tools ship with structured docstrings (when-to-use / when-NOT / returns / args + concrete example prompts) so the AI picks the right tool reliably
@@ -34,9 +34,14 @@ Synology NAS / TrueNAS / Unraid / …).
 - Five built-in roles mapped to GDPR articles: End User (Art. 15-22), Helpdesk (Art. 32 — separation of duties), Admin (Art. 24), Auditor / DPO (Art. 37-39), Service Account (Art. 28+32)
 - Two assignment paths: per-user override **and** per-Printix-group default ("highest role wins" on multi-group membership)
 - Live status banner on `/admin/mcp-permissions` shows whether enforcement is active
-- Built-in compliance documentation: every customer-hosted instance ships with a GDPR Compliance Guide (PDF) downloadable from the admin UI
+- Built-in compliance documentation: every customer-hosted instance ships with a GDPR Compliance Guide (PDF) and a Permission Matrix (PDF) downloadable from the admin UI
 - Denied tool calls are recorded in the audit log for ongoing compliance review
 - Activation is opt-in via `MCP_RBAC_ENABLED` (defaults to `1` in the bundled `docker-compose.yml`)
+
+**GDPR data subject rights — built-in MCP tools (v7.2.30+)**
+- `printix_personal_data_export` (GDPR Art. 15) — every user can ask their AI assistant *"What data do you have about me?"* and receive a structured ZIP with profile, group memberships, cards, audit-log entries, time-bombs, print statistics and MCP role override
+- `printix_personal_data_purge_request` (GDPR Art. 17) — non-destructive deletion request: records the request in the audit log, sends a structured email to the configured tenant admins with the data summary and the requester's reason, returns a request ID. The admin reviews and executes the deletion via `printix_offboard_user` / `printix_delete_user` within the GDPR Art. 12(3) one-month deadline
+- End users are restricted to their own data (self-check at the argument level); Helpdesk and Admin can act on any subject in support of formal access/deletion requests
 
 **Per-user Connect-Center (v7.2.21+)**
 - One-page personal connection profile at `/my/connect`

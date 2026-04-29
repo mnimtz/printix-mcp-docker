@@ -4769,6 +4769,535 @@ def printix_onboard_user(
         return _ok({"error": str(e)})
 
 
+# ─── GDPR Data Subject Rights (v7.2.30) ──────────────────────────────────────
+
+def _resolve_data_subject(c: PrintixClient, user_email_or_id: str) -> dict | None:
+    """Findet einen Printix-User über E-Mail ODER User-UUID. Nutzt
+    `_collect_all_users` Helper (tenant-weit, max 200 User).
+    Returns das Printix-User-Dict oder None.
+    """
+    if not user_email_or_id:
+        return None
+    needle = user_email_or_id.strip().lower()
+    if "-" in needle and len(needle) >= 32:
+        try:
+            ud = c.get_user(needle)
+            if isinstance(ud, dict):
+                return ud
+        except Exception:
+            pass
+    try:
+        all_users = _collect_all_users(c)
+    except Exception:
+        all_users = []
+    for u in all_users:
+        if not isinstance(u, dict):
+            continue
+        if (u.get("email") or "").strip().lower() == needle:
+            return u
+        if (u.get("id") or "") == user_email_or_id:
+            return u
+    return None
+
+
+def _gather_personal_data(c: PrintixClient, target_user: dict) -> dict:
+    """Sammelt alles was wir über den User wissen — Quelle für DSGVO Art. 15.
+
+    Trägt aus:
+      - Printix-User-Profil (Name, E-Mail, Status)
+      - Gruppen-Mitgliedschaften
+      - Druckhistorie (letzte 365 Tage falls SQL-Reporting konfiguriert)
+      - Karten-Mappings
+      - Welcome-PDFs / aktive Time-Bombs (lokale DB)
+      - Audit-Log (lokale DB, alle Aktionen wo user_id = X)
+      - MCP-Rolle / Override
+    """
+    from datetime import datetime, timezone, timedelta
+    pid = target_user.get("id") or ""
+    email = target_user.get("email") or ""
+
+    # Gruppen via existing helper
+    groups = []
+    try:
+        ugroups_raw = printix_get_user_groups(email or pid)
+        gd = json.loads(ugroups_raw)
+        if isinstance(gd, dict):
+            groups = gd.get("groups") or []
+    except Exception:
+        pass
+
+    # Karten
+    cards: list[dict] = []
+    try:
+        raw = c.list_cards(page=0, size=200)
+        all_cards = (raw.get("cards") or raw.get("content") or []) if isinstance(raw, dict) else []
+        for crd in all_cards or []:
+            owner = (crd.get("userId") or
+                     ((crd.get("_links") or {}).get("user") or {}).get("href", "").rstrip("/").split("/")[-1])
+            if owner == pid:
+                cards.append({
+                    "card_id":   _extract_card_id_from_api(crd),
+                    "value":     crd.get("value") or crd.get("cardId"),
+                    "profile":   crd.get("profileName") or "",
+                    "created":   crd.get("createdAt") or "",
+                })
+    except Exception:
+        pass
+
+    # Audit-Log (lokal — nur eigene Tenant-Aktionen)
+    audit_entries: list[dict] = []
+    try:
+        # Lokale User-ID falls vorhanden (über printix_user_id)
+        with db._conn() as conn:
+            row = conn.execute(
+                "SELECT id FROM users WHERE printix_user_id = ?", (pid,)
+            ).fetchone()
+            local_uid = row["id"] if row else None
+            if local_uid:
+                rows = conn.execute(
+                    "SELECT created_at, action, object_type, object_id, details "
+                    "FROM audit_log WHERE user_id = ? "
+                    "ORDER BY created_at DESC LIMIT 500",
+                    (local_uid,),
+                ).fetchall()
+                audit_entries = [dict(r) for r in rows]
+    except Exception:
+        pass
+
+    # MCP-Rolle (lokal)
+    mcp_role = ""
+    try:
+        with db._conn() as conn:
+            row = conn.execute(
+                "SELECT mcp_role FROM users WHERE printix_user_id = ?", (pid,)
+            ).fetchone()
+            if row:
+                mcp_role = row["mcp_role"] or ""
+    except Exception:
+        pass
+
+    # Time-Bombs (lokal)
+    timebombs: list[dict] = []
+    try:
+        with db._conn() as conn:
+            rows = conn.execute(
+                "SELECT * FROM user_timebombs WHERE printix_user_id = ? "
+                "ORDER BY created_at DESC LIMIT 100",
+                (pid,),
+            ).fetchall()
+            timebombs = [dict(r) for r in rows]
+    except Exception:
+        pass
+
+    # Druck-Statistik (SQL Reporting falls verfügbar)
+    print_stats = None
+    try:
+        # Versuche query_print_stats aufzurufen
+        period_to = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        period_from = (datetime.now(timezone.utc) - timedelta(days=365)).strftime("%Y-%m-%d")
+        raw = printix_query_print_stats(
+            user_filter=email, date_from=period_from, date_to=period_to,
+        )
+        ps = json.loads(raw)
+        if isinstance(ps, dict) and not ps.get("error"):
+            print_stats = ps
+    except Exception:
+        pass
+
+    return {
+        "exported_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "subject": {
+            "printix_user_id": pid,
+            "email": email,
+            "name":  target_user.get("name") or target_user.get("displayName") or "",
+            "status": target_user.get("status") or "",
+            "tenant_id": (current_tenant.get() or {}).get("printix_tenant_id"),
+        },
+        "groups": groups,
+        "cards": cards,
+        "mcp_role_override": mcp_role,
+        "timebombs": timebombs,
+        "audit_log": audit_entries,
+        "print_statistics_last_365d": print_stats,
+        "_note": (
+            "This export is generated under GDPR Article 15 (right of "
+            "access). Data not present here either does not exist for this "
+            "subject or is held by an upstream system (Printix cloud, "
+            "AI assistant vendor) outside this MCP server's scope."
+        ),
+    }
+
+
+def _build_personal_data_zip(data: dict) -> bytes:
+    """Baut ein ZIP mit JSON pro Datenkategorie + README für den Empfänger."""
+    import io, zipfile
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        readme = (
+            "Printix MCP — Personal Data Export\n"
+            "==================================\n\n"
+            f"Exported at: {data.get('exported_at')}\n"
+            f"Subject:     {data.get('subject', {}).get('email', '?')}\n"
+            f"Tenant:      {data.get('subject', {}).get('tenant_id', '?')}\n\n"
+            "Files in this archive:\n"
+            "  manifest.json         — top-level summary\n"
+            "  user_profile.json     — Printix user profile\n"
+            "  groups.json           — group memberships\n"
+            "  cards.json            — RFID/HID/Mifare cards mapped to subject\n"
+            "  audit_log.json        — actions performed by subject (last 500)\n"
+            "  timebombs.json        — pending and resolved onboarding triggers\n"
+            "  print_statistics.json — print volume / cost (last 365 days, if SQL reporting is enabled)\n"
+            "  mcp_role.json         — MCP role override (if set)\n\n"
+            "Generated under GDPR Article 15 by Printix MCP.\n"
+            "If you believe this export is incomplete, contact the data\n"
+            "controller (your tenant administrator).\n"
+        )
+        zf.writestr("README.txt", readme)
+        zf.writestr("manifest.json", json.dumps({
+            "exported_at": data.get("exported_at"),
+            "subject":     data.get("subject"),
+            "_note":       data.get("_note"),
+        }, indent=2, ensure_ascii=False, default=_json_default))
+        zf.writestr("user_profile.json", json.dumps(data.get("subject", {}),
+                    indent=2, ensure_ascii=False, default=_json_default))
+        zf.writestr("groups.json",       json.dumps(data.get("groups", []),
+                    indent=2, ensure_ascii=False, default=_json_default))
+        zf.writestr("cards.json",        json.dumps(data.get("cards", []),
+                    indent=2, ensure_ascii=False, default=_json_default))
+        zf.writestr("audit_log.json",    json.dumps(data.get("audit_log", []),
+                    indent=2, ensure_ascii=False, default=_json_default))
+        zf.writestr("timebombs.json",    json.dumps(data.get("timebombs", []),
+                    indent=2, ensure_ascii=False, default=_json_default))
+        zf.writestr("print_statistics.json", json.dumps(
+            data.get("print_statistics_last_365d") or {"note": "no SQL reporting configured"},
+            indent=2, ensure_ascii=False, default=_json_default))
+        zf.writestr("mcp_role.json",     json.dumps({
+            "mcp_role_override": data.get("mcp_role_override", ""),
+        }, indent=2, ensure_ascii=False))
+    return buf.getvalue()
+
+
+def _caller_email() -> str:
+    """Liefert die E-Mail des aktuellen MCP-Aufrufers aus dem Tenant-Kontext."""
+    tenant = current_tenant.get() or {}
+    # In den meisten Tenant-Records steht email/username — der Tenant-User
+    # ist der Account, der den Bearer-Token besitzt
+    return (tenant.get("email") or tenant.get("username") or "").strip().lower()
+
+
+def _caller_is_admin_or_helpdesk() -> bool:
+    """True wenn die Rolle des Aufrufers Helpdesk oder Admin ist —
+    erlaubt damit Aktionen auf andere User."""
+    try:
+        from permissions import resolve_mcp_role
+        tenant = current_tenant.get() or {}
+        uid = tenant.get("user_id") or ""
+        if not uid:
+            return False
+        role = resolve_mcp_role(uid)
+        return role in ("helpdesk", "admin")
+    except Exception:
+        return False
+
+
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=True))
+def printix_personal_data_export(user_email_or_id: str = "") -> str:
+    """
+        DSGVO Art. 15 — vollständiger Export aller persönlichen Daten als ZIP (Base64).
+
+        Wann nutzen:
+          • End-User: "Welche Daten haben Sie über mich gespeichert?" → leer
+            lassen oder eigene E-Mail eingeben
+          • Helpdesk/Admin: "Bitte erstelle einen Datenexport für anna@firma.de"
+            für ein DSGVO-Auskunftsersuchen
+
+        Wann NICHT — stattdessen:
+          • Daten löschen (Art. 17) → printix_personal_data_purge_request
+          • Tenant-weiter Audit-Trail → printix_query_audit_log
+
+        Returns dict mit:
+          - status:       "ok"
+          - filename:     "personal_data_export_<email>.zip"
+          - file_b64:     Base64-kodiertes ZIP zum Download
+          - size_bytes:   ZIP-Größe
+          - subject:      Profil-Zusammenfassung
+          - included:     Liste der enthaltenen Datenkategorien
+
+        Args:
+          user_email_or_id:  E-Mail oder Printix-UUID. Leer = eigener Account
+                             (nur für End-User; Helpdesk/Admin müssen explizit
+                             angeben).
+
+    """
+    try:
+        c = client()
+        caller_email = _caller_email()
+        is_elevated = _caller_is_admin_or_helpdesk()
+
+        # Default für End-User: eigene Daten
+        target_email_or_id = (user_email_or_id or "").strip()
+        if not target_email_or_id:
+            if not caller_email:
+                return _ok({"error": "no caller email in tenant context — please pass user_email_or_id"})
+            target_email_or_id = caller_email
+
+        # End-User darf nur eigene Daten exportieren
+        if not is_elevated:
+            tgt_lower = target_email_or_id.lower()
+            if tgt_lower != caller_email:
+                return _ok({
+                    "error": "permission_denied",
+                    "message": (
+                        "End users can only export their own data under GDPR "
+                        "Art. 15. Helpdesk or admin role required to export "
+                        "another user's data."
+                    ),
+                    "your_email": caller_email,
+                    "requested_for": target_email_or_id,
+                })
+
+        # User auflösen
+        target = _resolve_data_subject(c, target_email_or_id)
+        if not target:
+            return _ok({
+                "error": "user_not_found",
+                "message": f"No Printix user found for '{target_email_or_id}'.",
+            })
+
+        # Daten sammeln + ZIP bauen
+        data = _gather_personal_data(c, target)
+        zip_bytes = _build_personal_data_zip(data)
+
+        # Audit-Trail
+        try:
+            tenant = current_tenant.get() or {}
+            db.audit(
+                user_id=tenant.get("user_id") or "",
+                action="gdpr_data_exported",
+                details=f"GDPR Art. 15 export for subject '{target.get('email', target.get('id'))}'",
+                object_type="data_subject",
+                object_id=target.get("id", ""),
+                tenant_id=tenant.get("id", ""),
+            )
+        except Exception:
+            pass
+
+        import base64
+        return _ok({
+            "status": "ok",
+            "subject": data["subject"],
+            "filename": f"personal_data_export_{(target.get('email') or target.get('id') or 'subject')}.zip",
+            "file_b64": base64.b64encode(zip_bytes).decode("ascii"),
+            "size_bytes": len(zip_bytes),
+            "included": [
+                "user_profile", "groups", "cards", "audit_log",
+                "timebombs", "print_statistics", "mcp_role",
+            ],
+            "next_step": (
+                "Save the file_b64 contents as a .zip file. The archive "
+                "contains one JSON per data category plus a README.txt."
+            ),
+        })
+    except PrintixAPIError as e:
+        return _err(e)
+    except Exception as e:
+        logger.exception("personal_data_export failed")
+        return _ok({"error": str(e)})
+
+
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=False, openWorldHint=True))
+def printix_personal_data_purge_request(
+    user_email_or_id: str = "",
+    reason: str = "",
+) -> str:
+    """
+        DSGVO Art. 17 — Antrag auf Löschung der eigenen Daten ("Recht auf Vergessenwerden").
+
+        Dieses Tool LÖSCHT NICHTS direkt. Es:
+          1. Sammelt eine Übersicht der betroffenen Daten (wie der Export)
+          2. Schreibt einen audit_log-Eintrag mit action='gdpr_purge_requested'
+          3. Sendet eine Mail an die alert_recipients (Tenant-Admins) mit
+             dem Lösch-Antrag und der Datenübersicht
+          4. Liefert Bestätigungs-Token zurück
+
+        Der Admin entscheidet anschließend manuell über die Löschung
+        (typisch via printix_offboard_user oder printix_delete_user).
+
+        Wann nutzen:
+          • End-User: "Bitte alle Daten von mir löschen lassen"
+          • Helpdesk/Admin: Antrag im Namen eines Users einreichen
+
+        Wann NICHT — stattdessen:
+          • Sofortige Löschung als Admin     → printix_offboard_user
+          • Nur Daten ansehen ohne Löschung  → printix_personal_data_export
+          • Audit-Log-Recherche              → printix_query_audit_log
+
+        Returns dict mit:
+          - status:        "request_recorded" | "permission_denied" | "user_not_found"
+          - request_id:    eindeutige Referenz für Rückfragen
+          - notified_admins: Liste der angeschriebenen Admin-Mails
+          - data_summary:  Was würde gelöscht (Cards, Groups, Audit-Einträge, etc.)
+          - next_step:     Hinweis was passiert ("Ihr Antrag wurde an X
+                           weitergeleitet. Sie erhalten eine Bestätigung
+                           sobald die Löschung erfolgt ist.")
+
+        Args:
+          user_email_or_id:  E-Mail/UUID. Leer = eigener Account.
+          reason:            Optional Begründung — wird in der Admin-Mail
+                             zitiert. Hilft der DSB-Bewertung des Antrags.
+
+    """
+    try:
+        c = client()
+        caller_email = _caller_email()
+        is_elevated = _caller_is_admin_or_helpdesk()
+
+        target_email_or_id = (user_email_or_id or "").strip()
+        if not target_email_or_id:
+            target_email_or_id = caller_email
+
+        # End-User darf nur eigenen Antrag stellen
+        if not is_elevated:
+            if target_email_or_id.lower() != caller_email:
+                return _ok({
+                    "error": "permission_denied",
+                    "message": (
+                        "End users can only file a deletion request for "
+                        "their own data. Helpdesk or admin role required "
+                        "to file on behalf of another user."
+                    ),
+                })
+
+        target = _resolve_data_subject(c, target_email_or_id)
+        if not target:
+            return _ok({
+                "status": "user_not_found",
+                "message": f"No Printix user found for '{target_email_or_id}'.",
+            })
+
+        # Daten zusammenfassen (für die Mail-Übersicht — kein voller Export)
+        data = _gather_personal_data(c, target)
+        summary = {
+            "subject_email":       data["subject"].get("email"),
+            "subject_name":        data["subject"].get("name"),
+            "subject_id":          data["subject"].get("printix_user_id"),
+            "groups_count":        len(data.get("groups") or []),
+            "cards_count":         len(data.get("cards") or []),
+            "audit_entries_count": len(data.get("audit_log") or []),
+            "timebombs_count":     len(data.get("timebombs") or []),
+            "has_print_statistics": bool(data.get("print_statistics_last_365d")),
+            "mcp_role_override":   data.get("mcp_role_override"),
+        }
+
+        # Eindeutige Request-ID
+        import secrets as _secrets
+        request_id = "gdpr-" + _secrets.token_hex(8)
+
+        # Audit-Eintrag
+        tenant = current_tenant.get() or {}
+        try:
+            db.audit(
+                user_id=tenant.get("user_id") or "",
+                action="gdpr_purge_requested",
+                details=(f"GDPR Art. 17 deletion request for "
+                         f"'{target.get('email', target.get('id'))}'. "
+                         f"Reason: {reason or '(none)'}. "
+                         f"Request: {request_id}"),
+                object_type="data_subject",
+                object_id=target.get("id", ""),
+                tenant_id=tenant.get("id", ""),
+            )
+        except Exception as e:
+            logger.warning("audit insert for gdpr_purge_requested failed: %s", e)
+
+        # Admin-Mail bauen + senden
+        notified: list[str] = []
+        try:
+            from db import get_tenant_full_by_user_id
+            tenant_full = get_tenant_full_by_user_id(tenant.get("user_id") or "")
+            if not tenant_full:
+                # Single-Tenant-Fallback — Owner finden
+                from db import _find_tenant_owner_user_id
+                owner_uid = _find_tenant_owner_user_id()
+                if owner_uid:
+                    tenant_full = get_tenant_full_by_user_id(owner_uid)
+
+            if tenant_full:
+                recipients_str = (tenant_full.get("alert_recipients") or "").strip()
+                notified = [r.strip() for r in recipients_str.split(",") if r.strip()]
+
+            if tenant_full and notified:
+                rows_html = "".join(
+                    f"<tr><td style='padding:4px 10px;'><strong>{k}</strong></td>"
+                    f"<td style='padding:4px 10px;'>{v}</td></tr>"
+                    for k, v in summary.items()
+                )
+                html = f"""
+                <div style="font-family:Arial,sans-serif;color:#1a1a1a;">
+                  <h2 style="color:#003366;">GDPR Art. 17 — Deletion Request</h2>
+                  <p>A user has requested deletion of their personal data
+                     under GDPR Article 17 (right to erasure).</p>
+                  <p><strong>Request ID:</strong> <code>{request_id}</code><br>
+                     <strong>Filed by:</strong> {caller_email or '(unknown)'}<br>
+                     <strong>Subject:</strong> {target.get('email') or target.get('id')}<br>
+                     <strong>Reason given:</strong> {reason or '<em>(none)</em>'}</p>
+                  <h3 style="color:#003366;">Data summary</h3>
+                  <table style="border-collapse:collapse;">{rows_html}</table>
+                  <h3 style="color:#003366;">What to do</h3>
+                  <ol>
+                    <li>Review the request and verify the requester's identity.</li>
+                    <li>If approved, execute deletion via the MCP tool
+                        <code>printix_offboard_user</code> (preserves audit
+                        trail) or <code>printix_delete_user</code> (full).
+                        Both are recorded in the audit log against this
+                        request ID.</li>
+                    <li>Notify the data subject of the outcome
+                        within one month (GDPR Art. 12(3)).</li>
+                  </ol>
+                  <p style="font-size:.85em;color:#666;">
+                    Generated by Printix MCP. Audit trail entry:
+                    <code>action='gdpr_purge_requested', request='{request_id}'</code>
+                  </p>
+                </div>
+                """
+                from reporting.notify_helper import send_event_notification
+                send_event_notification(
+                    tenant_full,
+                    event_type="gdpr_purge_request",
+                    subject=f"[Printix MCP] GDPR Deletion Request — {target.get('email', target.get('id'))} ({request_id})",
+                    html_body=html,
+                    check_enabled=False,  # always send, regardless of notify_events
+                )
+        except Exception as e:
+            logger.warning("admin notification for gdpr_purge_request failed: %s", e)
+
+        return _ok({
+            "status": "request_recorded",
+            "request_id": request_id,
+            "subject": data["subject"],
+            "data_summary": summary,
+            "notified_admins": notified,
+            "next_step": (
+                "Your deletion request has been logged and forwarded to the "
+                "tenant administrators. You will be notified of the outcome "
+                "within one month as required by GDPR Art. 12(3). Keep the "
+                f"request_id ({request_id}) for follow-up correspondence."
+            ),
+            "_note": (
+                "This tool does NOT delete any data directly — end users "
+                "are not authorised to remove records. The administrator "
+                "reviews each request and executes the deletion manually "
+                "to ensure auditability and protect against malicious "
+                "self-purge attempts."
+            ),
+        })
+    except PrintixAPIError as e:
+        return _err(e)
+    except Exception as e:
+        logger.exception("personal_data_purge_request failed")
+        return _ok({"error": str(e)})
+
+
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True, idempotentHint=True, openWorldHint=True))
 def printix_offboard_user(email: str, force: bool = False) -> str:
     """

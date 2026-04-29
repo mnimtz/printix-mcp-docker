@@ -130,7 +130,55 @@ for transparency.
 
 ---
 
-## 5. Audit Trail
+## 5. Data Subject Rights — built-in tools
+
+Every authenticated user can exercise their GDPR rights without
+filing a paper form. Two MCP tools turn the legal procedure into a
+single conversation with the AI assistant:
+
+### `printix_personal_data_export` — Article 15 (right of access)
+
+When a user asks their AI assistant *"What data do you have about
+me?"*, the tool gathers everything the MCP server holds:
+
+- The Printix user profile
+- Group memberships
+- All RFID/HID/Mifare cards mapped to the subject
+- Audit-log entries authored by the subject (last 500)
+- Pending and resolved onboarding time-bombs
+- Print statistics for the last 365 days (when SQL reporting is
+  configured)
+- The MCP role override, if any
+
+The result is a structured ZIP with one JSON file per category and a
+README.txt explaining each artefact. Helpdesk and admin roles can
+generate the same export for any subject in support of formal
+data-subject access requests; end users are restricted to their own
+data via a self-check inside the tool.
+
+### `printix_personal_data_purge_request` — Article 17 (right to erasure)
+
+A non-destructive request channel. The tool:
+
+1. Compiles the same data summary the export tool produces
+2. Records the request in the audit log with
+   `action='gdpr_purge_requested'` and a unique request ID
+3. Sends a structured HTML email to the configured tenant
+   administrators with the summary, the requester's identity, and
+   the optional reason
+4. Returns the request ID and the list of notified administrators
+   to the requester
+
+The tool **does not delete any data directly.** End users are not
+authorised to remove records — this prevents malicious self-purge,
+accidental data loss, and ensures every deletion is traceable to a
+specific administrator who reviewed the request. The administrator
+executes deletion through the existing tools
+(`printix_offboard_user` for soft removal preserving the audit
+trail, or `printix_delete_user` for full erasure) within the
+one-month deadline imposed by GDPR Art. 12(3).
+
+## 6. Audit Trail
 
 Every tool invocation, both successful and denied, is recorded in the
 `audit_log` table with the following fields:
@@ -154,7 +202,7 @@ functioning under live load.
 
 ---
 
-## 6. GDPR Article Coverage
+## 7. GDPR Article Coverage
 
 The implementation directly addresses the following articles. References
 are to the EU General Data Protection Regulation (Regulation (EU)
@@ -164,7 +212,9 @@ are to the EU General Data Protection Regulation (Regulation (EU)
 |---------|-------------|----------------|
 | **Art. 5(1)(c)** | Data minimisation | End User role limits data access to the user's own records. Helpdesk role excludes card-data scope. Auditor role excludes mutations and print payloads. |
 | **Art. 5(1)(f)** | Integrity and confidentiality | Encryption at rest (Fernet) for all stored credentials; TLS on all listeners; per-tenant database isolation. |
-| **Art. 17** | Right to erasure | `printix_offboard_user` and `printix_delete_user` cascade to dependent records (cards, group memberships, audit-log references). |
+| **Art. 12(3)** | One-month response window | The `printix_personal_data_purge_request` tool emits a timestamped audit-log entry and an admin notification with all data needed for the controller to respond within the deadline. |
+| **Art. 15** | Right of access | `printix_personal_data_export` produces a complete ZIP of the subject's data on demand. End users may export their own data; Helpdesk and Admin may export on behalf of any subject. |
+| **Art. 17** | Right to erasure | `printix_personal_data_purge_request` records the deletion request, summarises the affected data, and notifies the administrator. Execution via `printix_offboard_user` / `printix_delete_user` cascades to dependent records. |
 | **Art. 24** | Controller obligations | Admin role formalised as the controller-equivalent function. Role assignment is itself audited. |
 | **Art. 25** | Privacy by design and default | Customer-hosted runtime with no default external egress. New users default to End User; elevation requires an explicit, audited administrative action. |
 | **Art. 28** | Processor relationships | The MCP runtime is operated by the customer; Tungsten is not a processor of the metadata that flows through it. |
@@ -180,7 +230,7 @@ are to the EU General Data Protection Regulation (Regulation (EU)
 
 ---
 
-## 7. Operational Controls
+## 8. Operational Controls
 
 Independent of the role model, the MCP server implements the following
 controls by default. They apply to every deployment regardless of how
@@ -213,7 +263,7 @@ roles are configured.
 
 ### Tool intent metadata
 
-Every one of the 125 production tools carries MCP `ToolAnnotations`
+Every one of the 129 production tools carries MCP `ToolAnnotations`
 that describe its behavioural shape:
 
 - `readOnlyHint` — the tool only reads
@@ -227,7 +277,7 @@ display an appropriate warning before destructive operations.
 
 ---
 
-## 8. How to Verify
+## 9. How to Verify
 
 The following checks confirm the access-control posture in any
 deployment.
@@ -246,7 +296,7 @@ are recorded in the audit log.
 
 ---
 
-## 9. Summary
+## 10. Summary
 
 The Printix MCP server provides a defensible, GDPR-aligned access-control
 posture out of the box:
