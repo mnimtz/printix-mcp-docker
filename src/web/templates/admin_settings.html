@@ -2,7 +2,82 @@
 {% block title %}{{ _('admin_settings') }} — {{ _('brand_console_name') }}{% endblock %}
 {% block content %}
 <div class="container">
-  <div class="card" style="max-width:680px;margin:40px auto;">
+
+  <!-- ── Pro-Feature-Lizenz (v7.2.39) ───────────────────────────────────── -->
+  <div id="license" class="card" style="max-width:680px; margin:40px auto 20px auto; border-left:4px solid #16a34a;">
+    <div style="display:flex; align-items:center; gap:10px; margin-bottom:8px;">
+      <div style="font-size:1.4em;">🎫</div>
+      <div>
+        <div class="section-title" style="margin:0;">{{ _('lic_card_title') }}</div>
+        <div style="font-size:.85em; color:#666;">
+          {{ license_active_count }} / {{ license_total_count }} {{ _('lic_card_active') }}
+        </div>
+      </div>
+    </div>
+
+    {% if license_status %}
+      {% if license_status.ok %}
+      <div class="alert alert-success" style="margin-bottom:14px;">
+        ✓ <strong>{{ _('lic_activated_ok') }}</strong>
+        {% if license_status.newly_unlocked %}
+        — {{ _('lic_newly_unlocked') }}: {{ license_status.newly_unlocked | join(', ') }}
+        {% endif %}
+      </div>
+      {% else %}
+      <div class="alert alert-error" style="margin-bottom:14px;">
+        ⚠ <strong>{{ _('lic_invalid_code') }}</strong>
+        <div style="font-size:.88em; margin-top:4px;">{{ _('lic_ask_contact') }}</div>
+      </div>
+      {% endif %}
+    {% endif %}
+
+    <!-- Feature-Status-Liste -->
+    <div style="margin-bottom:18px;">
+      {% for f in license_features %}
+      <div style="display:flex; align-items:center; gap:10px; padding:8px 12px; margin-bottom:6px; background:{% if f.enabled %}#dcfce7{% else %}#f7f9fb{% endif %}; border-radius:6px;">
+        <div style="font-size:1.2em;">{{ f.icon }}</div>
+        <div style="flex:1;">
+          <div style="font-weight:600; color:#003366; font-size:.92em;">
+            {% if lang == 'en' %}{{ f.label_en }}{% elif lang == 'no' %}{{ f.label_no }}{% else %}{{ f.label }}{% endif %}
+            {% if f.enabled %}<span style="color:#16a34a; font-weight:700;">✓</span>{% else %}<span style="color:#999;">🔒</span>{% endif %}
+          </div>
+          <div style="font-size:.82em; color:#666;">
+            {% if lang == 'en' %}{{ f.desc_en }}{% elif lang == 'no' %}{{ f.desc_no }}{% else %}{{ f.desc }}{% endif %}
+          </div>
+        </div>
+        {% if f.enabled %}
+        <form method="post" action="/admin/settings/license/deactivate" style="margin:0;">
+          <input type="hidden" name="feature" value="{{ f.id }}">
+          <button type="submit" class="btn btn-secondary btn-sm" style="font-size:.78em;" onclick="return confirm('{{ _('lic_deact_confirm') }}');">
+            {{ _('lic_deact') }}
+          </button>
+        </form>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+
+    {% if not license_all_active %}
+    <form method="post" action="/admin/settings/license/activate">
+      <div class="form-group">
+        <label>{{ _('lic_code_label') }}</label>
+        <input type="text" name="license_code" required autocomplete="off"
+               placeholder="z.B. ABCD-EFGH-1234"
+               style="font-family:monospace; letter-spacing:.05em; text-transform:uppercase;">
+        <small style="color:#666;">{{ _('lic_ask_contact') }}</small>
+      </div>
+      <button type="submit" class="btn btn-success" style="background:#16a34a; color:#fff;">
+        🎫 {{ _('lic_activate_btn') }}
+      </button>
+    </form>
+    {% else %}
+    <div class="alert alert-success" style="margin:0;">
+      ✓ <strong>{{ _('lic_all_active') }}</strong>
+    </div>
+    {% endif %}
+  </div>
+
+  <div class="card" style="max-width:680px;margin:0 auto 40px auto;">
     <h2 class="section-title">{{ _('admin_settings') }}</h2>
     <p class="section-sub" style="margin-bottom:24px;">
       {{ _('admin_settings_sub') }}

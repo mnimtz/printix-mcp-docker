@@ -246,6 +246,18 @@ def create_app(session_secret: str) -> FastAPI:
             "lang_names":    LANGUAGE_NAMES,
             "supported_langs": SUPPORTED_LANGUAGES,
         }
+        # v7.2.39: Pro-Feature-Flags für Templates (Nav-Hiding etc.)
+        try:
+            import sys as _ls
+            _ls.path.insert(0, "/app")
+            from license import is_feature_enabled as _ife
+            ctx["pro_capture_enabled"]    = _ife("capture_store")
+            ctx["pro_guestprint_enabled"] = _ife("guest_print")
+            ctx["pro_print_job_mgmt_enabled"] = _ife("print_job_mgmt")
+        except Exception:
+            ctx["pro_capture_enabled"]    = False
+            ctx["pro_guestprint_enabled"] = False
+            ctx["pro_print_job_mgmt_enabled"] = False
         # v3.9.0 — Badge "offene Tickets" im Nav (nur für Admins relevant)
         try:
             from db import count_feature_requests_by_status
@@ -4350,6 +4362,7 @@ def create_app(session_secret: str) -> FastAPI:
         backup_success=None,
         backup_error=None,
         restore_success=None,
+        license_status=None,
     ):
         """Baut den Template-Kontext für admin_settings.html."""
         from urllib.parse import urlparse
@@ -4433,8 +4446,47 @@ def create_app(session_secret: str) -> FastAPI:
             "backup_error": backup_error,
             "restore_success": restore_success,
             "saved": saved, "error": error,
+            "license_status": license_status,
+            **_license_context(),
             **t_ctx(request),
         }
+
+    def _license_context() -> dict:
+        """v7.2.39: Pro-Feature-Lizenz-Status für admin_settings.html."""
+        try:
+            import sys as _ls
+            _ls.path.insert(0, "/app")
+            from license import (
+                PRO_FEATURES, get_active_features, is_feature_enabled,
+            )
+            active = sorted(get_active_features())
+            features_view = []
+            for fid, info in PRO_FEATURES.items():
+                features_view.append({
+                    "id":     fid,
+                    "icon":   info.get("icon", ""),
+                    "label":  info.get("label_de", fid),
+                    "label_en": info.get("label_en", fid),
+                    "label_no": info.get("label_no", fid),
+                    "desc":   info.get("description_de", ""),
+                    "desc_en": info.get("description_en", ""),
+                    "desc_no": info.get("description_no", ""),
+                    "enabled": is_feature_enabled(fid),
+                })
+            return {
+                "license_features": features_view,
+                "license_active_count": len(active),
+                "license_total_count":  len(PRO_FEATURES),
+                "license_all_active":   len(active) == len(PRO_FEATURES),
+            }
+        except Exception as e:
+            logger.warning("license context: %s", e)
+            return {
+                "license_features": [],
+                "license_active_count": 0,
+                "license_total_count":  0,
+                "license_all_active":   False,
+            }
 
     @app.get("/admin/settings", response_class=HTMLResponse)
     async def admin_settings_get(request: Request):
@@ -4508,6 +4560,67 @@ def create_app(session_secret: str) -> FastAPI:
 
         return templates.TemplateResponse("admin_settings.html",
             _admin_settings_ctx(request, user, saved=True))
+
+    # v7.2.39: Pro-Feature-Aktivierung — Code unter /admin/settings einreichen
+    @app.post("/admin/settings/license/activate")
+    async def admin_settings_license_activate(
+        request: Request,
+        license_code: str = Form(...),
+    ):
+        user = get_session_user(request)
+        if not user or not user.get("is_admin"):
+            return RedirectResponse("/login", status_code=302)
+        try:
+            import sys as _ls
+            _ls.path.insert(0, "/app")
+            from license import activate_code
+            from db import audit
+            result = activate_code(license_code)
+            if not result.get("ok"):
+                return templates.TemplateResponse("admin_settings.html",
+                    _admin_settings_ctx(
+                        request, user,
+                        license_status={"ok": False, "error": "invalid_code"},
+                    ))
+            audit(
+                user["id"], "license_activated",
+                f"Pro features unlocked: {', '.join(result.get('newly_unlocked') or [])}",
+                object_type="license", object_id="pro",
+            )
+            return templates.TemplateResponse("admin_settings.html",
+                _admin_settings_ctx(
+                    request, user,
+                    license_status={"ok": True,
+                                    "newly_unlocked": result.get("newly_unlocked", []),
+                                    "all_active": result.get("all_active", [])},
+                ))
+        except Exception as e:
+            logger.exception("license activate")
+            return templates.TemplateResponse("admin_settings.html",
+                _admin_settings_ctx(request, user,
+                                     license_status={"ok": False, "error": str(e)}))
+
+    @app.post("/admin/settings/license/deactivate")
+    async def admin_settings_license_deactivate(
+        request: Request,
+        feature: str = Form(...),
+    ):
+        user = get_session_user(request)
+        if not user or not user.get("is_admin"):
+            return RedirectResponse("/login", status_code=302)
+        try:
+            import sys as _ls
+            _ls.path.insert(0, "/app")
+            from license import deactivate_feature
+            from db import audit
+            ok = deactivate_feature(feature)
+            if ok:
+                audit(user["id"], "license_deactivated",
+                      f"Pro feature deactivated: {feature}",
+                      object_type="license", object_id=feature)
+        except Exception as e:
+            logger.exception("license deactivate")
+        return RedirectResponse("/admin/settings#license", status_code=302)
 
     @app.post("/admin/settings/backup/create", response_class=HTMLResponse)
     async def admin_backup_create(request: Request):

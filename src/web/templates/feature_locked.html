@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}{{ _('lic_locked_title') }} — {{ _('brand_console_name') }}{% endblock %}
+{% block content %}
+<div class="container">
+
+  <div class="card" style="max-width:680px; margin:40px auto; text-align:center;">
+    <div style="font-size:3em; margin-bottom:14px;">{{ feature_icon }}🔒</div>
+    <div class="section-title" style="margin-bottom:8px;">{{ feature_label }}</div>
+    <div style="font-size:.92em; color:#92400e; background:#fef3c7; padding:8px 14px; border-radius:6px; display:inline-block; margin-bottom:18px;">
+      ⚠ {{ _('lic_locked_badge') }}
+    </div>
+
+    <p style="font-size:1em; color:#444; line-height:1.65; text-align:left; margin-bottom:24px;">
+      {{ feature_desc }}
+    </p>
+
+    <div style="background:#f7f9fb; border-radius:10px; padding:18px; margin-bottom:24px; text-align:left;">
+      <div style="font-weight:600; color:#003366; margin-bottom:6px;">
+        💡 {{ _('lic_locked_how') }}
+      </div>
+      <div style="font-size:.92em; color:#444; line-height:1.6;">
+        {{ _('lic_locked_how_body') | safe }}
+      </div>
+    </div>
+
+    <a href="/admin/settings#license" class="btn btn-success" style="background:#16a34a; color:#fff; padding:12px 24px; font-size:1em;">
+      🎫 {{ _('lic_locked_cta') }}
+    </a>
+
+    <div style="margin-top:18px;">
+      <a href="/admin" style="color:#888; font-size:.88em;">← {{ _('mp_back') }}</a>
+    </div>
+  </div>
+
+</div>
+{% endblock %}

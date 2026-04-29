@@ -24,6 +24,11 @@ Synology NAS / TrueNAS / Unraid / …).
 
 ## Feature overview
 
+> **Two tiers**: most features ship as **Basic** (free, no activation needed). Three operational features are **Pro** and require a one-time activation code from your contact person — once entered under *Server settings → Pro features*, they remain unlocked for the lifetime of the installation.
+
+
+### 🟢 Basic — included for everyone
+
 **AI-assistant integration — 129 MCP tools**
 - MCP server for [claude.ai](https://claude.ai) (Streamable HTTP), ChatGPT (SSE) and Claude Code (CLI)
 - Built-in OAuth 2.0 endpoints — no manual token juggling
@@ -108,6 +113,23 @@ Synology NAS / TrueNAS / Unraid / …).
 
 **i18n**
 - Multi-language web UI (de / en / more), invitation mails localised
+
+### 💎 Pro — activation code required
+
+The following features ship in the same image as Basic, but the corresponding admin pages stay locked behind a 🔒 marker until an activation code is entered under *Server settings → Pro features*. The MCP tools (Claude/ChatGPT side) and webhook endpoints remain functional regardless of license — only the human-facing admin pages are gated. Ask your contact person for the activation code.
+
+**📥 Capture Store**
+- Document capture with webhook profiles, automatic indexing, and routing to Paperless-NGX, SharePoint, or any third-party system
+- Per-profile signature requirement, custom metadata fields, target whitelisting
+
+**📮 Guest-Print**
+- Email-based guest-print mailboxes for external users without a Printix account
+- Per-mailbox configuration of approval workflow, site routing, and storage behaviour
+- Microsoft Entra integration for inbound mail polling
+
+**🖨️ Print Job Management**
+- Extended admin UI for bulk actions across print jobs: reassignment, bulk-cancel, audit trail with replay, anomaly detection
+- *Currently scaffolded for upcoming releases — license slot reserved.*
 
 ---
 

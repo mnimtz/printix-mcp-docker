@@ -93,6 +93,31 @@ def register_capture_routes(
             pass
         return False
 
+    # ── Pro-Feature-Gate (v7.2.39) ─────────────────────────────────────────
+    def _capture_locked_response(request, user):
+        """Liefert die Locked-Feature-Seite zurück, wenn capture_store Pro-
+        Feature nicht aktiviert ist. Webhook-Endpunkte sind absichtlich
+        NICHT gegated — die müssen auch ohne Lizenz funktionieren, sonst
+        bricht eine Lizenz-Lücke direkt den Datenfluss von Printix."""
+        try:
+            import sys as _ls
+            _ls.path.insert(0, "/app")
+            from license import is_feature_enabled, PRO_FEATURES
+            if is_feature_enabled("capture_store"):
+                return None
+            info = PRO_FEATURES.get("capture_store", {})
+            ctx = t_ctx(request) if t_ctx else {}
+            lang = ctx.get("lang", "en")
+            return templates.TemplateResponse("feature_locked.html", {
+                "request": request, "user": user,
+                "feature_icon":  info.get("icon", "🎫"),
+                "feature_label": info.get(f"label_{lang}", info.get("label_en", "Pro Feature")),
+                "feature_desc":  info.get(f"description_{lang}", info.get("description_en", "")),
+                **ctx,
+            })
+        except Exception:
+            return None  # bei Fehler durchlassen, lieber als Lock-Loop
+
     # ── GET /capture — Store Overview ───────────────────────────────────────
 
     @app.get("/capture", response_class=HTMLResponse)
@@ -100,6 +125,11 @@ def register_capture_routes(
         user = require_login(request)
         if not user:
             return RedirectResponse("/login", status_code=303)
+
+        # Pro-Feature-Gate
+        locked = _capture_locked_response(request, user)
+        if locked is not None:
+            return locked
 
         tenant = _get_tenant(user)
         if not tenant:

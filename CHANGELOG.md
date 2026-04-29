@@ -2,6 +2,86 @@
 
 This project follows [Semantic Versioning](https://semver.org/).
 
+## 7.2.39 (2026-04-29) — Pro features with activation codes (Basic/Pro tier)
+
+### Added
+
+**Two-tier feature model** — Basic ships free for everyone, Pro features
+gate three operational admin pages behind an activation code. Once a
+code is entered under *Server settings → Pro features*, the unlocked
+features stay unlocked for the lifetime of the installation.
+
+The MCP tools (Claude/ChatGPT side) and Printix webhook endpoints
+remain functional regardless of license — only the human-facing admin
+pages are gated. This keeps the AI integration unrestricted while
+giving customers a clear upgrade path for operational features.
+
+### Pro features (gated)
+
+| Feature | Web route | Why gated |
+|---------|-----------|-----------|
+| 📥 Capture Store | `/capture/*` | Document capture with webhook profiles, indexing, third-party routing |
+| 📮 Guest-Print | `/guestprint/*` | Email-based guest-print mailboxes with approval workflow |
+| 🖨️ Print Job Management | (reserved) | Bulk-action admin UI for upcoming releases |
+
+Webhook endpoints (`/capture/webhook/{id}`, etc.) remain accessible —
+gating these would break the data flow from Printix and create silent
+data loss when a license expires.
+
+### Implementation
+
+- **`src/license.py`** (new, ~180 lines) — Stage-A hash-based codes:
+  SHA-256 of `<SECRET>|<feature>` truncated to 12 hex chars, uppercase.
+  A master code (`*all*`) unlocks everything at once. Persisted state
+  lives in the `pro_features` setting (JSON list of active feature
+  IDs).
+- **`/admin/settings/license/activate`** + `/deactivate` POST handlers,
+  flash messages on success/failure, audit log entries
+  (`license_activated` / `license_deactivated`).
+- **Per-route gates** in `capture_routes.py` and `guestprint_routes.py`
+  that render `feature_locked.html` (with the per-feature icon, label
+  and description in the user's language) instead of the normal page
+  when the feature is inactive.
+- **Nav-link masking** in `base.html` — locked features show a 🔒
+  prefix and are dimmed; click still navigates to the lock page so
+  the customer can read what's behind it.
+- **`feature_locked.html`** template with a clear CTA pointing to the
+  settings page, plus the standard "ask your contact person for the
+  code" message.
+- **`bin/generate-license-codes.py`** — CLI tool for the operator to
+  re-derive the codes when needed (extracts the secret from
+  `src/license.py`, prints the four codes).
+
+### UI
+
+The license card sits at the **top of `/admin/settings`**, before
+all the existing settings, with a green border. It shows:
+
+- A list of all three Pro features with their current state (✓ active
+  / 🔒 locked) and a one-line description
+- A single text field for the activation code
+- "Aktivieren" button — green, prominent
+- Per-feature "Deactivate" button when active (so the admin can
+  manually revoke if a license expires)
+- Success message: *"Code erfolgreich aktiviert — Neu freigeschaltet: …"*
+- Failure message: *"Ungültiger Code. Fragen Sie Ihren Ansprechpartner
+  nach dem Freischaltcode."*
+
+### README
+
+Feature overview rewritten with two clear sections:
+- **🟢 Basic — included for everyone** — all the existing features
+  (MCP tools, admin UI, dashboard, reports, RBAC, HTTPS options,
+  etc.)
+- **💎 Pro — activation code required** — Capture Store, Guest-Print,
+  Print Job Management. Each with one-line description and a note
+  that the MCP tools / webhooks remain functional regardless.
+
+### i18n
+
+Eighteen new keys (`lic_*`) per language for activation flow,
+locked-feature page, status messages. `de` / `en` / `no`.
+
 ## 7.2.38 (2026-04-29) — RBAC UI toggle (no compose / restart needed) + comprehensive README
 
 ### Added

@@ -173,6 +173,29 @@ def register_guestprint_routes(
             return None
         return user
 
+    # ── Pro-Feature-Gate (v7.2.39) ─────────────────────────────────────────
+    def _guestprint_locked_response(request, user):
+        """Liefert die Locked-Feature-Seite zurück, wenn guest_print Pro-
+        Feature nicht aktiviert ist."""
+        try:
+            import sys as _ls
+            _ls.path.insert(0, "/app")
+            from license import is_feature_enabled, PRO_FEATURES
+            if is_feature_enabled("guest_print"):
+                return None
+            info = PRO_FEATURES.get("guest_print", {})
+            ctx = t_ctx(request) if t_ctx else {}
+            lang = ctx.get("lang", "en")
+            return templates.TemplateResponse("feature_locked.html", {
+                "request": request, "user": user,
+                "feature_icon":  info.get("icon", "🎫"),
+                "feature_label": info.get(f"label_{lang}", info.get("label_en", "Pro Feature")),
+                "feature_desc":  info.get(f"description_{lang}", info.get("description_en", "")),
+                **ctx,
+            })
+        except Exception:
+            return None
+
     # ─────────────────────────────────────────────────────────────────────────
     # /guestprint — Redirect auf Mailbox-Liste
     # ─────────────────────────────────────────────────────────────────────────
@@ -181,6 +204,10 @@ def register_guestprint_routes(
         user = _require_admin(request)
         if not user:
             return _redirect_login()
+        # Pro-Feature-Gate — bei Sperrung HTML-Seite, nicht Redirect
+        locked = _guestprint_locked_response(request, user)
+        if locked is not None:
+            return locked
         return RedirectResponse("/guestprint/mailboxes", status_code=302)
 
     # ─────────────────────────────────────────────────────────────────────────
@@ -191,6 +218,9 @@ def register_guestprint_routes(
         user = _require_admin(request)
         if not user:
             return _redirect_login()
+        locked = _guestprint_locked_response(request, user)
+        if locked is not None:
+            return locked
         tc = t_ctx(request)
         flash_msg, flash_kind = _pop_flash(request)
         cfg = gp_config.get_config()
@@ -410,6 +440,9 @@ def register_guestprint_routes(
         user = _require_admin(request)
         if not user:
             return _redirect_login()
+        locked = _guestprint_locked_response(request, user)
+        if locked is not None:
+            return locked
         tc = t_ctx(request)
         tenant = _get_tenant(user)
         tid = tenant.get("id", "")
