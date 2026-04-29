@@ -3181,10 +3181,24 @@ def create_app(session_secret: str) -> FastAPI:
                         gid = str(g.get("id") or g.get("groupId") or "")
                     if not gid:
                         continue
+                    # member_count robust ermitteln — Printix gibt mal
+                    # 'memberCount', mal 'members' (int oder list) zurück
+                    raw_mc = g.get("memberCount")
+                    if raw_mc is None:
+                        raw_mc = g.get("members")
+                    if isinstance(raw_mc, list):
+                        member_count = len(raw_mc)
+                    elif isinstance(raw_mc, (int, float)):
+                        member_count = int(raw_mc)
+                    else:
+                        try:
+                            member_count = int(str(raw_mc).strip()) if raw_mc else 0
+                        except Exception:
+                            member_count = 0
                     live_groups.append({
                         "id": gid,
                         "name": g.get("name") or g.get("displayName") or gid,
-                        "member_count": g.get("memberCount") or g.get("members") or "",
+                        "member_count": member_count,
                         "current_role": (group_role_map.get(gid) or {}).get("mcp_role", ""),
                     })
             else:
@@ -3193,12 +3207,27 @@ def create_app(session_secret: str) -> FastAPI:
             logger.warning("MCP-Permissions: list_groups failed: %s", e)
             groups_error = "api_error"
 
+        # Aktiv-Filter: standardmäßig nur Gruppen mit member_count > 0 ODER
+        # Gruppen die bereits eine MCP-Rolle zugewiesen haben (damit eine
+        # bewusste Zuweisung nicht durch Wegfiltern unsichtbar wird, falls
+        # die Mitglieder temporär ausgesynct wurden).
+        # Toggle via ?show_all=1 — UI-Link unten in der Sektion.
+        show_all = (request.query_params.get("show_all") or "").strip() in ("1", "true", "yes")
+        total_live = len(live_groups)
+        if not show_all:
+            live_groups = [
+                g for g in live_groups
+                if (isinstance(g["member_count"], int) and g["member_count"] > 0)
+                or g["current_role"]
+            ]
+        hidden_count = total_live - len(live_groups)
+
         # Auch DB-Zuordnungen anzeigen, deren Gruppe nicht (mehr) in der
         # Live-Liste ist — hilft beim Aufräumen verwaister Mappings.
         live_ids = {g["id"] for g in live_groups}
         orphan_groups = [
             {"id": r["group_id"], "name": r["group_name"],
-             "member_count": "", "current_role": r["mcp_role"], "_orphan": True}
+             "member_count": 0, "current_role": r["mcp_role"], "_orphan": True}
             for r in group_role_rows
             if r["group_id"] not in live_ids
         ]
@@ -3230,6 +3259,8 @@ def create_app(session_secret: str) -> FastAPI:
             "live_groups": live_groups,
             "orphan_groups": orphan_groups,
             "groups_error": groups_error,
+            "show_all_groups": show_all,
+            "hidden_inactive_count": hidden_count,
             "all_roles": _perm.ALL_ROLES,
             "group_assignable_roles": _perm.GROUP_ASSIGNABLE_ROLES,
             "role_labels": _perm.ROLE_LABELS_DE,

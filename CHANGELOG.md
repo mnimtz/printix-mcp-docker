@@ -2,6 +2,25 @@
 
 This project follows [Semantic Versioning](https://semver.org/).
 
+## 7.2.20 (2026-04-29) — MCP Permissions UI: active-groups filter (default)
+
+### Changed
+- `/admin/mcp-permissions` now shows **only active Printix groups** by
+  default — defined as groups with `memberCount > 0` OR groups that
+  already carry an MCP-role assignment (so deliberate assignments
+  remain visible even if members are temporarily missing). A toggle
+  link at the top switches between "active only" and "all groups".
+  URL parameter: `?show_all=1`.
+- `member_count` is now extracted robustly: handles both `memberCount`
+  (int) and `members` (int or list) variants returned by the Printix
+  API. Stored as int internally; display falls back to "—" when 0.
+
+### Why
+The unfiltered list also showed historical / orphaned groups (typically
+remnants of old AD imports) that distract from real role assignment.
+"Active" matches the same semantic Printix uses elsewhere: groups
+people are actually part of.
+
 ## 7.2.19 (2026-04-29) — Hotfix: `from_json` Jinja filter never registered in Docker repo
 
 ### Fixed

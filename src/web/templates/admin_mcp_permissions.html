@@ -60,11 +60,32 @@
   <!-- ─── Sektion 1: Gruppen-Zuordnungen ─────────────────────────────────── -->
   <div class="card" style="margin-bottom:20px;">
     <div class="section-title" style="margin-bottom:6px;">📁 Printix-Gruppen → MCP-Rolle</div>
-    <div class="section-sub" style="margin-bottom:16px;">
+    <div class="section-sub" style="margin-bottom:12px;">
       Weisen Sie einer Printix-Gruppe eine MCP-Rolle zu. Alle Mitglieder dieser
       Gruppe erhalten die Rolle automatisch — sofern sie keinen expliziten
       Override gesetzt haben. Bei Mitgliedschaft in mehreren Gruppen gewinnt
       die höchste Rolle.
+    </div>
+
+    <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:14px; padding:8px 12px; background:#f7f9fb; border-radius:6px; font-size:.88em;">
+      <div>
+        {% if show_all_groups %}
+          <strong>Alle Gruppen</strong> (auch leere) werden angezeigt.
+          {% if live_groups %}<span style="color:#666;">— {{ live_groups | length }} Stück.</span>{% endif %}
+        {% else %}
+          <strong>Aktive Gruppen</strong> (Mitglieder &gt; 0 oder bereits zugewiesen).
+          {% if hidden_inactive_count and hidden_inactive_count > 0 %}
+            <span style="color:#666;">— {{ hidden_inactive_count }} leere Gruppe{% if hidden_inactive_count != 1 %}n{% endif %} ausgeblendet.</span>
+          {% endif %}
+        {% endif %}
+      </div>
+      <div>
+        {% if show_all_groups %}
+          <a href="/admin/mcp-permissions" class="btn btn-secondary btn-sm">🔍 Nur aktive zeigen</a>
+        {% else %}
+          <a href="/admin/mcp-permissions?show_all=1" class="btn btn-secondary btn-sm">📋 Alle Gruppen zeigen</a>
+        {% endif %}
+      </div>
     </div>
 
     {% if groups_error == "no_credentials" %}
