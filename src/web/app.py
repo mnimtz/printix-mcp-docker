@@ -2260,6 +2260,140 @@ def create_app(session_secret: str) -> FastAPI:
             media_type="application/pdf",
         )
 
+    # ─── Health & Status (v7.2.31) ────────────────────────────────────────
+    # Login-free endpoints for uptime monitoring (Docker healthcheck,
+    # Cloudflare Tunnel, Pingdom, …). The MCP server has its own /health
+    # on port 8765; this is the equivalent for the web UI port 8080.
+
+    @app.get("/health", response_class=JSONResponse)
+    async def health_json(request: Request):
+        """Liefert JSON-Status. 200 OK wenn alles erreichbar ist,
+        503 Service Unavailable bei kritischen Fehlern. Kein Login.
+        """
+        import time as _hm_time
+        checks: dict = {}
+        ok = True
+
+        # DB-Check: simpler SELECT 1 — Schreibrechte werden absichtlich nicht
+        # getestet, weil Health-Probes idempotent sein sollen.
+        try:
+            from db import _conn
+            with _conn() as conn:
+                row = conn.execute("SELECT 1").fetchone()
+            checks["db"] = "ok" if row else "empty"
+        except Exception as e:
+            checks["db"] = f"error: {e.__class__.__name__}"
+            ok = False
+
+        # Tenant-Konfiguration
+        try:
+            from db import _find_tenant_owner_user_id, get_tenant_by_user_id
+            owner_uid = _find_tenant_owner_user_id()
+            if not owner_uid:
+                checks["tenant"] = "no_owner_admin"
+            else:
+                t = get_tenant_by_user_id(owner_uid)
+                if t and t.get("printix_tenant_id"):
+                    checks["tenant"] = "configured"
+                elif t:
+                    checks["tenant"] = "owner_admin_without_credentials"
+                else:
+                    checks["tenant"] = "owner_admin_without_tenant_row"
+        except Exception as e:
+            checks["tenant"] = f"error: {e.__class__.__name__}"
+
+        # RBAC-Modus (informativ)
+        checks["rbac_enabled"] = (os.getenv("MCP_RBAC_ENABLED", "0").strip().lower()
+                                  in ("1", "true", "yes", "on"))
+
+        body = {
+            "status": "ok" if ok else "degraded",
+            "service": "printix-mcp-web",
+            "version": current_app_version(),
+            "checks": checks,
+            "timestamp": _hm_time.time(),
+        }
+        return JSONResponse(body, status_code=200 if ok else 503)
+
+    @app.get("/status", response_class=HTMLResponse)
+    async def status_page(request: Request):
+        """Hübsche HTML-Status-Seite für Browser. Kein Login — anders als
+        /admin/* und /dashboard zeigt sie keine Tenant-Daten, nur Health-
+        Indikatoren."""
+        import time as _hm_time
+        from db import _conn, _find_tenant_owner_user_id, get_tenant_by_user_id
+        checks: dict = {}
+        try:
+            with _conn() as conn:
+                conn.execute("SELECT 1").fetchone()
+            checks["DB Verbindung"] = ("ok", "SQLite reachable")
+        except Exception as e:
+            checks["DB Verbindung"] = ("error", str(e))
+
+        try:
+            owner_uid = _find_tenant_owner_user_id()
+            if owner_uid:
+                t = get_tenant_by_user_id(owner_uid)
+                if t and t.get("printix_tenant_id"):
+                    checks["Printix Tenant"] = ("ok", t.get("name") or t.get("printix_tenant_id"))
+                else:
+                    checks["Printix Tenant"] = ("warn", "Owner ohne Printix-Credentials")
+            else:
+                checks["Printix Tenant"] = ("warn", "Kein Owner-Admin gefunden")
+        except Exception as e:
+            checks["Printix Tenant"] = ("error", str(e))
+
+        rbac = (os.getenv("MCP_RBAC_ENABLED", "0").strip().lower()
+                in ("1", "true", "yes", "on"))
+        checks["MCP RBAC"] = ("ok" if rbac else "info",
+                              "aktiv" if rbac else "inaktiv (Pass-Through)")
+
+        version = current_app_version()
+        rows_html = ""
+        for label, (state, msg) in checks.items():
+            color = {"ok": "#16a34a", "warn": "#f59e0b",
+                     "error": "#dc2626", "info": "#3b82f6"}.get(state, "#888")
+            icon = {"ok": "✓", "warn": "⚠", "error": "✕", "info": "ℹ"}.get(state, "•")
+            rows_html += (
+                f'<tr><td style="padding:10px 14px;font-weight:500;color:#003366;">{label}</td>'
+                f'<td style="padding:10px 14px;"><span style="color:{color};font-weight:700;">{icon} {state.upper()}</span></td>'
+                f'<td style="padding:10px 14px;color:#444;font-size:.92em;">{msg}</td></tr>'
+            )
+
+        html = f"""<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<title>Printix MCP — Status</title>
+<style>
+  body {{ font-family: -apple-system, Helvetica, Arial, sans-serif;
+         max-width: 720px; margin: 3em auto; padding: 0 1.5em;
+         color: #1a1a1a; background: #f7f9fb; }}
+  h1 {{ color: #003366; border-bottom: 2px solid #003366;
+        padding-bottom: 0.3em; }}
+  .card {{ background: #fff; border-radius: 12px;
+           box-shadow: 0 2px 12px rgba(0,0,0,0.06); padding: 1.6em;
+           margin-bottom: 1.5em; }}
+  table {{ width: 100%; border-collapse: collapse; }}
+  table tr:not(:last-child) td {{ border-bottom: 1px solid #eee; }}
+  .footer {{ font-size: 0.85em; color: #888; text-align: center;
+             margin-top: 2em; }}
+  a {{ color: #003366; }}
+</style></head>
+<body>
+  <h1>🔌 Printix MCP — Status</h1>
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1em;">
+      <div><strong>Version:</strong> v{version}</div>
+      <div style="font-size:.85em;color:#888;">aktualisiert: {_hm_time.strftime('%H:%M:%S', _hm_time.gmtime())} UTC</div>
+    </div>
+    <table>{rows_html}</table>
+  </div>
+  <div class="footer">
+    JSON-Endpoint: <a href="/health">/health</a> &nbsp;·&nbsp;
+    Login-Bereich: <a href="/login">/login</a>
+  </div>
+</body></html>"""
+        return HTMLResponse(html)
+
     @app.get("/manuals/gdpr-compliance.pdf")
     async def download_gdpr_compliance(request: Request):
         """v7.2.25: Download the GDPR Compliance Guide.

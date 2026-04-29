@@ -2,6 +2,67 @@
 
 This project follows [Semantic Versioning](https://semver.org/).
 
+## 7.2.31 (2026-04-29) — Health & status endpoints on the web UI port
+
+### Added
+
+The MCP server has had a `/health` endpoint on port 8765 since the
+beginning, but the web UI (port 8080) had no equivalent — Docker
+healthcheck, Cloudflare Tunnel, Pingdom and similar uptime probes
+that target the web port had nothing to hit. Two new endpoints close
+the gap.
+
+**`GET /health`** — JSON status for monitoring tools.
+
+```json
+{
+  "status": "ok",
+  "service": "printix-mcp-web",
+  "version": "7.2.31",
+  "checks": {
+    "db": "ok",
+    "tenant": "configured",
+    "rbac_enabled": true
+  },
+  "timestamp": 1746104730.12
+}
+```
+
+Returns HTTP 200 when all critical checks pass, HTTP 503 when the
+SQLite database is unreachable. No login required so that uptime
+probes don't need credentials.
+
+**`GET /status`** — pretty HTML dashboard for browsers.
+
+Renders a clean version-stamped panel with traffic-light style
+indicators (✓/⚠/✕/ℹ) for:
+
+- DB connection
+- Printix tenant configuration
+- MCP RBAC mode (active vs pass-through)
+
+Also no login required, but deliberately shows no tenant data —
+just system health.
+
+### Use cases
+
+- **Docker Compose healthcheck** can now also point at port 8080
+  (currently it targets 8765/health):
+  ```yaml
+  test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/health"]
+  ```
+- **Cloudflare Tunnel** /  reverse proxy can route a public
+  `https://mcp.example.com/status` to the container without exposing
+  any login or admin surface.
+- **Operational checks** when something feels off: open `/status`
+  in a browser to confirm the web UI process is alive and the DB is
+  reachable, before drilling into the admin area.
+
+### Internal
+- Both endpoints are added in `src/web/app.py` next to the manual
+  download routes; they share the same `current_app_version()`
+  helper that the dashboard already uses.
+
 ## 7.2.30 (2026-04-29) — GDPR data subject rights: two new MCP tools
 
 ### Added
