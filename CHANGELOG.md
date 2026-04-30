@@ -2,6 +2,20 @@
 
 This project follows [Semantic Versioning](https://semver.org/).
 
+## 7.5.1 (2026-04-30) — Pro-Lock-Badge auf Dashboard-Tiles
+
+Auf dem Admin-Dashboard zeigen jetzt die **Capture**- und **Delegate
+Print**-Kacheln ein 🔒-Badge (oben rechts) wenn das Pro-Feature noch
+nicht aktiviert ist — gleiche Optik-Sprache wie der Top-Nav-Lock.
+Tile bleibt klickbar, der Klick führt wie bisher zur Seite mit dem
+Aktivierungs-Hinweis. Hover bringt das Tile etwas zurück (visuelle
+Bestätigung dass es interaktiv ist).
+
+Implementation: `feature-card-locked`-Modifier-Klasse mit
+Greyscale-Filter + reduzierter Opacity, Schloss-Badge per absolut
+positionierter `.feature-lock`-Span. Verwendet `pro_capture_enabled`
+und `pro_print_job_mgmt_enabled` aus `t_ctx` — kein neuer Code-Pfad.
+
 ## 7.5.0 (2026-04-30) — UX cleanup release
 
 Mehrere zusammengehörige Verbesserungen, die einzeln zu klein für ein
