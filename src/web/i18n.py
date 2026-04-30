@@ -13,6 +13,9 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
     # ──────────────────────────────────────────────────────────────────────
     "de": {
         "nav_dashboard":  "Dashboard",
+        "prefetch_pill_running": "Daten werden geladen…",
+        "prefetch_pill_done":    "Daten geladen",
+        "prefetch_pill_tip":     "Hintergrund-Prefetch der Tenant-Daten — Navigation wird gleich schneller.",
         "nav_admin":  "Administration",
         "nav_settings":  "Einstellungen",
         "nav_help":  "Hilfe",
@@ -1144,6 +1147,8 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "ssld_section_recommend": "Empfehlung",
         "ssld_external_hint":    "Diese curl-Befehle <strong>von deinem Laptop oder Handy</strong> ausführen (nicht aus dem Container) — testen ob Ports 80, 443, 8080 wirklich aus dem Internet erreichbar sind. Nur so erkennst du Azure-NSG- oder Firewall-Lücken.",
         "ssld_port_80_purpose":   "ACME-Challenge (Auto-HTTPS)",
+        "ssld_test_home_purpose":   "Public-URL Home-Test",
+        "ssld_test_health_purpose": "/health-Endpoint testen",
         "ssld_port_443_purpose":  "Standard-HTTPS",
         "ssld_port_8080_purpose": "Web-UI + MCP-Proxy",
         "ssld_port_8765_purpose": "MCP-Server direkt (selten nötig)",
@@ -1298,6 +1303,9 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
     # ──────────────────────────────────────────────────────────────────────
     "en": {
         "nav_dashboard":  "Dashboard",
+        "prefetch_pill_running": "Loading data…",
+        "prefetch_pill_done":    "Data ready",
+        "prefetch_pill_tip":     "Background prefetch of tenant data — navigation will be instant in a moment.",
         "nav_admin":  "Administration",
         "nav_settings":  "Settings",
         "nav_help":  "Help",
@@ -2401,6 +2409,8 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "ssld_section_recommend": "Recommendation",
         "ssld_external_hint":    "Run these curl commands <strong>from your laptop or phone</strong> (not from inside the container) — they verify whether ports 80, 443, 8080 are actually reachable from the internet. Only this catches Azure NSG / firewall gaps.",
         "ssld_port_80_purpose":   "ACME challenge (Auto-HTTPS)",
+        "ssld_test_home_purpose":   "Public URL home test",
+        "ssld_test_health_purpose": "Probe /health endpoint",
         "ssld_port_443_purpose":  "Standard HTTPS",
         "ssld_port_8080_purpose": "Web UI + MCP proxy",
         "ssld_port_8765_purpose": "MCP server direct (rarely needed)",
@@ -6105,6 +6115,9 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
     # ──────────────────────────────────────────────────────────────────────
     "no": {
         "nav_dashboard":  "Oversikt",
+        "prefetch_pill_running": "Laster data…",
+        "prefetch_pill_done":    "Data klar",
+        "prefetch_pill_tip":     "Bakgrunns-prefetch av tenant-data — navigering blir straks raskere.",
         "nav_admin":  "Administrasjon",
         "nav_settings":  "Innstillinger",
         "nav_help":  "Hjelp",
@@ -7208,6 +7221,8 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "ssld_section_recommend": "Anbefaling",
         "ssld_external_hint":    "Kjør disse curl-kommandoene <strong>fra laptop eller telefon</strong> (ikke fra containeren) — de bekrefter om port 80, 443, 8080 faktisk er nåbare fra internett. Kun dette fanger opp Azure-NSG- eller brannmur-hull.",
         "ssld_port_80_purpose":   "ACME-challenge (Auto-HTTPS)",
+        "ssld_test_home_purpose":   "Public-URL hjem-test",
+        "ssld_test_health_purpose": "Test /health-endepunktet",
         "ssld_port_443_purpose":  "Standard HTTPS",
         "ssld_port_8080_purpose": "Web-UI + MCP-proxy",
         "ssld_port_8765_purpose": "MCP-server direkte (sjeldent nødvendig)",

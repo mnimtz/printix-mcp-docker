@@ -563,6 +563,38 @@
       /* Full-width buttons — but not small action buttons in tables */
       .btn:not(.btn-sm) { width: 100%; text-align: center; }
     }
+
+    /* v7.6.0: Prefetch-Status-Pille — kleines Indikator-Pill in der
+       Top-Nav wenn der Tenant-Background-Prefetch noch läuft. */
+    .prefetch-pill {
+      display:flex; align-items:center; gap:6px;
+      padding:5px 10px;
+      background:linear-gradient(135deg,#eff6ff,#dbeafe);
+      border:1px solid #bfdbfe;
+      border-radius:999px;
+      font-size:.78em; color:#1e40af;
+      box-shadow: 0 1px 3px rgba(30,64,175,.08);
+      cursor:default;
+      user-select:none;
+    }
+    .prefetch-pill-spin {
+      display:inline-block;
+      animation: prefetch-spin 1.4s linear infinite;
+    }
+    @keyframes prefetch-spin { to { transform: rotate(360deg); } }
+    .prefetch-pill.done {
+      background:linear-gradient(135deg,#dcfce7,#bbf7d0);
+      border-color:#86efac;
+      color:#14532d;
+      animation: prefetch-fade 2.4s ease-out forwards;
+    }
+    @keyframes prefetch-fade {
+      0%,70% { opacity:1; }
+      100%   { opacity:0; visibility:hidden; }
+    }
+    @media (max-width: 720px) {
+      .prefetch-pill .prefetch-pill-label { display:none; }
+    }
   </style>
   {% block extra_head %}{% endblock %}
 </head>
@@ -607,6 +639,17 @@
             <a href="/register">{{ _('nav_register') }}</a>
           {% endif %}
         </div>
+
+        {# v7.6.0: Prefetch-Status-Pille — zeigt während des
+           Hintergrund-Ladens dass Tenant-Daten gerade gewärmt werden.
+           Verschwindet wenn alle Topics frisch im Cache liegen. #}
+        {% if user and user.role_type != 'employee' %}
+        <div id="prefetchPill" class="prefetch-pill" style="display:none;"
+             title="{{ _('prefetch_pill_tip') }}">
+          <span class="prefetch-pill-spin">⏳</span>
+          <span class="prefetch-pill-label">{{ _('prefetch_pill_running') }}</span>
+        </div>
+        {% endif %}
 
         <!-- Language Switcher (desktop) -->
         <div class="lang-switcher" id="langSwitcher">
@@ -741,6 +784,49 @@
         }
       });
     }
+
+    /* v7.6.0: Prefetch-Status-Polling. Solange der Hintergrund-Prefetch
+       läuft, blinkt die ⏳-Pille in der Nav. Sobald 'done' kommt,
+       wechselt sie auf grün und blendet sich nach 2.4s aus. */
+    (function initPrefetchPoll() {
+      const pill = document.getElementById('prefetchPill');
+      if (!pill) return;
+      const labelEl = pill.querySelector('.prefetch-pill-label');
+      const I18N_DONE    = {{ _('prefetch_pill_done')    | tojson }};
+      const I18N_RUNNING = {{ _('prefetch_pill_running') | tojson }};
+      let pollHandle = null, doneShown = false;
+
+      async function poll() {
+        try {
+          const r = await fetch('/api/prefetch-status', { credentials:'same-origin' });
+          if (!r.ok) return;
+          const j = await r.json();
+          if (j.status === 'running') {
+            pill.style.display = 'flex';
+            pill.classList.remove('done');
+            if (labelEl) labelEl.textContent = I18N_RUNNING;
+          } else if (j.status === 'done') {
+            if (!doneShown) {
+              doneShown = true;
+              pill.style.display = 'flex';
+              pill.classList.add('done');
+              if (labelEl) labelEl.textContent = I18N_DONE;
+              pill.querySelector('.prefetch-pill-spin').textContent = '✓';
+            }
+            // Nach erstem 'done' Polling stoppen — Refresher arbeitet im
+            // Hintergrund, User braucht das Feedback nicht mehr.
+            if (pollHandle) { clearInterval(pollHandle); pollHandle = null; }
+          } else {
+            // anon / error / no_tenant / idle → nicht zeigen
+            pill.style.display = 'none';
+          }
+        } catch (e) { /* offline → still */ }
+      }
+
+      // Erstes Poll sofort, danach alle 1.5s bis Done.
+      poll();
+      pollHandle = setInterval(poll, 1500);
+    })();
   </script>
   {% block extra_scripts %}{% endblock %}
 </body>

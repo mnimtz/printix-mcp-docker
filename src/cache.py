@@ -282,6 +282,72 @@ def _set_prefetch_status(tenant_id: str, status: str) -> None:
         _prefetch_status[tenant_id] = status
 
 
+def count_user_cards_robust(client, user_id: str) -> int:
+    """v7.6.0: Single-Source-of-Truth für die Karten-Zählung pro User.
+
+    Die Printix-API liefert /users/{id}/cards in vier verschiedenen
+    Formen zurück (variiert pro Tenant-Konfiguration):
+
+      1. ``{"cards":   [...]}``
+      2. ``{"content": [...]}``
+      3. ``{"items":   [...]}``
+      4. ``[...]``  (Top-Level-Liste)
+
+    Vor v7.2.47 wurde nur Form 1+2 abgedeckt — Tenants mit Form 3+4
+    sahen 0 Karten für jeden User. Diese Helper-Funktion deckt alle
+    vier ab und filtert Strings/None aus dem Listen-Inhalt heraus
+    (nur Dict-Einträge zählen als echte Karte).
+
+    Wird sowohl vom Bulk-Prefetch als auch vom on-demand
+    ``_load_card_counts_parallel`` aufgerufen — dadurch zeigt
+    /tenant/users immer den gleichen Zähler wie der Cache.
+    """
+    try:
+        data = client.list_user_cards(user_id)
+    except Exception:
+        return 0
+    if isinstance(data, list):
+        raw = data
+    elif isinstance(data, dict):
+        raw = (data.get("cards")
+               or data.get("content")
+               or data.get("items")
+               or [])
+    else:
+        return 0
+    return sum(1 for c in raw if isinstance(c, dict))
+
+
+async def _bulk_prefetch_card_counts(tenant_id: str, client, users) -> int:
+    """Lädt Karten-Zähler für alle übergebenen User parallel und
+    schreibt sie in den Sub-Cache (gleicher Slot den
+    ``_load_card_counts_parallel`` in app.py liest)."""
+    import asyncio as _aio
+    if not users:
+        return 0
+    user_ids: list[str] = []
+    for u in users:
+        if isinstance(u, dict):
+            uid = u.get("id") or u.get("userId") or u.get("user_id") or ""
+            if uid:
+                user_ids.append(uid)
+    if not user_ids:
+        return 0
+
+    async def _one(uid: str) -> tuple[str, int]:
+        try:
+            n = await _aio.to_thread(count_user_cards_robust, client, uid)
+        except Exception:
+            n = 0
+        return uid, n
+
+    pairs = await _aio.gather(*(_one(uid) for uid in user_ids))
+    now = time.time()
+    for uid, n in pairs:
+        tenant_cache._sub[(tenant_id, "cards_per_user", uid)] = (now, n)
+    return len(pairs)
+
+
 async def prefetch_tenant(tenant: dict, client) -> dict:
     """Lädt parallel die wichtigsten Tenant-Topics in den Cache.
 
@@ -369,6 +435,15 @@ async def prefetch_tenant(tenant: dict, client) -> dict:
             lambda: client.list_groups(size=200),
             required=True,
         ))
+        # v7.6.0: SNMP-Configs gehören zu den Stammdaten — selten geändert,
+        # 30 min TTL. Vorher wurden sie erst beim ersten /tenant/snmp-Hit
+        # geladen → erste Navigation langsam.
+        topic_names.append("snmp")
+        tasks.append(_load(
+            "snmp",
+            lambda: client.list_snmp_configs(size=200),
+            required=True,
+        ))
 
     if not tasks:
         _set_prefetch_status(tenant_id, "done")
@@ -382,6 +457,30 @@ async def prefetch_tenant(tenant: dict, client) -> dict:
             summary[topic] = f"error:{str(res)[:100]}"
         else:
             summary[topic] = res
+
+    # v7.6.0: Bulk-Cards-Prefetch — nachdem die User-Liste im Cache ist,
+    # parallel pro User /users/{id}/cards holen und Zähler in den
+    # cards_per_user-Sub-Cache schreiben. /tenant/users zeigt die Zahlen
+    # dann ohne weiteren API-Round-Trip. Best-effort: schluckt Fehler
+    # einzelner User damit ein 403 für einen User nicht alle anderen
+    # ausbremst.
+    if has_card_creds and summary.get("users") == "ok":
+        try:
+            users_data = tenant_cache.get(tenant_id, "users", loader=lambda: [])
+            users_list = []
+            if isinstance(users_data, list):
+                users_list = users_data
+            elif isinstance(users_data, dict):
+                users_list = (users_data.get("users")
+                              or users_data.get("content")
+                              or users_data.get("items")
+                              or [])
+            n = await _bulk_prefetch_card_counts(tenant_id, client, users_list)
+            summary["cards_per_user"] = "ok" if n > 0 else "skip"
+            logger.info("Prefetch cards: %d user warmed", n)
+        except Exception as ce:
+            summary["cards_per_user"] = f"error:{str(ce)[:80]}"
+            logger.debug("Bulk-Cards-Prefetch fehlgeschlagen: %s", ce)
 
     ok_count = sum(1 for v in summary.values() if v == "ok")
     logger.info("Prefetch abgeschlossen für Tenant %s: %d/%d topics ok",
@@ -436,3 +535,98 @@ def schedule_prefetch(tenant: dict, client_factory) -> None:
         logger.debug("schedule_prefetch: kein Event-Loop — skip")
         return
     loop.create_task(_run())
+
+
+# ─── v7.6.0: Periodic Background Refresher ───────────────────────────────────
+# Jede Minute: schaut für jeden Tenant der schonmal einen Prefetch hatte
+# nach, ob ein Topic in <60 Sek. ablaufen würde. Wenn ja → re-prefetch in
+# diesem Tick. Effekt: Cache läuft nie kalt während ein Tab offen ist.
+
+_REFRESHER_TASK = None  # type: ignore
+_TENANT_PROVIDERS: dict[str, Callable] = {}  # tenant_id → factory
+
+
+def register_tenant_for_refresh(tenant: dict, client_factory: Callable) -> None:
+    """Registriert (tenant, client_factory) für den Periodic Refresher.
+
+    Muss nach jedem Login aufgerufen werden — das Callable bekommt eine
+    aktuelle Client-Instanz, weil Tokens irgendwann ablaufen.
+    """
+    tid = tenant.get("id", "")
+    if not tid:
+        return
+    _TENANT_PROVIDERS[tid] = client_factory
+
+
+def _topic_age(tenant_id: str, topic: str) -> Optional[float]:
+    return tenant_cache.age_seconds(tenant_id, topic)
+
+
+def _topic_needs_refresh(tenant_id: str, topic: str, lead_time: int = 60) -> bool:
+    """True wenn Topic ABLÄUFT in <= lead_time Sekunden (oder schon ist)."""
+    age = _topic_age(tenant_id, topic)
+    if age is None:
+        return False  # noch nie geladen — nicht hier neu starten, das macht der Login-Path
+    ttl = DEFAULT_TTLS.get(topic, FALLBACK_TTL)
+    return (ttl - age) <= lead_time
+
+
+async def _refresher_loop(interval: int = 60) -> None:
+    """Hintergrund-Schleife — startet bei Bedarf einen erneuten Prefetch."""
+    import asyncio as _aio
+    logger.info("Periodic cache refresher started (interval=%ds)", interval)
+    while True:
+        try:
+            await _aio.sleep(interval)
+            for tid, factory in list(_TENANT_PROVIDERS.items()):
+                # Prüf-Topics — die teuersten/häufigsten zuerst
+                topics_to_check = ("users", "printers", "workstations",
+                                   "sites", "networks", "groups", "snmp")
+                if not any(_topic_needs_refresh(tid, t) for t in topics_to_check):
+                    continue
+                if prefetch_status(tid) == "running":
+                    continue
+                try:
+                    client = factory()
+                    # Tenant-Dict rekonstruieren ist nicht ideal — wir
+                    # speichern nur die ID hier, aber prefetch_tenant
+                    # braucht das Credentials-Flags-Dict. Lösung: die
+                    # Factory gibt ein Tuple (tenant, client) zurück,
+                    # falls nötig. Vorerst: die Factory liefert direkt
+                    # einen Client; wir bauen ein Minimal-Tenant-Dict
+                    # aus dem Tenant-Cache rückwärts. Ist nicht perfekt,
+                    # aber tut's für den Refresh weil prefetch_tenant
+                    # bereits has_*_creds aus dem Tenant-Dict bestimmt.
+                    # → besser: Factory liefert (tenant, client).
+                    if isinstance(client, tuple) and len(client) == 2:
+                        tenant_dict, real_client = client
+                    else:
+                        # Backwards-compat: alter Code lieferte nur
+                        # Client. Wir füllen Tenant-Dict minimal aus.
+                        tenant_dict = {"id": tid,
+                                       "shared_client_id": "1",  # Optimistisch
+                                       "print_client_id": "1",
+                                       "card_client_id": "1",
+                                       "ws_client_id": "1"}
+                        real_client = client
+                    await prefetch_tenant(tenant_dict, real_client)
+                except Exception as e:
+                    logger.warning("Refresher: prefetch %s failed: %s",
+                                   tid[:8], e)
+        except Exception as e:
+            # Refresher selber soll niemals sterben — alles fangen
+            logger.warning("Refresher loop hiccup: %s", e)
+
+
+def start_background_refresher() -> None:
+    """Startet den Refresher einmal im aktuellen Event-Loop. Idempotent."""
+    global _REFRESHER_TASK
+    import asyncio as _aio
+    if _REFRESHER_TASK is not None and not _REFRESHER_TASK.done():
+        return
+    try:
+        loop = _aio.get_running_loop()
+    except RuntimeError:
+        logger.debug("start_background_refresher: no running loop")
+        return
+    _REFRESHER_TASK = loop.create_task(_refresher_loop())

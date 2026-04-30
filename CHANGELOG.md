@@ -2,6 +2,72 @@
 
 This project follows [Semantic Versioning](https://semver.org/).
 
+## 7.6.0 (2026-04-30) — Cache-Prefetch + dynamische Diagnose-Tests
+
+### Hintergrund-Cache wesentlich aggressiver
+
+Beim Login startet weiterhin der Background-Prefetch (existiert seit
+v6.2.0), aber ab jetzt deutlich umfassender:
+
+- **Bulk-Cards-Prefetch**: parallel zu allen anderen Topics zieht der
+  Prefetch jetzt auch `/users/{id}/cards` für jeden User des Tenants
+  (asyncio.gather, ein Round-Trip pro User). Damit zeigt
+  `/tenant/users` die Karten-Anzahl-Spalte ohne weitere API-Calls —
+  vorher war das eine n+1-Last beim ersten Aufruf.
+  Die Zähl-Logik ist in `cache.count_user_cards_robust()`
+  zentralisiert und unterstützt alle vier API-Response-Formen
+  (`cards`/`content`/`items`/Top-Level-Liste) — gleiche Quelle wie
+  der on-demand Pfad, also keine Drift zwischen den Werten
+  (Bug-Fix-Erinnerung an v7.2.47).
+- **SNMP-Topic** ist neu im Prefetch-Set + `/tenant/snmp` liest jetzt
+  über den Cache statt jedesmal live zu pollen.
+
+### Periodischer Refresher
+
+Neuer `start_background_refresher()` Loop läuft alle 60 s im
+Event-Loop. Für jeden Tenant der schon einen Login-Prefetch hatte
+prüft er ob ein Topic in <60 s ablaufen würde — wenn ja, refresht er
+es im Hintergrund. Effekt: nach dem ersten Login wird der Cache nie
+mehr stale solange der Server läuft. Klick auf `/tenant/users` ist
+jederzeit instant.
+
+### Prefetch-Status-Pille
+
+In der Top-Nav erscheint während des initialen Prefetches eine
+kleine ⏳-Pille („Daten werden geladen…"). Sobald `prefetch_status ==
+done` springt sie auf grün („Daten geladen") und blendet sich nach
+2.4 s aus. User sieht: jetzt kurz warten, dann ist alles flott.
+
+i18n-Keys `prefetch_pill_*` in de/en/no, andere Sprachen über die
+EN-Fallback-Kette.
+
+### Diagnose-Test-Buttons jetzt dynamisch
+
+`/admin/ssl/diagnose` testet jetzt nicht mehr die nackte WAN-IP,
+sondern in dieser Priorität:
+
+1. **Tunnel-URL** wenn aktiv
+2. **public_url-Setting** (Admin → Tenant-Einstellungen)
+3. **Public-IP** als Fallback
+
+Plus zwei neue Test-Zeilen:
+
+- **Public-URL Home** — testet das was AI-Clients sehen
+- **/health-Endpoint** — bestätigt dass die App selbst gesund antwortet
+
+Port-spezifische Tests bleiben für ACME-/Listener-Diagnose über die
+Public-IP. Backend prüft dass die getestete URL aus der Allowlist
+(Tunnel-URL · public_url · detected public IP) kommt — Endpoint kann
+nicht für SSRF missbraucht werden, auch wenn Admin kompromittiert
+wäre.
+
+### API
+
+Neuer Endpoint `GET /api/prefetch-status` — liefert für den
+eingeloggten User Status + Topic-Frische (für die Pille).
+
+---
+
 ## 7.5.1 (2026-04-30) — Pro-Lock-Badge auf Dashboard-Tiles
 
 Auf dem Admin-Dashboard zeigen jetzt die **Capture**- und **Delegate

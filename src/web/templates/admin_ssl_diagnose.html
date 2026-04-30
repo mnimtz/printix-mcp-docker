@@ -47,35 +47,56 @@
   </div>
 
   <!-- Section 2: extern selbst testen + Server-side Test-Button -->
-  {% if diag.public_ip %}
+  {% if diag.public_ip or diag.test_base %}
   <div class="card" style="margin-bottom:20px;">
     <div class="section-title" style="margin-bottom:8px;">{{ _('ssld_section_external') }}</div>
     <div class="section-sub" style="margin-bottom:14px;">{{ _('ssld_external_hint') | safe }}</div>
 
-    {% set port_tests = [
-      ('80',   _('ssld_port_80_purpose')),
-      ('443',  _('ssld_port_443_purpose')),
-      ('8080', _('ssld_port_8080_purpose')),
-      ('8765', _('ssld_port_8765_purpose'))
-    ] %}
+    {# v7.6.0: Dynamische Test-Ziele — bevorzugt Tunnel-URL bzw.
+       konfigurierte public_url, weil das ist was der User wirklich nutzt.
+       Plus eine Zeile für den /health-Endpoint. Port-spezifische Tests
+       (80, 8080, 8765) bleiben für reine ACME-/Listener-Diagnose über
+       die Public-IP. #}
+    {% set base       = diag.test_base %}
+    {% set base_kind  = diag.test_base_kind %}
+    {% set test_rows  = [] %}
+    {% if base %}
+      {% set _ = test_rows.append(('home',   base ~ '/',
+                                   _('ssld_test_home_purpose') ~ ' (' ~ base_kind ~ ')',
+                                   base)) %}
+      {% set _ = test_rows.append(('health', base ~ '/health',
+                                   _('ssld_test_health_purpose'),
+                                   base ~ '/health')) %}
+    {% endif %}
+    {% if diag.public_ip %}
+      {% set _ = test_rows.append(('p80',    'http://' ~ diag.public_ip ~ '/',
+                                   _('ssld_port_80_purpose'),
+                                   'http://' ~ diag.public_ip ~ '/')) %}
+      {% if base_kind != 'public_ip' %}
+        {% set _ = test_rows.append(('p8080', 'http://' ~ diag.public_ip ~ ':8080/',
+                                     _('ssld_port_8080_purpose'),
+                                     'http://' ~ diag.public_ip ~ ':8080/')) %}
+      {% endif %}
+    {% endif %}
 
-    {% for port, purpose in port_tests %}
+    {% for row_id, target_url, purpose, curl_url in test_rows %}
     <div style="margin-bottom:14px; padding:12px 14px; background:#f7f9fb; border-radius:8px;"
-         data-port-row="{{ port }}">
+         data-test-row="{{ row_id }}">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; gap:10px; flex-wrap:wrap;">
-        <div style="font-weight:600; color:#003366;">Port {{ port }}</div>
-        <div style="font-size:.82em; color:#666; flex:1;">{{ purpose }}</div>
+        <div style="font-weight:600; color:#003366; font-family:monospace; font-size:.92em;
+                    overflow-wrap:anywhere; flex:1; min-width:200px;">{{ target_url }}</div>
+        <div style="font-size:.82em; color:#666;">{{ purpose }}</div>
         <button type="button" class="btn btn-sm btn-primary"
-                onclick="ssldTestPort('{{ diag.public_ip }}', {{ port }}, this)"
+                onclick="ssldTestUrl({{ target_url | tojson }}, this)"
                 style="padding:4px 12px; font-size:.85em;">
           🧪 {{ _('ssld_test_button') }}
         </button>
       </div>
-      <div class="code-block" id="cmd-{{ port }}" style="margin:0;">
-        <button class="copy-btn" onclick="copyToClipboard('cmd-{{ port }}-val', this)">⧉</button>
-        <span id="cmd-{{ port }}-val">curl -v --max-time 5 {% if port == '443' %}https://{{ diag.public_ip }}/{% else %}http://{{ diag.public_ip }}{% if port != '80' %}:{{ port }}{% endif %}/{% endif %}</span>
+      <div class="code-block" id="cmd-{{ row_id }}" style="margin:0;">
+        <button class="copy-btn" onclick="copyToClipboard('cmd-{{ row_id }}-val', this)">⧉</button>
+        <span id="cmd-{{ row_id }}-val">curl -v --max-time 5 {{ curl_url }}</span>
       </div>
-      <div class="ssld-result" id="result-{{ port }}" style="display:none; margin-top:10px; padding:10px 12px; border-radius:6px; font-size:.88em;"></div>
+      <div class="ssld-result" id="result-{{ row_id }}" style="display:none; margin-top:10px; padding:10px 12px; border-radius:6px; font-size:.88em;"></div>
     </div>
     {% endfor %}
 
@@ -180,8 +201,24 @@ const SSLD_VERDICTS = {
 const SSLD_BUSY_LABEL = {{ _('ssld_test_running') | tojson }};
 const SSLD_BTN_LABEL  = {{ ('🧪 ' ~ _('ssld_test_button')) | tojson }};
 
+// v7.6.0: URL-Mode — wird vom dynamischen Test-Set (Tunnel/public_url/
+// /health) benutzt. Das row_id Marker-Attribut auf dem Container
+// liefert die Result-Box-ID.
+async function ssldTestUrl(url, btn) {
+  const row = btn.closest('[data-test-row]');
+  const rowId = row ? row.getAttribute('data-test-row') : '';
+  const out = document.getElementById('result-' + rowId);
+  return _ssldRunTest(out, btn, { url });
+}
+
 async function ssldTestPort(ip, port, btn) {
-  const out = document.getElementById('result-' + port);
+  const out = document.getElementById('result-' + port)
+           || document.getElementById('result-p' + port);
+  return _ssldRunTest(out, btn, { ip, port });
+}
+
+async function _ssldRunTest(out, btn, payload) {
+  if (!out) return;
   const orig = btn.innerHTML;
   btn.disabled = true;
   btn.innerHTML = '⏳ ' + SSLD_BUSY_LABEL;
@@ -195,7 +232,7 @@ async function ssldTestPort(ip, port, btn) {
     const r = await fetch('/admin/ssl/diagnose/test-port', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ ip, port })
+      body: JSON.stringify(payload)
     });
     const j = await r.json();
     const v = SSLD_VERDICTS[j.verdict] || SSLD_VERDICTS.other;

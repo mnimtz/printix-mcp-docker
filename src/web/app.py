@@ -915,13 +915,18 @@ def create_app(session_secret: str) -> FastAPI:
 
         # v6.2.0: Background-Prefetch — Tenant-Daten werden parallel
         # geladen, damit die ersten Seiten nach dem Login sofort da sind.
-        # Fehlschläge werden nur geloggt, beeinflussen den Login nicht.
+        # v7.6.0: Tenant für den Periodic Refresher registrieren — der
+        # frischt Topics auf bevor sie ablaufen, sodass nach dem ersten
+        # Login NIE wieder ein Cache-Miss-Hänger auftritt.
         try:
             from db import get_tenant_full_by_user_id as _gt
             t = _gt(user["id"])
             if t:
-                from cache import schedule_prefetch
+                from cache import schedule_prefetch, register_tenant_for_refresh
                 schedule_prefetch(t, lambda tt=t: _make_printix_client(tt))
+                register_tenant_for_refresh(
+                    t, lambda tt=t: (tt, _make_printix_client(tt))
+                )
         except Exception as _pe:
             logger.debug("Login-Prefetch skip: %s", _pe)
 
@@ -1083,12 +1088,16 @@ def create_app(session_secret: str) -> FastAPI:
             pass
 
         # v6.2.0: Background-Prefetch auch beim Entra-SSO-Login
+        # v7.6.0: + Periodic-Refresher-Registrierung
         try:
             from db import get_tenant_full_by_user_id as _gt
             t = _gt(user["id"])
             if t:
-                from cache import schedule_prefetch
+                from cache import schedule_prefetch, register_tenant_for_refresh
                 schedule_prefetch(t, lambda tt=t: _make_printix_client(tt))
+                register_tenant_for_refresh(
+                    t, lambda tt=t: (tt, _make_printix_client(tt))
+                )
         except Exception as _pe:
             logger.debug("Entra-Login-Prefetch skip: %s", _pe)
 
@@ -2607,6 +2616,27 @@ def create_app(session_secret: str) -> FastAPI:
         else:
             diag["recommendation"] = "tls"     # nur manueller Cert-Import übrig
 
+        # v7.6.0: Test-Targets dynamisch — bevorzugt Tunnel-URL, dann
+        # konfigurierte public_url, dann Fallback Public-IP. Damit
+        # testen die Buttons das was der User wirklich nutzt, nicht
+        # nur die WAN-IP der Maschine.
+        try:
+            from tunnel import _manager as _tm
+            _ts = _tm.status()
+            tunnel_url = (_ts.get("url") or "").strip().rstrip("/") if _ts.get("running") else ""
+        except Exception:
+            tunnel_url = ""
+        diag["test_base"] = (
+            tunnel_url or
+            (diag.get("public_url") or "").rstrip("/") or
+            (f"http://{diag['public_ip']}" if diag["public_ip"] else "")
+        )
+        diag["test_base_kind"] = (
+            "tunnel" if tunnel_url else
+            ("public_url" if diag.get("public_url") else
+             ("public_ip" if diag["public_ip"] else "none"))
+        )
+
         return templates.TemplateResponse("admin_ssl_diagnose.html", {
             "request": request, "user": user,
             "diag": diag,
@@ -2615,14 +2645,11 @@ def create_app(session_secret: str) -> FastAPI:
 
     @app.post("/admin/ssl/diagnose/test-port")
     async def admin_ssl_diagnose_test_port(request: Request):
-        """v7.2.50: Run a server-side curl probe against the configured public
-        IP / port and return a structured JSON verdict that the UI can map to
-        a localised explanation. Caveat shipped to the user: this is a NAT-
-        loopback test from inside the container — works on most cloud VMs
-        (Azure/AWS/GCP) but some home routers don't hairpin, so a "timeout"
-        here doesn't necessarily mean the port is closed from the real
-        outside. The explicit copy-paste curl from the user's laptop remains
-        the authoritative test."""
+        """v7.2.50/v7.6.0: Server-side curl probe against either a Public-IP
+        port (legacy `{ip, port}` payload) or a fully-qualified URL
+        (`{url}` payload — used by the Tunnel/Public-URL/Health buttons).
+        Returns a structured verdict the UI maps to a localised
+        explanation."""
         user = get_session_user(request)
         if not user or not user.get("is_admin"):
             return JSONResponse({"error": "unauthorized"}, status_code=401)
@@ -2631,27 +2658,72 @@ def create_app(session_secret: str) -> FastAPI:
             body = await request.json()
         except Exception:
             body = {}
-        ip = (body.get("ip") or "").strip()
-        try:
-            port = int(body.get("port") or 0)
-        except (TypeError, ValueError):
-            port = 0
-        if not ip or port <= 0 or port > 65535:
-            return JSONResponse({"error": "bad_request"}, status_code=400)
 
-        # Lock destination to whatever the diagnostic detected as our public
-        # IP — never let the caller probe arbitrary hosts. (Defence in depth:
-        # the route is admin-gated, but we'd still rather not turn this into
-        # an SSRF tool.)
         import socket as _sock
-        try:
-            _sock.inet_aton(ip)
-        except OSError:
-            return JSONResponse({"error": "bad_ip"}, status_code=400)
+        from urllib.parse import urlparse
 
-        scheme = "https" if port == 443 else "http"
-        host_with_port = ip if port in (80, 443) else f"{ip}:{port}"
-        url = f"{scheme}://{host_with_port}/"
+        url = (body.get("url") or "").strip()
+        if url:
+            # URL-Mode: validate against allowlist (tunnel, public_url, public_ip).
+            # Otherwise this admin-gated endpoint becomes an SSRF tool.
+            try:
+                from db import get_setting
+                pu_setting = (get_setting("public_url", "") or "").strip().rstrip("/")
+            except Exception:
+                pu_setting = ""
+            try:
+                from tunnel import _manager as _tm
+                _ts = _tm.status()
+                tunnel_url = (_ts.get("url") or "").strip().rstrip("/") if _ts.get("running") else ""
+            except Exception:
+                tunnel_url = ""
+            try:
+                import urllib.request as _ur
+                with _ur.urlopen("https://api.ipify.org", timeout=4) as _r:
+                    detected_ip = _r.read().decode("ascii", errors="ignore").strip()
+            except Exception:
+                detected_ip = ""
+
+            allowed_hosts = set()
+            for base in (tunnel_url, pu_setting):
+                if base:
+                    try:
+                        allowed_hosts.add((urlparse(base).hostname or "").lower())
+                    except Exception:
+                        pass
+            if detected_ip:
+                allowed_hosts.add(detected_ip)
+
+            try:
+                parsed = urlparse(url)
+            except Exception:
+                return JSONResponse({"error": "bad_url"}, status_code=400)
+            host = (parsed.hostname or "").lower()
+            scheme = (parsed.scheme or "").lower()
+            if scheme not in ("http", "https") or not host:
+                return JSONResponse({"error": "bad_url"}, status_code=400)
+            if host not in allowed_hosts:
+                return JSONResponse({"error": "host_not_allowed",
+                                      "host": host}, status_code=400)
+            # Use parsed pieces; final URL stays as user-supplied (after validation).
+            port = parsed.port or (443 if scheme == "https" else 80)
+            ip = host
+        else:
+            # Legacy IP+port mode (still used by the per-port buttons).
+            ip = (body.get("ip") or "").strip()
+            try:
+                port = int(body.get("port") or 0)
+            except (TypeError, ValueError):
+                port = 0
+            if not ip or port <= 0 or port > 65535:
+                return JSONResponse({"error": "bad_request"}, status_code=400)
+            try:
+                _sock.inet_aton(ip)
+            except OSError:
+                return JSONResponse({"error": "bad_ip"}, status_code=400)
+            scheme = "https" if port == 443 else "http"
+            host_with_port = ip if port in (80, 443) else f"{ip}:{port}"
+            url = f"{scheme}://{host_with_port}/"
 
         verdict_kind = "other"
         http_code = None
@@ -3107,6 +3179,44 @@ def create_app(session_secret: str) -> FastAPI:
             "timestamp": _hm_time.time(),
         }
         return JSONResponse(body, status_code=200 if ok else 503)
+
+    @app.get("/api/prefetch-status", response_class=JSONResponse)
+    async def api_prefetch_status(request: Request):
+        """v7.6.0: Status des Background-Prefetches für den eingeloggten
+        User — wird vom kleinen Status-Pill in der Top-Nav gepollt.
+
+        Response:
+            {"status": "running"|"done"|"error"|"idle",
+             "topics": {"users": {"age": 12, "fresh": true}, ...}}
+        """
+        user = get_session_user(request)
+        if not user:
+            return JSONResponse({"status": "anon"}, status_code=200)
+        try:
+            from db import get_tenant_full_by_user_id as _gt
+            from cache import (prefetch_status, tenant_cache,
+                                DEFAULT_TTLS, FALLBACK_TTL)
+        except Exception:
+            return JSONResponse({"status": "error"}, status_code=200)
+        t = _gt(user["id"])
+        if not t or not t.get("id"):
+            return JSONResponse({"status": "no_tenant"}, status_code=200)
+        tid = t["id"]
+        topics = ("users", "printers", "workstations", "sites",
+                  "networks", "groups", "snmp")
+        topic_info: dict = {}
+        for topic in topics:
+            age = tenant_cache.age_seconds(tid, topic)
+            ttl = DEFAULT_TTLS.get(topic, FALLBACK_TTL)
+            topic_info[topic] = {
+                "age":   None if age is None else int(age),
+                "fresh": age is not None and age < ttl,
+                "ttl":   ttl,
+            }
+        return JSONResponse({
+            "status": prefetch_status(tid),
+            "topics": topic_info,
+        }, status_code=200)
 
     @app.get("/status", response_class=HTMLResponse)
     async def status_page(request: Request):
@@ -5356,29 +5466,14 @@ def create_app(session_secret: str) -> FastAPI:
         if not to_fetch:
             return results
 
+        # v7.6.0: Karten-Zähl-Logik in cache.count_user_cards_robust()
+        # zentralisiert — Bulk-Prefetch und on-demand benutzen jetzt die
+        # gleiche Implementierung. Damit ist garantiert dass /tenant/users
+        # die gleichen Zahlen zeigt egal ob aus Prefetch oder Live-Call.
+        from cache import count_user_cards_robust as _count_cards
         async def _count(uid: str) -> tuple[str, int]:
-            """v7.2.47: Robuste Karten-Zählung — unterstützt alle vier
-            Response-Formen die die Printix-API für /users/{id}/cards
-            zurückgibt:
-              1. Dict mit 'cards': [...]
-              2. Dict mit 'content': [...]
-              3. Dict mit 'items': [...]
-              4. Top-Level-Liste [...]
-            Vorher wurde nur Form 1+2 abgedeckt; Tenants die Form 4
-            zurückbekamen sahen 0 Karten für jeden User."""
             try:
-                data = await _aio.to_thread(lambda u=uid: client.list_user_cards(u))
-                if isinstance(data, list):
-                    raw = data
-                elif isinstance(data, dict):
-                    raw = (data.get("cards")
-                           or data.get("content")
-                           or data.get("items")
-                           or [])
-                else:
-                    raw = []
-                # Filter — nur Dict-Einträge zählen, keine Strings/None
-                n = sum(1 for c in raw if isinstance(c, dict))
+                n = await _aio.to_thread(_count_cards, client, uid)
             except Exception:
                 n = 0
             return uid, n
@@ -6256,7 +6351,9 @@ def create_app(session_secret: str) -> FastAPI:
             tenant = get_tenant_full_by_user_id(user["id"])
             if tenant and (tenant.get("print_client_id") or tenant.get("shared_client_id")):
                 client = _make_printix_client(tenant)
-                data = client.list_snmp_configs(size=200)
+                # v7.6.0: SNMP über Tenant-Cache + Prefetch — sonst wartete
+                # /tenant/snmp jedesmal auf den vollen API-Roundtrip.
+                data = _cached_snmp_configs(tenant, client)
                 for config in _paged_items(data, "snmp", "snmpConfigurations"):
                     config["snmp_id"] = _extract_resource_id(config)
                     snmp_configs.append(config)
@@ -7670,6 +7767,19 @@ def create_app(session_secret: str) -> FastAPI:
     # der die gleiche FastAPI-App auf dem IPP-Port hostet. So kann der User
     # seinen Cloudflare-TCP-Tunnel auf z.B. 192.168.1.179:621 richten und
     # unser IPP-Endpoint ist dort erreichbar.
+    @app.on_event("startup")
+    async def _start_periodic_refresher():
+        """v7.6.0: Periodic Cache Refresher — alle 60s prüft er ob ein
+        Topic gleich abläuft, frischt es im Hintergrund auf. Dadurch
+        gibt's nach dem ersten Login (bei dem der Prefetch alles warm
+        zieht) keinen Cache-Miss mehr — Navigation auf /tenant/users
+        ist jederzeit instant."""
+        try:
+            from cache import start_background_refresher
+            start_background_refresher()
+        except Exception as e:
+            logger.warning("Periodic refresher startup failed: %s", e)
+
     @app.on_event("startup")
     async def _start_ipp_listener():
         import asyncio
