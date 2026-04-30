@@ -2,6 +2,62 @@
 
 This project follows [Semantic Versioning](https://semver.org/).
 
+## 7.6.6 (2026-04-30) — AES-verschlüsseltes Backup mit Passphrase
+
+Optionale Passphrase auf der Backup-Erstellungs-Form. Wenn gesetzt:
+
+- Random 16-Byte-Salt pro Backup
+- Key via PBKDF2-HMAC-SHA256 (600 000 Iterationen — OWASP 2024)
+- Jeder Managed-File-Inhalt mit Fernet (AES-128-CBC + HMAC-SHA256)
+  verschlüsselt vor dem Zippen
+- Manifest-Format wird `printix-mcp-backup-v1-encrypted`, enthält
+  Salt + Iterations + KDF-Name (kein Schlüssel-Material)
+- Restore fragt nach Passphrase, derived denselben Key, entschlüsselt
+  jeden Eintrag, schreibt ihn an die Stelle wo er hingehört
+
+Falsche Passphrase wird durch Fernet's authentication-Mode sofort
+erkannt → `RuntimeError("Restore: Passphrase falsch oder Backup
+beschädigt")` — kein partieller Restore.
+
+### UI
+
+- Backup-Erstellungs-Form: optionales Passphrase-Feld („leer = wie
+  bisher unverschlüsselt"). Mit Hinweistext der erklärt was passiert.
+- Restore-Form: Passphrase-Feld („nur falls Backup verschlüsselt").
+- i18n: `backup_passphrase_*` Keys für de/en/no.
+
+### Sicherheitsmodell
+
+- Salt ist im Manifest, Passphrase NIEMALS persistiert.
+- Audit-Log enthält jetzt `encrypted=true|false` bei jedem
+  Backup-Create.
+- Brute-force gegen ein gestohlenes Backup: bei 12-Zeichen-Passphrase
+  + 600k Iter pro Versuch dauert ein 10⁹-Versuche-Angriff
+  Größenordnung Jahrzehnte. Bei 8-Zeichen-Passwörtern dagegen Tage —
+  daher der Hinweis „mind. 12 Zeichen empfohlen".
+- Cloud-Storage-tauglich: ohne Passphrase ist das ZIP wertlos. Selbst
+  wenn jemand Zugriff bekommt — kein Fernet-Key, keine Credentials.
+
+### E2E-Test erweitert
+
+`bin/test-backup-restore.py` macht jetzt zusätzlich:
+- Encrypted-Backup erstellen
+- verify_backup zeigt Format `*-v1-encrypted`
+- Restore mit FALSCHER Passphrase → muss RuntimeError werfen
+- Restore mit korrekter Passphrase → DB-Marker round-trips
+
+Lokal grün durch — alle 11 Schritte ✓.
+
+### Migration
+
+- Bestehende unverschlüsselte Backups bleiben uneingeschränkt
+  restorebar (Format-Version `printix-mcp-backup-v1` wird weiter
+  akzeptiert).
+- Wer Cloud-Sicherung will: ab jetzt einfach Passphrase setzen.
+  Empfehlung: Passphrase im Passwort-Manager hinterlegen.
+
+---
+
 ## 7.6.5 (2026-04-30) — Backup-Verzeichnis-Bug + Verify + E2E-Test
 
 ### Fix: BACKUP_DIR Default

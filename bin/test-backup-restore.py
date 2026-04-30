@@ -105,6 +105,55 @@ def main() -> int:
             assert p.exists() and p.stat().st_size > 0, p
             print(f"      {f}: {p.stat().st_size} bytes ✓")
 
+    # ── v7.6.6: Encrypted-Backup-Roundtrip ──────────────────────────────
+    with tempfile.TemporaryDirectory(prefix="bm-orig2-") as orig2_root, \
+         tempfile.TemporaryDirectory(prefix="bm-bak2-") as bak2_root, \
+         tempfile.TemporaryDirectory(prefix="bm-restore2-") as restore2_root:
+
+        orig2 = Path(orig2_root) / "data"
+        backup2_dir = Path(bak2_root) / "backups"
+        restore2 = Path(restore2_root) / "data"
+
+        os.environ["PERSISTENT_DATA_DIR"] = str(orig2)
+        os.environ["BACKUP_DIR"] = str(backup2_dir)
+
+        if "backup_manager" in sys.modules:
+            del sys.modules["backup_manager"]
+        bm3 = importlib.import_module("backup_manager")
+
+        print(f"\n[ENC 1/5] Encrypted backup — seed source")
+        _seed_data_dir(orig2)
+
+        passphrase = "correct horse battery staple"
+        print(f"[ENC 2/5] create_backup(passphrase=…)")
+        r = bm3.create_backup(passphrase=passphrase)
+        assert r["encrypted"], r
+        print(f"          encrypted={r['encrypted']} size={r['size']} ✓")
+
+        print(f"[ENC 3/5] verify_backup() — encrypted format")
+        v = bm3.verify_backup(r["path"])
+        assert v["ok"], f"verify failed: {v}"
+        assert v["manifest"]["format"] == "printix-mcp-backup-v1-encrypted", v["manifest"]["format"]
+        print(f"          format={v['manifest']['format']} ✓")
+
+        print(f"[ENC 4/5] restore with WRONG passphrase — must fail")
+        os.environ["PERSISTENT_DATA_DIR"] = str(restore2)
+        del sys.modules["backup_manager"]
+        bm4 = importlib.import_module("backup_manager")
+        try:
+            bm4.restore_backup(r["path"], passphrase="WRONG")
+            print(f"          ✗ should have raised")
+            return 1
+        except RuntimeError as e:
+            assert "Passphrase" in str(e) or "passphrase" in str(e).lower(), str(e)
+            print(f"          rejected: {e!r} ✓")
+
+        print(f"[ENC 5/5] restore with CORRECT passphrase")
+        bm4.restore_backup(r["path"], passphrase=passphrase)
+        marker_restored = _read_marker(restore2)
+        assert marker_restored == "printix-mcp-backup-test", marker_restored
+        print(f"          DB marker = {marker_restored!r} ✓")
+
     print("\nALL TESTS PASSED ✓")
     return 0
 

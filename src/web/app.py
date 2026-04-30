@@ -5248,15 +5248,21 @@ def create_app(session_secret: str) -> FastAPI:
         return RedirectResponse("/admin/settings#license", status_code=302)
 
     @app.post("/admin/settings/backup/create", response_class=HTMLResponse)
-    async def admin_backup_create(request: Request):
+    async def admin_backup_create(request: Request,
+                                    passphrase: str = Form("")):
         user = get_session_user(request)
         if not user or not user.get("is_admin"):
             return RedirectResponse("/login", status_code=302)
         try:
             from backup_manager import create_backup
             from db import audit
-            result = create_backup()
-            audit(user["id"], "backup_create", f"Backup erstellt: {result['filename']}")
+            # v7.6.6: leere Passphrase = unverschlüsseltes Backup (legacy
+            # Verhalten); nicht-leer = AES-verschlüsselt mit PBKDF2-Key.
+            pp = (passphrase or "").strip() or None
+            result = create_backup(passphrase=pp)
+            audit(user["id"], "backup_create",
+                  f"Backup erstellt: {result['filename']} "
+                  f"(encrypted={result.get('encrypted', False)})")
             return templates.TemplateResponse(
                 "admin_settings.html",
                 _admin_settings_ctx(request, user, backup_success=result),
@@ -5284,6 +5290,7 @@ def create_app(session_secret: str) -> FastAPI:
     async def admin_backup_restore(
         request: Request,
         backup_zip: UploadFile = File(...),
+        passphrase: str = Form(""),
     ):
         user = get_session_user(request)
         if not user or not user.get("is_admin"):
@@ -5301,7 +5308,8 @@ def create_app(session_secret: str) -> FastAPI:
                 tmp_path = tmp.name
                 tmp.write(await backup_zip.read())
             from backup_manager import restore_backup
-            result = restore_backup(tmp_path)
+            pp = (passphrase or "").strip() or None
+            result = restore_backup(tmp_path, passphrase=pp)
             return templates.TemplateResponse(
                 "admin_settings.html",
                 _admin_settings_ctx(request, user, restore_success=result),
