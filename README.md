@@ -195,6 +195,11 @@ services:
       CAPTURE_PORT: 8775
       CAPTURE_ENABLED: ${CAPTURE_ENABLED:-false}
       IPP_PORT: ${IPP_PORT:-0}
+      # Container timezone — affects `docker logs` and all subprocess
+      # timestamps. The web UI also has a Display Timezone setting under
+      # Administration → Settings, but that only retags the rendered
+      # tables; container/MCP/capture process logs follow this TZ.
+      TZ: ${TZ:-Europe/Berlin}
     ports:
       - "8080:8080"
       - "8765:8765"

@@ -77,6 +77,17 @@
         </span>
         <span class="tenant-sidebar-pill">08</span>
       </a>
+      {# v7.2.50: Karten & Codes als Tenant-Tab — vor Demo-Daten. Die
+         Seite selbst lebt weiter unter /cards. #}
+      <a href="/cards" class="tenant-sidebar-link {% if active_tab == 'cards' %}active{% endif %}">
+        <span class="tenant-sidebar-main">
+          <span class="tenant-sidebar-icon">💳</span>
+          <span class="tenant-sidebar-copy">
+            <strong>{{ _('nav_cards') }}</strong>
+          </span>
+        </span>
+        <span class="tenant-sidebar-pill">09</span>
+      </a>
       <a href="/tenant/demo" class="tenant-sidebar-link {% if active_tab == 'demo' %}active{% endif %}">
         <span class="tenant-sidebar-main">
           <span class="tenant-sidebar-icon">🧪</span>
@@ -84,7 +95,7 @@
             <strong>{{ _('tenant_tab_demo') }}</strong>
           </span>
         </span>
-        <span class="tenant-sidebar-pill">09</span>
+        <span class="tenant-sidebar-pill">10</span>
       </a>
     </nav>
 

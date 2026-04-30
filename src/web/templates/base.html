@@ -585,14 +585,15 @@
               <a href="/my/connect">🔌 {{ _('cc_nav_label') }}</a>
               <a href="/logout">{{ _('nav_logout') }}</a>
             {% else %}
-              {# v6.7.109: Reihenfolge — Administration, Einstellungen, dann Dashboard und Rest. #}
+              {# v7.2.50: Top-Level "Einstellungen" entfernt — als
+                 "Tenant-Einstellungen"-Kachel unter Administration. #}
               {% if user.is_admin %}<a href="/admin">{{ _('nav_admin') }}</a>{% endif %}
-              <a href="/settings">{{ _('nav_settings') }}</a>
               <a href="/dashboard">{{ _('nav_dashboard') }}</a>
               <a href="/tenant">{{ _('nav_tenant') }}</a>
-              {% if pro_print_job_mgmt_enabled %}<a href="/my">{{ _('nav_my_portal') }}</a>{% else %}<a href="/my" title="{{ _('lic_locked_badge') }}" style="opacity:.6;">🔒 {{ _('nav_my_portal') }}</a>{% endif %}
-              <a href="/cards">{{ _('nav_cards') }}</a>
+              {# v7.2.50: Reports vor Printjob-Management; "Karten & Codes"
+                 als Tab in /tenant umgezogen. #}
               <a href="/reports">{{ _('nav_reports') }}</a>
+              {% if pro_print_job_mgmt_enabled %}<a href="/my">{{ _('nav_my_portal') }}</a>{% else %}<a href="/my" title="{{ _('lic_locked_badge') }}" style="opacity:.6;">🔒 {{ _('nav_my_portal') }}</a>{% endif %}
               {% if pro_capture_enabled %}<a href="/capture">{{ _('nav_capture') }}</a>{% else %}<a href="/capture" title="{{ _('lic_locked_badge') }}" style="opacity:.6;">🔒 {{ _('nav_capture') }}</a>{% endif %}
               {% if user.is_admin %}{% if pro_guestprint_enabled %}<a href="/guestprint">{{ _('nav_guestprint') }}</a>{% else %}<a href="/guestprint" title="{{ _('lic_locked_badge') }}" style="opacity:.6;">🔒 {{ _('nav_guestprint') }}</a>{% endif %}{% endif %}
               <a href="/logs">{{ _('nav_logs') }}</a>
@@ -641,16 +642,15 @@
         <a href="/my/connect" onclick="closeMobileMenu()">🔌 {{ _('cc_nav_label') }}</a>
         <a href="/logout"    onclick="closeMobileMenu()">🚪 {{ _('nav_logout') }}</a>
       {% else %}
-        {# v6.7.109: Reihenfolge — Administration, Einstellungen, dann Dashboard und Rest. #}
+        {# v7.2.50: Top-Level "Einstellungen" entfernt (jetzt unter Administration). #}
         {% if user.is_admin %}
           <a href="/admin" onclick="closeMobileMenu()">⚙️ {{ _('nav_admin') }}</a>
         {% endif %}
-        <a href="/settings"  onclick="closeMobileMenu()">⚙️ {{ _('nav_settings') }}</a>
         <a href="/dashboard" onclick="closeMobileMenu()">🏠 {{ _('nav_dashboard') }}</a>
         <a href="/tenant" onclick="closeMobileMenu()">🖨️ {{ _('nav_tenant') }}</a>
-        <a href="/my"        onclick="closeMobileMenu()">📄 {{ _('nav_my_portal') }}</a>
-        <a href="/cards"     onclick="closeMobileMenu()">{{ _('nav_cards') }}</a>
+        {# v7.2.50: Reports vor Printjob; Cards als Tenant-Tab umgezogen. #}
         <a href="/reports"   onclick="closeMobileMenu()">📊 {{ _('nav_reports') }}</a>
+        <a href="/my"        onclick="closeMobileMenu()">📄 {{ _('nav_my_portal') }}</a>
         {% if pro_capture_enabled %}<a href="/capture" onclick="closeMobileMenu()">📥 {{ _('nav_capture') }}</a>{% else %}<a href="/capture" onclick="closeMobileMenu()" style="opacity:.6;">🔒 {{ _('nav_capture') }}</a>{% endif %}
         {% if user.is_admin %}{% if pro_guestprint_enabled %}<a href="/guestprint" onclick="closeMobileMenu()">📮 {{ _('nav_guestprint') }}</a>{% else %}<a href="/guestprint" onclick="closeMobileMenu()" style="opacity:.6;">🔒 {{ _('nav_guestprint') }}</a>{% endif %}{% endif %}
         <a href="/logs"      onclick="closeMobileMenu()">📋 {{ _('nav_logs') }}</a>

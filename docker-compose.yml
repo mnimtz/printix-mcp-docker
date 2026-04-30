@@ -55,6 +55,12 @@ services:
       # /admin/mcp-permissions ("GDPR Compliance Guide").
       MCP_RBAC_ENABLED: ${MCP_RBAC_ENABLED:-1}
 
+      # --- Container timezone -------------------------------------------------
+      # Affects `docker logs` + all subprocess timestamps (MCP, capture, IPP).
+      # The web UI's "Display Timezone" only retags rendered tables — for
+      # docker logs you need TZ here. Override in .env or stack env vars.
+      TZ: ${TZ:-Europe/Berlin}
+
       # --- IPP/IPPS listener (cloud print) ------------------------------------
       # 0 = disabled (IPP only runs on WEB_PORT). 631 = standard IPP port.
       IPP_PORT: ${IPP_PORT:-0}

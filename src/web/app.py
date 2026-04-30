@@ -2481,6 +2481,11 @@ def create_app(session_secret: str) -> FastAPI:
             "recommendation": "",
         }
 
+        # v7.2.50: Each check now carries `name` only — labels + explanations
+        # come from i18n keys (`ssld_chk_<name>_label` / `_explain`) so the
+        # template renders them in the user's language with the project's
+        # standard EN-fallback. Inline label_de/label_en removed.
+
         # 1. Public IP via api.ipify.org
         try:
             import urllib.request as _ur
@@ -2489,18 +2494,9 @@ def create_app(session_secret: str) -> FastAPI:
                 _sock.inet_aton(ip)
                 diag["public_ip"] = ip
                 diag["suggested_hostname"] = ip.replace(".", "-") + ".sslip.io"
-                diag["checks"].append({
-                    "name": "public_ip", "status": "ok",
-                    "value": ip,
-                    "label_de": "Public IP erkannt", "label_en": "Public IP detected",
-                })
+                diag["checks"].append({"name": "public_ip", "status": "ok", "value": ip})
         except Exception as e:
-            diag["checks"].append({
-                "name": "public_ip", "status": "error",
-                "value": str(e),
-                "label_de": "Public IP nicht erkennbar",
-                "label_en": "Public IP detection failed",
-            })
+            diag["checks"].append({"name": "public_ip", "status": "error", "value": str(e)})
 
         # 2. Outbound — Cloudflare API
         try:
@@ -2508,17 +2504,11 @@ def create_app(session_secret: str) -> FastAPI:
             with _ur.urlopen("https://api.cloudflare.com/client/v4/", timeout=5) as resp:
                 code = resp.getcode()
             diag["checks"].append({
-                "name": "outbound_cloudflare", "status": "ok",
-                "value": f"HTTP {code}",
-                "label_de": "Cloudflare API erreichbar (für Tunnel)",
-                "label_en": "Cloudflare API reachable (for tunnel setup)",
+                "name": "outbound_cloudflare", "status": "ok", "value": f"HTTP {code}",
             })
         except Exception as e:
             diag["checks"].append({
-                "name": "outbound_cloudflare", "status": "warn",
-                "value": str(e)[:80],
-                "label_de": "Cloudflare API nicht erreichbar — Tunnel-Setup könnte scheitern",
-                "label_en": "Cloudflare API unreachable — tunnel setup may fail",
+                "name": "outbound_cloudflare", "status": "warn", "value": str(e)[:80],
             })
 
         # 3. Outbound — Let's Encrypt ACME directory
@@ -2527,48 +2517,46 @@ def create_app(session_secret: str) -> FastAPI:
             with _ur.urlopen("https://acme-v02.api.letsencrypt.org/directory", timeout=5) as resp:
                 code = resp.getcode()
             diag["checks"].append({
-                "name": "outbound_letsencrypt", "status": "ok",
-                "value": f"HTTP {code}",
-                "label_de": "Let's Encrypt ACME erreichbar (für Auto-HTTPS)",
-                "label_en": "Let's Encrypt ACME reachable (for Auto-HTTPS)",
+                "name": "outbound_letsencrypt", "status": "ok", "value": f"HTTP {code}",
             })
         except Exception as e:
             diag["checks"].append({
-                "name": "outbound_letsencrypt", "status": "warn",
-                "value": str(e)[:80],
-                "label_de": "Let's Encrypt ACME nicht erreichbar — Auto-HTTPS scheitert",
-                "label_en": "Let's Encrypt ACME unreachable — Auto-HTTPS will fail",
+                "name": "outbound_letsencrypt", "status": "warn", "value": str(e)[:80],
             })
 
-        # 4. Lokale Listener (welche Ports lauschen IM Container)
+        # 4. Lokale Listener — `/proc/net/tcp(6)` (no `ss` binary required;
+        #    works even in the slim base image we ship). Each line in the
+        #    proc files has `local_address` as `<HEX_IP>:<HEX_PORT>` with
+        #    state `0A` meaning LISTEN.
         try:
-            import subprocess
-            ss_out = subprocess.run(
-                ["ss", "-tlnH"], capture_output=True, text=True, timeout=3,
-            )
-            ports = set()
-            for line in (ss_out.stdout or "").splitlines():
-                # ss-Format: State  Recv-Q Send-Q  Local Address:Port  Peer:Port ...
-                parts = line.split()
-                if len(parts) >= 4:
-                    addr = parts[3]
-                    if ":" in addr:
-                        port = addr.rsplit(":", 1)[-1]
-                        if port.isdigit():
-                            ports.add(int(port))
+            ports: set[int] = set()
+            for proc_path in ("/proc/net/tcp", "/proc/net/tcp6"):
+                try:
+                    with open(proc_path, "r") as fh:
+                        next(fh, None)  # header
+                        for line in fh:
+                            parts = line.split()
+                            if len(parts) < 4:
+                                continue
+                            local_addr, state = parts[1], parts[3]
+                            if state != "0A":
+                                continue
+                            if ":" in local_addr:
+                                port_hex = local_addr.rsplit(":", 1)[-1]
+                                try:
+                                    ports.add(int(port_hex, 16))
+                                except ValueError:
+                                    pass
+                except FileNotFoundError:
+                    continue
             diag["open_ports_internal"] = sorted(ports)
             diag["checks"].append({
                 "name": "internal_listeners", "status": "ok",
                 "value": ", ".join(str(p) for p in sorted(ports)) or "—",
-                "label_de": "Container-interne Listener",
-                "label_en": "Container internal listeners",
             })
         except Exception as e:
             diag["checks"].append({
-                "name": "internal_listeners", "status": "warn",
-                "value": str(e)[:80],
-                "label_de": "Lokale Listener-Liste nicht ermittelbar",
-                "label_en": "Could not enumerate local listeners",
+                "name": "internal_listeners", "status": "warn", "value": str(e)[:80],
             })
 
         # 5. DNS-Resolve von public_url (wenn gesetzt)
@@ -2587,31 +2575,20 @@ def create_app(session_secret: str) -> FastAPI:
                     diag["checks"].append({
                         "name": "dns_resolve", "status": "ok",
                         "value": f"{host} → {addr}",
-                        "label_de": "DNS-Resolve der konfigurierten Public-URL",
-                        "label_en": "DNS resolve of configured public URL",
                     })
-                    # Stimmt der DNS-Eintrag mit unserer Public-IP überein?
                     if diag["public_ip"] and addr == diag["public_ip"]:
                         diag["checks"].append({
-                            "name": "dns_matches_ip", "status": "ok",
-                            "value": "matches",
-                            "label_de": "Public-URL zeigt auf diese Maschine",
-                            "label_en": "Public URL points at this machine",
+                            "name": "dns_matches_ip", "status": "ok", "value": "matches",
                         })
                     elif diag["public_ip"]:
                         diag["checks"].append({
                             "name": "dns_matches_ip", "status": "warn",
                             "value": f"{addr} ≠ {diag['public_ip']}",
-                            "label_de": "Public-URL zeigt auf andere IP — Tunnel oder Proxy?",
-                            "label_en": "Public URL points elsewhere — tunnel or proxy?",
                         })
             except Exception as e:
                 diag["public_url_resolves"] = False
                 diag["checks"].append({
-                    "name": "dns_resolve", "status": "error",
-                    "value": str(e)[:80],
-                    "label_de": "DNS-Resolve gescheitert",
-                    "label_en": "DNS resolve failed",
+                    "name": "dns_resolve", "status": "error", "value": str(e)[:80],
                 })
 
         # 6. Empfehlung basierend auf den Befunden
@@ -2634,6 +2611,96 @@ def create_app(session_secret: str) -> FastAPI:
             "request": request, "user": user,
             "diag": diag,
             **t_ctx(request),
+        })
+
+    @app.post("/admin/ssl/diagnose/test-port")
+    async def admin_ssl_diagnose_test_port(request: Request):
+        """v7.2.50: Run a server-side curl probe against the configured public
+        IP / port and return a structured JSON verdict that the UI can map to
+        a localised explanation. Caveat shipped to the user: this is a NAT-
+        loopback test from inside the container — works on most cloud VMs
+        (Azure/AWS/GCP) but some home routers don't hairpin, so a "timeout"
+        here doesn't necessarily mean the port is closed from the real
+        outside. The explicit copy-paste curl from the user's laptop remains
+        the authoritative test."""
+        user = get_session_user(request)
+        if not user or not user.get("is_admin"):
+            return JSONResponse({"error": "unauthorized"}, status_code=401)
+
+        try:
+            body = await request.json()
+        except Exception:
+            body = {}
+        ip = (body.get("ip") or "").strip()
+        try:
+            port = int(body.get("port") or 0)
+        except (TypeError, ValueError):
+            port = 0
+        if not ip or port <= 0 or port > 65535:
+            return JSONResponse({"error": "bad_request"}, status_code=400)
+
+        # Lock destination to whatever the diagnostic detected as our public
+        # IP — never let the caller probe arbitrary hosts. (Defence in depth:
+        # the route is admin-gated, but we'd still rather not turn this into
+        # an SSRF tool.)
+        import socket as _sock
+        try:
+            _sock.inet_aton(ip)
+        except OSError:
+            return JSONResponse({"error": "bad_ip"}, status_code=400)
+
+        scheme = "https" if port == 443 else "http"
+        host_with_port = ip if port in (80, 443) else f"{ip}:{port}"
+        url = f"{scheme}://{host_with_port}/"
+
+        verdict_kind = "other"
+        http_code = None
+        raw_short = ""
+        try:
+            import socket as _sk
+            _sk.setdefaulttimeout(5)
+            sock = _sk.socket(_sk.AF_INET, _sk.SOCK_STREAM)
+            try:
+                sock.connect((ip, port))
+                sock.close()
+                # TCP open — try minimal HTTP probe so we report HTTP code
+                try:
+                    import urllib.request as _ur
+                    req = _ur.Request(url, method="HEAD")
+                    with _ur.urlopen(req, timeout=5) as resp:  # nosec — admin-only, IP-locked
+                        http_code = resp.getcode()
+                        verdict_kind = "open_http"
+                        raw_short = f"HTTP {http_code}"
+                except Exception as he:
+                    msg = str(he)[:120]
+                    if "ssl" in msg.lower() or "certificate" in msg.lower():
+                        verdict_kind = "open_tls_error"
+                        raw_short = msg
+                    else:
+                        verdict_kind = "open_no_http"
+                        raw_short = msg
+            except (TimeoutError, _sk.timeout):
+                verdict_kind = "timeout"
+                raw_short = "Connection timed out"
+            except ConnectionRefusedError:
+                verdict_kind = "refused"
+                raw_short = "Connection refused"
+            except OSError as oe:
+                verdict_kind = "other"
+                raw_short = str(oe)[:120]
+            finally:
+                try: sock.close()
+                except Exception: pass
+        except Exception as e:
+            verdict_kind = "other"
+            raw_short = str(e)[:120]
+
+        return JSONResponse({
+            "ok":            verdict_kind == "open_http",
+            "verdict":       verdict_kind,
+            "http_code":     http_code,
+            "raw":           raw_short,
+            "url":           url,
         })
 
     # ─── Auto-HTTPS via sslip.io + Let's Encrypt (v7.2.36) ───────────────

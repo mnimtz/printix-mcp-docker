@@ -13,11 +13,19 @@
     </div>
   </div>
 
-  <!-- Section 1: was wir wissen (server-side checks) -->
+  <!-- Section 1: was wir wissen (server-side checks) — mit Erklär-Spalte -->
   <div class="card" style="margin-bottom:20px;">
     <div class="section-title" style="margin-bottom:12px;">{{ _('ssld_section_known') }}</div>
 
     <table style="width:100%; border-collapse:collapse;">
+      <thead>
+        <tr style="border-bottom:2px solid #e5e7eb; text-align:left;">
+          <th style="padding:8px 12px; width:40px;"></th>
+          <th style="padding:8px 12px; font-weight:600; color:#003366;">{{ _('ssld_col_check') }}</th>
+          <th style="padding:8px 12px; font-weight:600; color:#003366;">{{ _('ssld_col_explain') }}</th>
+        </tr>
+      </thead>
+      <tbody>
       {% for c in diag.checks %}
       <tr style="border-bottom:1px solid #f0f0f0;">
         <td style="padding:10px 12px; width:40px; text-align:center; vertical-align:top;">
@@ -25,16 +33,20 @@
           {% elif c.status == 'warn' %}<span style="color:#f59e0b; font-size:1.2em;">⚠</span>
           {% else %}<span style="color:#dc2626; font-size:1.2em;">✗</span>{% endif %}
         </td>
-        <td style="padding:10px 12px; vertical-align:top;">
-          <div style="font-weight:500; color:#003366;">{{ c['label_' + lang] | default(c.label_en, true) }}</div>
+        <td style="padding:10px 12px; vertical-align:top; width:42%;">
+          <div style="font-weight:500; color:#003366;">{{ _('ssld_chk_' ~ c.name ~ '_label') }}</div>
           <div style="font-size:.82em; color:#666; margin-top:2px; font-family:monospace;">{{ c.value }}</div>
+        </td>
+        <td style="padding:10px 12px; vertical-align:top; font-size:.88em; color:#444; line-height:1.5;">
+          {{ _('ssld_chk_' ~ c.name ~ '_explain_' ~ c.status) | safe }}
         </td>
       </tr>
       {% endfor %}
+      </tbody>
     </table>
   </div>
 
-  <!-- Section 2: extern selbst testen -->
+  <!-- Section 2: extern selbst testen + Server-side Test-Button -->
   {% if diag.public_ip %}
   <div class="card" style="margin-bottom:20px;">
     <div class="section-title" style="margin-bottom:8px;">{{ _('ssld_section_external') }}</div>
@@ -48,15 +60,22 @@
     ] %}
 
     {% for port, purpose in port_tests %}
-    <div style="margin-bottom:14px; padding:12px 14px; background:#f7f9fb; border-radius:8px;">
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+    <div style="margin-bottom:14px; padding:12px 14px; background:#f7f9fb; border-radius:8px;"
+         data-port-row="{{ port }}">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; gap:10px; flex-wrap:wrap;">
         <div style="font-weight:600; color:#003366;">Port {{ port }}</div>
-        <div style="font-size:.82em; color:#666;">{{ purpose }}</div>
+        <div style="font-size:.82em; color:#666; flex:1;">{{ purpose }}</div>
+        <button type="button" class="btn btn-sm btn-primary"
+                onclick="ssldTestPort('{{ diag.public_ip }}', {{ port }}, this)"
+                style="padding:4px 12px; font-size:.85em;">
+          🧪 {{ _('ssld_test_button') }}
+        </button>
       </div>
       <div class="code-block" id="cmd-{{ port }}" style="margin:0;">
         <button class="copy-btn" onclick="copyToClipboard('cmd-{{ port }}-val', this)">⧉</button>
         <span id="cmd-{{ port }}-val">curl -v --max-time 5 {% if port == '443' %}https://{{ diag.public_ip }}/{% else %}http://{{ diag.public_ip }}{% if port != '80' %}:{{ port }}{% endif %}/{% endif %}</span>
       </div>
+      <div class="ssld-result" id="result-{{ port }}" style="display:none; margin-top:10px; padding:10px 12px; border-radius:6px; font-size:.88em;"></div>
     </div>
     {% endfor %}
 
@@ -67,6 +86,9 @@
         <li><code>Connection refused</code> — {{ _('ssld_legend_refused') }}</li>
         <li><code>Connection timed out</code> — {{ _('ssld_legend_timeout') }}</li>
       </ul>
+      <div style="margin-top:10px; font-size:.92em; color:#1e3a8a; opacity:.85;">
+        💡 {{ _('ssld_test_caveat') }}
+      </div>
     </div>
   </div>
   {% endif %}
@@ -132,4 +154,81 @@
   </div>
 
 </div>
+
+<script>
+// v7.2.50: localised verdict labels per backend `verdict` value.
+const SSLD_VERDICTS = {
+  open_http:      { ok: true,  cls: "ok",
+                    title: {{ _('ssld_verdict_open_http_title') | tojson }},
+                    body:  {{ _('ssld_verdict_open_http_body')  | tojson }} },
+  open_no_http:   { ok: false, cls: "warn",
+                    title: {{ _('ssld_verdict_open_no_http_title') | tojson }},
+                    body:  {{ _('ssld_verdict_open_no_http_body')  | tojson }} },
+  open_tls_error: { ok: false, cls: "warn",
+                    title: {{ _('ssld_verdict_open_tls_error_title') | tojson }},
+                    body:  {{ _('ssld_verdict_open_tls_error_body')  | tojson }} },
+  refused:        { ok: false, cls: "err",
+                    title: {{ _('ssld_verdict_refused_title') | tojson }},
+                    body:  {{ _('ssld_verdict_refused_body')  | tojson }} },
+  timeout:        { ok: false, cls: "err",
+                    title: {{ _('ssld_verdict_timeout_title') | tojson }},
+                    body:  {{ _('ssld_verdict_timeout_body')  | tojson }} },
+  other:          { ok: false, cls: "warn",
+                    title: {{ _('ssld_verdict_other_title') | tojson }},
+                    body:  {{ _('ssld_verdict_other_body')  | tojson }} }
+};
+const SSLD_BUSY_LABEL = {{ _('ssld_test_running') | tojson }};
+const SSLD_BTN_LABEL  = {{ ('🧪 ' ~ _('ssld_test_button')) | tojson }};
+
+async function ssldTestPort(ip, port, btn) {
+  const out = document.getElementById('result-' + port);
+  const orig = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '⏳ ' + SSLD_BUSY_LABEL;
+  out.style.display = 'block';
+  out.style.background = '#f3f4f6';
+  out.style.borderLeft = '3px solid #9ca3af';
+  out.style.color = '#374151';
+  out.innerHTML = '⏳ ' + SSLD_BUSY_LABEL;
+
+  try {
+    const r = await fetch('/admin/ssl/diagnose/test-port', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ ip, port })
+    });
+    const j = await r.json();
+    const v = SSLD_VERDICTS[j.verdict] || SSLD_VERDICTS.other;
+    const colors = {
+      ok:   ['#dcfce7','#16a34a','#14532d'],
+      warn: ['#fef3c7','#f59e0b','#78350f'],
+      err:  ['#fee2e2','#dc2626','#7f1d1d']
+    }[v.cls];
+    out.style.background  = colors[0];
+    out.style.borderLeft  = '3px solid ' + colors[1];
+    out.style.color       = colors[2];
+    const codeFrag = j.http_code ? ' <code>HTTP ' + j.http_code + '</code>' : '';
+    const rawFrag  = j.raw ? '<div style="margin-top:6px; font-family:monospace; font-size:.82em; opacity:.8;">' +
+                              escapeHtml(j.raw) + '</div>' : '';
+    out.innerHTML = '<strong>' + (v.ok ? '✓ ' : (v.cls==='warn'?'⚠ ':'✗ ')) +
+                    escapeHtml(v.title) + '</strong>' + codeFrag +
+                    '<div style="margin-top:4px;">' + escapeHtml(v.body) + '</div>' +
+                    rawFrag;
+  } catch (e) {
+    out.style.background  = '#fee2e2';
+    out.style.borderLeft  = '3px solid #dc2626';
+    out.style.color       = '#7f1d1d';
+    out.innerHTML = '✗ ' + escapeHtml(String(e));
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = SSLD_BTN_LABEL;
+  }
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({
+    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+  }[c]));
+}
+</script>
 {% endblock %}

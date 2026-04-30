@@ -2,6 +2,65 @@
 
 This project follows [Semantic Versioning](https://semver.org/).
 
+## 7.5.0 (2026-04-30) — UX cleanup release
+
+Mehrere zusammengehörige Verbesserungen, die einzeln zu klein für ein
+eigenes Release wären, zusammen aber das Erlebnis spürbar aufräumen.
+
+### Setup-Diagnose: Erklärspalte + 1-Klick-Tests
+
+Auf `/admin/ssl/diagnose` hat jede Prüfungszeile jetzt eine zweite
+Spalte „Was bedeutet das?" mit konkreten Implikationen je nach Status
+(grün/gelb/rot) — kein Raten mehr was die Public-IP-Detection
+fehlschlagen lassen würde, oder warum DNS auf eine andere IP zeigen
+darf (Tunnel/Proxy davor).
+
+Pro extern-zu-testendem Port (80/443/8080/8765) gibt's einen 🧪 **Test**-
+Button neben dem Curl-Snippet. Der Server probiert per NAT-Loopback
+gegen die eigene Public-IP an und liefert eine lokalisierte Erklärung
+zurück — *Port offen, HTTP antwortet*, *Connection refused — niemand
+lauscht*, *Timeout — Firewall oder NAT*, *TLS-Fehler*, etc. Mit
+explizitem Caveat dass Heim-Router ohne Hairpin-NAT den Test
+fehlschlagen lassen, obwohl der Port von außen erreichbar ist.
+
+Listener-Enumeration nutzt jetzt `/proc/net/tcp(6)` statt `ss`
+(Binary war im Slim-Image nicht da → vorher Warnung „No such file or
+directory: 'ss'"). Funktioniert jetzt ohne extra Paket.
+
+i18n-Keys in de/en/no, andere Sprachen fallen wie üblich auf EN
+zurück.
+
+### Top-Nav aufgeräumt
+
+- „Einstellungen" aus dem Top-Level-Menü entfernt — sitzt jetzt als
+  Kachel **„Tenant-Einstellungen"** unter Administration neben
+  „Server-Einstellungen". Konsistenter mental model: User-Settings
+  zur Tenant-Konfig, Server-Einstellungen für die Maschine. (14
+  Sprachen.)
+- „Karten & Codes" raus aus der Top-Nav — sitzt jetzt als Tab in der
+  Tenant-Sidebar (vor „Demo-Daten"). Seite selbst bleibt unter
+  `/cards`, Bookmarks weiterhin gültig.
+- Reihenfolge der verbleibenden Top-Nav-Einträge: **Reports** vor
+  „Printjob Management" — wer Berichte will, sieht sie zuerst.
+
+### Container-Zeitzone
+
+`docker-compose.yml`, `.env.example` und das README-Compose-Snippet
+setzen jetzt `TZ=Europe/Berlin` als Default. Das betrifft `docker logs`
+und alle Subprozess-Zeitstempel; die Web-UI-Einstellung „Display
+Timezone" bleibt davon unabhängig (retaggt nur die gerenderten
+Tabellen). Override via `.env` oder Stack-Env-Var (`TZ=UTC`,
+`TZ=America/New_York`, …).
+
+### Other
+
+- Diagnose-Endpoint hardent: Test-Probe akzeptiert nur den im
+  vorherigen Diagnose-Run erkannten Public-IP-Wert, nicht beliebige
+  Hosts (Defence-in-Depth gegen SSRF-Missbrauch eines admin-gegateten
+  Endpunkts).
+
+---
+
 ## 7.2.49 (2026-04-30) — SSL & Domain hub + setup diagnostics
 
 ### Changed
