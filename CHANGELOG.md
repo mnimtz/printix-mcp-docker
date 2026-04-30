@@ -2,6 +2,34 @@
 
 This project follows [Semantic Versioning](https://semver.org/).
 
+## 7.2.46 (2026-04-29) — README: network architecture + proxy bypass recipes
+
+### Documentation
+
+Added a "Network architecture (v7.2.43+)" section to README.md
+covering:
+
+- The two-listener architecture (8080 web + 8765 mcp) and what the
+  proxy on 8080 routes internally to 8765
+- A table of which deployment setups go through the proxy vs.
+  bypass it (Cloudflare Quick Tunnel, Named Tunnel with path-routing,
+  Auto-TLS sslip.io, manual TLS-Import, reverse proxy, direct 8765)
+- Performance trade-off (~1–2 ms extra latency per call via proxy,
+  below 1% for typical 50–500 ms MCP tool execution times)
+- Three concrete bypass recipes:
+  1. Cloudflare Named Tunnel with path-based routing (5 public-hostname
+     entries to send /mcp, /sse, /oauth, /.well-known to 8765 and the
+     rest to 8080)
+  2. Traefik/nginx with PathPrefix rules
+  3. External TLS terminator in front of port 8765
+
+The previous "Reverse proxy / advanced setups" section is rewritten
+as "Reverse proxy — manual setups" and refers back to the bypass
+recipes for higher-throughput deployments. The simple single-backend
+setup is still documented for users who don't need to optimise.
+
+This release is documentation-only — no code changes.
+
 ## 7.2.45 (2026-04-29) — Server-Info: drop misleading "port 8765" direct URL
 
 ### Fixed UX

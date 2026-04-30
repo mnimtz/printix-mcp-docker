@@ -481,11 +481,85 @@ Both are linked directly from `/admin/mcp-permissions`.
 
 ---
 
-## Reverse proxy / advanced setups
+## Network architecture (v7.2.43+)
 
-If you prefer a manual reverse-proxy setup (Traefik, nginx, Caddy, HAProxy, …) instead of the built-in HTTPS options above, the container listens on plain HTTP on the documented ports — the proxy terminates TLS and forwards.
+The container runs **two HTTP listeners** that work as a pair:
 
-**Traefik example** (add these labels to `docker-compose.yml`):
+| Port | What lives there |
+|------|------------------|
+| **8080** (web) | Admin UI, OAuth-flow login pages, employee portal `/my`, capture/guestprint UIs, `/health`, `/status`, `/admin/*`, the **MCP proxy** for `/mcp`, `/sse`, `/oauth`, `/.well-known` |
+| **8765** (mcp) | The actual FastMCP server — Streamable HTTP transport, SSE transport, OAuth issuer, `.well-known/oauth-authorization-server`. Plain HTTP only. |
+
+Since v7.2.43, the web port (8080) **proxies the four MCP path families internally to port 8765**. This means a single public URL on port 8080 serves both admin UI and AI-assistant traffic — perfect for setups that can only expose one port (Cloudflare Quick Tunnel, single-NAT-rule deployments, simple reverse-proxy configurations).
+
+### When the proxy is used vs bypassed
+
+| Setup | Path | Proxy active? |
+|-------|------|---------------|
+| 🌐 Cloudflare Quick Tunnel (single URL → 8080) | `Tunnel → 8080 → proxy → 8765` | **yes** |
+| 🌐 Cloudflare Named Tunnel with path routing | `Tunnel → 8765 directly` for `/mcp`/`/sse`/`/oauth` | no |
+| 🌍 Auto-HTTPS (sslip.io) on port 8080 | `Internet → 8080 → proxy → 8765` | **yes** |
+| 🔒 Manual TLS-Import on port 8080 | `Internet → 8080 → proxy → 8765` | **yes** |
+| Reverse proxy (Traefik / nginx / Caddy) with path rules | `RP → 8765 directly` for MCP paths | no |
+| Direct 8765 access (port-forwarded + own TLS) | `8765 directly` | no |
+
+Direct access to port 8765 is **never blocked** by the proxy — it remains a fully functional first-class endpoint for setups that prefer to bypass the extra hop.
+
+### Performance trade-off
+
+| Path | Latency per call | Suitable for |
+|------|------------------|--------------|
+| Direct 8765 | ~0.5 ms loopback | high-throughput production, latency-critical workflows |
+| Via 8080 proxy | ~1–2 ms (httpx async stream) | typical SMB usage, single-URL deployments |
+
+For the typical MCP tool call (50–500 ms server-side) the proxy overhead is below 1 % and not measurable. The trade-off only matters for very high call rates or real-time streaming pipelines.
+
+### Bypassing the proxy — three recipes
+
+**Recipe 1: Cloudflare Named Tunnel with path routing** *(cleanest production setup)*
+
+In the Cloudflare Zero Trust dashboard → Tunnels → Public Hostnames, configure five entries on the same hostname:
+
+| Path | Service |
+|------|---------|
+| `/mcp` and `/mcp/*` | `http://localhost:8765` |
+| `/sse` and `/sse/*` | `http://localhost:8765` |
+| `/oauth/*` | `http://localhost:8765` |
+| `/.well-known/*` | `http://localhost:8765` |
+| (catch-all) | `http://localhost:8080` |
+
+→ MCP traffic lands on 8765 directly, web UI on 8080. One public URL, zero proxy overhead, full DDoS protection from Cloudflare.
+
+**Recipe 2: Traefik / nginx with path rules**
+
+```yaml
+labels:
+  - "traefik.enable=true"
+  - "traefik.http.routers.printix-mcp.rule=Host(`mcp.example.com`) && PathPrefix(`/mcp`,`/sse`,`/oauth`,`/.well-known`)"
+  - "traefik.http.routers.printix-mcp.service=printix-mcp"
+  - "traefik.http.routers.printix-mcp.entrypoints=websecure"
+  - "traefik.http.routers.printix-mcp.tls.certresolver=le"
+  - "traefik.http.services.printix-mcp.loadbalancer.server.port=8765"
+  - "traefik.http.routers.printix-web.rule=Host(`mcp.example.com`)"
+  - "traefik.http.routers.printix-web.service=printix-web"
+  - "traefik.http.routers.printix-web.entrypoints=websecure"
+  - "traefik.http.routers.printix-web.tls.certresolver=le"
+  - "traefik.http.services.printix-web.loadbalancer.server.port=8080"
+```
+
+The `PathPrefix` rule is more specific than the host-only rule, so Traefik routes MCP paths to 8765 first, web UI to 8080 as the fallback.
+
+**Recipe 3: Direct port 8765 with external TLS termination**
+
+Put a TLS terminator (Caddy, nginx, stunnel, or a cloud load balancer) in front of port 8765. The MCP server speaks plain HTTP — the terminator handles HTTPS. Consumers point at the terminator, no proxy hop.
+
+For all bypass recipes: set `MCP_PUBLIC_URL` in `.env` to the public URL — otherwise OAuth redirects and Connect-Center URLs will not match what's actually reachable.
+
+---
+
+## Reverse proxy — manual setups (without built-in HTTPS)
+
+If you prefer a manual reverse-proxy setup (Traefik, nginx, Caddy, HAProxy, …) instead of the built-in HTTPS options, the container listens on plain HTTP — the proxy terminates TLS and forwards. The simplest configuration uses a single backend on port 8080 (proxy stays in the loop):
 
 ```yaml
 services:
@@ -496,10 +570,10 @@ services:
       - "traefik.http.routers.printix.rule=Host(`mcp.example.com`)"
       - "traefik.http.routers.printix.entrypoints=websecure"
       - "traefik.http.routers.printix.tls.certresolver=le"
-      - "traefik.http.services.printix.loadbalancer.server.port=8765"
+      - "traefik.http.services.printix.loadbalancer.server.port=8080"
 ```
 
-For any reverse-proxy setup: set `MCP_PUBLIC_URL` in `.env` to the public URL — otherwise OAuth redirects and QR-code links will not line up.
+For higher-throughput production deployments use the path-based routing recipes above instead.
 
 ---
 
