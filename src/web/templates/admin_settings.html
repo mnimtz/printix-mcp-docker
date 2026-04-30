@@ -625,6 +625,16 @@ echo "{\"tenant_id\":\"$(az account show --query tenantId -o tsv)\",\"client_id\
       <div class="alert alert-error">{{ backup_error }}</div>
       {% endif %}
 
+      {# v7.6.5: Sicherheitswarnung — der Fernet-Schlüssel liegt im
+         Backup-ZIP. Wer das ZIP hat kann alle gespeicherten Secrets
+         entschlüsseln. Behandeln wie ein Passwort-Backup. #}
+      <div style="margin-bottom:14px; padding:10px 14px; background:#fef3c7;
+                  border-left:3px solid #f59e0b; border-radius:4px;
+                  font-size:.86em; color:#78350f;">
+        🔐 <strong>{{ _('backup_security_title') }}</strong>
+        {{ _('backup_security_body') }}
+      </div>
+
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:18px;">
         <div style="border:1px solid #e5e7eb;border-radius:16px;padding:18px;background:#f8fafc;">
           <div style="font-weight:700;color:#172033;margin-bottom:8px;">{{ _('backup_create_title') }}</div>

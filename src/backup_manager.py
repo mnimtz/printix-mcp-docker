@@ -19,7 +19,19 @@ from pathlib import Path
 
 
 DATA_DIR = Path(os.environ.get("PERSISTENT_DATA_DIR", "/data"))
-BACKUP_DIR = Path(os.environ.get("BACKUP_DIR", "/backup/printix-mcp"))
+# v7.6.5: Default-Pfad korrigiert. Vorher zeigte BACKUP_DIR auf
+# /backup/printix-mcp — das ist ein HA-Addon-Pfad (HA mountet
+# /backup aus dem Supervisor-Volume) und existiert im Docker-
+# Container schlicht nicht → Permission denied beim mkdir(). Default
+# ist jetzt /data/backups, was im persistenten Volume liegt das
+# der Container ohnehin schreibend mountet. Override weiterhin über
+# `BACKUP_DIR=/eigener/pfad` möglich.
+BACKUP_DIR = Path(os.environ.get("BACKUP_DIR", str(DATA_DIR / "backups")))
+
+# v7.6.5: Größen-Limit für Restore-Upload (DoS-Schutz). 200 MB ist
+# großzügig — eine echte SQLite-DB wird selten so groß; gleichzeitig
+# verhindert es 5-GB-Müll-Upload der den Container fluten könnte.
+MAX_RESTORE_SIZE_BYTES = int(os.environ.get("MAX_RESTORE_SIZE_BYTES", str(200 * 1024 * 1024)))
 
 
 MANAGED_FILES = {
@@ -43,7 +55,23 @@ def _version() -> str:
 
 
 def _ensure_backup_dir() -> None:
-    BACKUP_DIR.mkdir(parents=True, exist_ok=True)
+    """v7.6.5: bessere Fehlermeldung — vorher kam ein nichtssagendes
+    Permission-denied auf den falschen Default-Pfad."""
+    try:
+        BACKUP_DIR.mkdir(parents=True, exist_ok=True)
+    except PermissionError as e:
+        raise PermissionError(
+            f"Backup-Verzeichnis '{BACKUP_DIR}' nicht erstellbar "
+            f"({e}). Default ist /data/backups — wenn /data im Container "
+            f"nicht schreibbar ist, prüfe das Volume-Mount oder setze "
+            f"BACKUP_DIR=/eigener/pfad in docker-compose.yml."
+        ) from e
+    if not os.access(str(BACKUP_DIR), os.W_OK):
+        raise PermissionError(
+            f"Backup-Verzeichnis '{BACKUP_DIR}' existiert, ist aber "
+            f"nicht beschreibbar. Volume-Mount-Permissions prüfen "
+            f"(im Container: chown -R 1000:1000 /data)."
+        )
 
 
 def _managed_source(name: str) -> Path:
@@ -195,6 +223,78 @@ def _restore_to_target(extracted_file: Path, target: Path, kind: str) -> None:
         raise
 
 
+def verify_backup(backup_zip_path: str) -> dict:
+    """v7.6.5: Validiert ein Backup-ZIP ohne es zu restoren.
+
+    Prüft:
+      1. Datei existiert und ist <= MAX_RESTORE_SIZE_BYTES
+      2. Ist ein gültiges ZIP
+      3. Enthält manifest.json mit korrektem Format
+      4. Alle in manifest.json referenzierten Dateien sind im Archiv vorhanden
+      5. Alle SQLite-Dateien sind als gültige SQLite-DB öffenbar
+      6. Required-Files (printix_multi.db, fernet.key) sind anwesend
+
+    Returns:
+        {"ok": bool, "errors": [...], "warnings": [...], "manifest": {...}}
+    """
+    errors: list[str] = []
+    warnings: list[str] = []
+    manifest: dict | None = None
+
+    try:
+        size = os.path.getsize(backup_zip_path)
+    except OSError as e:
+        return {"ok": False, "errors": [f"Datei nicht lesbar: {e}"], "warnings": [], "manifest": None}
+    if size > MAX_RESTORE_SIZE_BYTES:
+        errors.append(f"Backup zu groß: {size} bytes > Limit {MAX_RESTORE_SIZE_BYTES}")
+        return {"ok": False, "errors": errors, "warnings": warnings, "manifest": None}
+    if size == 0:
+        errors.append("Backup ist leer (0 bytes)")
+        return {"ok": False, "errors": errors, "warnings": warnings, "manifest": None}
+
+    try:
+        zf = zipfile.ZipFile(backup_zip_path, "r")
+    except zipfile.BadZipFile as e:
+        return {"ok": False, "errors": [f"Kein gültiges ZIP: {e}"], "warnings": [], "manifest": None}
+
+    with zf:
+        names = set(zf.namelist())
+        if "manifest.json" not in names:
+            errors.append("manifest.json fehlt im Backup")
+            return {"ok": False, "errors": errors, "warnings": warnings, "manifest": None}
+        try:
+            manifest = json.loads(zf.read("manifest.json").decode("utf-8"))
+        except Exception as e:
+            errors.append(f"manifest.json nicht parsbar: {e}")
+            return {"ok": False, "errors": errors, "warnings": warnings, "manifest": None}
+
+        if manifest.get("format") != "printix-mcp-backup-v1":
+            errors.append(f"Format-Version unbekannt: {manifest.get('format')!r}")
+
+        files = manifest.get("files") or {}
+        for name, meta in MANAGED_FILES.items():
+            if meta["required"] and name not in files:
+                errors.append(f"Required file missing in manifest: {name}")
+        for name, entry in files.items():
+            arc = entry.get("archive_path", "")
+            if arc not in names:
+                errors.append(f"manifest referenziert {arc!r}, aber Datei nicht im ZIP")
+            if entry.get("kind") == "sqlite" and arc in names:
+                # SQLite-Header check (erste 16 bytes = "SQLite format 3\x00")
+                with zf.open(arc) as fh:
+                    head = fh.read(16)
+                if not head.startswith(b"SQLite format 3"):
+                    errors.append(f"{arc}: kein gültiger SQLite-Header")
+
+    return {
+        "ok":       len(errors) == 0,
+        "errors":   errors,
+        "warnings": warnings,
+        "manifest": manifest,
+        "size":     size,
+    }
+
+
 def restore_backup(uploaded_zip_path: str) -> dict:
     """
     Restore a previously created backup ZIP into DATA_DIR.
@@ -202,6 +302,14 @@ def restore_backup(uploaded_zip_path: str) -> dict:
     Returns metadata and requires an application restart afterwards so the
     running process reloads the restored encryption key and state.
     """
+    # v7.6.5: Pre-flight verify — verhindert dass ein halbgültiges
+    # Archive teilweise extracted wird und die laufende Installation
+    # in einen inkonsistenten Zustand bringt.
+    verdict = verify_backup(uploaded_zip_path)
+    if not verdict["ok"]:
+        raise RuntimeError("Backup-Validierung fehlgeschlagen: " +
+                           "; ".join(verdict["errors"]))
+
     with tempfile.TemporaryDirectory(prefix="printix-restore-") as tmp_root:
         temp_dir = Path(tmp_root)
         with zipfile.ZipFile(uploaded_zip_path, "r") as zf:

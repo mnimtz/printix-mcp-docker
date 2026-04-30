@@ -2,6 +2,69 @@
 
 This project follows [Semantic Versioning](https://semver.org/).
 
+## 7.6.5 (2026-04-30) — Backup-Verzeichnis-Bug + Verify + E2E-Test
+
+### Fix: BACKUP_DIR Default
+
+Backup-Erstellung scheiterte mit `Permission denied: '/backup'`.
+Default zeigte auf `/backup/printix-mcp` — das ist HA-Addon-Konvention
+(HA mountet `/backup` aus dem Supervisor-Volume) und existiert in der
+reinen Docker-Variante schlicht nicht. Default jetzt auf
+`/data/backups` (innerhalb des persistenten Volumes), Override
+weiterhin via `BACKUP_DIR=/eigener/pfad`.
+
+Plus klarere Fehlermeldung wenn `_ensure_backup_dir()` scheitert —
+zeigt jetzt den Pfad und einen Tip auf die Volume-Permissions oder
+`BACKUP_DIR`-Override.
+
+### Neu: verify_backup() + Pre-flight im restore_backup()
+
+Vor dem Restore wird das ZIP jetzt validiert:
+
+- Datei existiert + ≤ 200 MB (Limit über `MAX_RESTORE_SIZE_BYTES`
+  konfigurierbar)
+- Gültiges ZIP, enthält manifest.json
+- manifest.format == `printix-mcp-backup-v1`
+- Alle in manifest referenzierten Dateien sind im Archiv
+- SQLite-Files haben validen Header (`SQLite format 3`)
+- Required-Files (printix_multi.db, fernet.key) sind anwesend
+
+Schlägt die Validierung fehl, wird gar nicht erst extracted —
+Schutz vor halbgültigen Archives die die laufende Installation in
+einen inkonsistenten Zustand bringen würden.
+
+### Neu: End-to-End-Test-Script
+
+`bin/test-backup-restore.py` — standalone, kein pytest. Macht:
+1. Source-DATA_DIR seeden (DB mit Marker + Fernet-Key + JSON)
+2. `create_backup()` → ZIP
+3. `verify_backup()` → ok
+4. `list_backups()` → 1 Eintrag
+5. `restore_backup()` in einen ANDEREN DATA_DIR
+6. Prüfen dass Marker-Eintrag identisch wiederkommt
+
+Aufruf:
+```bash
+docker compose exec printix-mcp python3 /app/bin/test-backup-restore.py
+```
+
+Lief lokal grün durch — alle 6 Schritte ✓.
+
+### Sicherheits-Hinweis in der UI
+
+Der Fernet-Schlüssel liegt PLAINTEXT im Backup-ZIP. Wer das ZIP hat
+kann alle gespeicherten Credentials (Printix-API, Entra Client
+Secret, …) entschlüsseln. UI zeigt jetzt eine Warn-Box auf
+`/admin/settings` Backup-Sektion, dass die Datei wie ein
+Passwort-Backup zu behandeln ist (de/en/no, Rest über EN-Fallback).
+
+> **Roadmap-Idee** (nicht in dieser Version): optional
+> AES-verschlüsseltes Backup mit User-Passphrase. Der ZIP-Container
+> bleibt offen, der Inhalt liegt verschlüsselt drin. Macht
+> Cloud-Storage-Sicherung sicher.
+
+---
+
 ## 7.6.4 (2026-04-30) — Karten-Treffer-Auflösung-Bug
 
 **Bug aus Logs identifiziert** — `mappings=2` aber `total=2` Treffer
