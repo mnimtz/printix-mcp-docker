@@ -38,11 +38,29 @@ MAX_RESTORE_SIZE_BYTES = int(os.environ.get("MAX_RESTORE_SIZE_BYTES", str(200 * 
 
 
 MANAGED_FILES = {
-    "printix_multi.db": {"kind": "sqlite", "required": True},
-    "demo_data.db": {"kind": "sqlite", "required": False},
-    "fernet.key": {"kind": "plain", "required": True},
-    "report_templates.json": {"kind": "plain", "required": False},
-    "mcp_secrets.json": {"kind": "plain", "required": False},
+    "printix_multi.db":      {"kind": "sqlite", "required": True},
+    "demo_data.db":          {"kind": "sqlite", "required": False},
+    "fernet.key":            {"kind": "plain",  "required": True},
+    "report_templates.json": {"kind": "plain",  "required": False},
+    "mcp_secrets.json":      {"kind": "plain",  "required": False},
+    # v7.6.7: Starlette-Session-Signing-Key. Ohne den werden ALLE
+    # aktiven Browser-Sessions beim Restore invalidiert — kein
+    # Datenverlust, aber jeder muss neu einloggen.
+    "web_session_key":       {"kind": "plain",  "required": False},
+}
+
+# v7.6.7: Verzeichnisse die rekursiv mitgesichert werden. Zwei
+# wichtige:
+#   - tls/      → manuell importiertes oder Auto-TLS-Zertifikat
+#                 (sonst muss man HTTPS nach Restore neu einrichten)
+#   - letsencrypt/ → certbot-Account-Daten + Renewal-Konfiguration.
+#                 OHNE die triggerst du bei Restore eine NEUE
+#                 LE-Cert-Issuance — das Let's-Encrypt-Rate-Limit
+#                 erlaubt nur 50 Certs/Domain/Woche, also lieber
+#                 die Renewal-Historie behalten.
+MANAGED_DIRS = {
+    "tls":         {"required": False},
+    "letsencrypt": {"required": False},
 }
 
 
@@ -197,6 +215,55 @@ def _copy_managed_file(name: str, temp_dir: Path,
     }
 
 
+def _copy_managed_dir(name: str, temp_dir: Path,
+                       fernet_key: Optional[bytes] = None) -> dict | None:
+    """v7.6.7: Sichert ein ganzes Verzeichnis unter DATA_DIR rekursiv.
+
+    Layout im ZIP:
+      data/<name>/relpath/file       (unverschlüsselt)
+      data/<name>/relpath/file.enc   (verschlüsselt)
+
+    Symlinks werden gefolgt (shutil.copy2 default). Empty-Dirs werden
+    NICHT als ZIP-Eintrag gespeichert — bei Restore ggf. fehlende
+    Subdirs durch parent.mkdir(parents=True) wieder erzeugt.
+    """
+    meta = MANAGED_DIRS[name]
+    src_root = DATA_DIR / name
+    if not src_root.exists() or not src_root.is_dir():
+        if meta["required"]:
+            raise FileNotFoundError(f"Required backup dir missing: {src_root}")
+        return None
+
+    members: list[dict] = []
+    for src_path in sorted(src_root.rglob("*")):
+        if not src_path.is_file():
+            continue
+        rel = src_path.relative_to(src_root)
+        if fernet_key is None:
+            archive_rel = f"data/{name}/{rel.as_posix()}"
+            tgt = temp_dir / archive_rel
+            tgt.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(src_path, tgt)
+        else:
+            plain = src_path.read_bytes()
+            ciphertext = _encrypt_bytes(plain, fernet_key)
+            archive_rel = f"data/{name}/{rel.as_posix()}.enc"
+            tgt = temp_dir / archive_rel
+            tgt.parent.mkdir(parents=True, exist_ok=True)
+            tgt.write_bytes(ciphertext)
+        members.append({
+            "rel":          rel.as_posix(),
+            "archive_path": archive_rel,
+            "size":         tgt.stat().st_size,
+        })
+
+    return {
+        "kind":     "dir",
+        "required": bool(meta["required"]),
+        "members":  members,
+    }
+
+
 def create_backup(passphrase: Optional[str] = None) -> dict:
     """
     Create a full backup ZIP inside BACKUP_DIR.
@@ -236,6 +303,13 @@ def create_backup(passphrase: Optional[str] = None) -> dict:
             if entry:
                 files[name] = entry
 
+        # v7.6.7: zusätzlich Verzeichnisse mitsichern
+        dirs: dict[str, dict] = {}
+        for name in MANAGED_DIRS:
+            entry = _copy_managed_dir(name, temp_dir, fernet_key=fernet_key)
+            if entry:
+                dirs[name] = entry
+
         manifest = {
             "format": ("printix-mcp-backup-v1-encrypted" if encryption_meta
                        else "printix-mcp-backup-v1"),
@@ -243,6 +317,7 @@ def create_backup(passphrase: Optional[str] = None) -> dict:
             "version": _version(),
             "data_dir": str(DATA_DIR),
             "files": files,
+            "dirs":  dirs,
         }
         if encryption_meta:
             manifest["encryption"] = encryption_meta
@@ -409,6 +484,17 @@ def verify_backup(backup_zip_path: str) -> dict:
                 if not head.startswith(b"SQLite format 3"):
                     errors.append(f"{arc}: kein gültiger SQLite-Header")
 
+        # v7.6.7: Verzeichnis-Einträge prüfen
+        dirs_manifest = manifest.get("dirs") or {}
+        for dir_name, dir_entry in dirs_manifest.items():
+            for member in dir_entry.get("members", []):
+                arc = member.get("archive_path", "")
+                if arc and arc not in names:
+                    errors.append(
+                        f"manifest referenziert dir-Mitglied {arc!r}, "
+                        f"aber Datei nicht im ZIP"
+                    )
+
     return {
         "ok":       len(errors) == 0,
         "errors":   errors,
@@ -506,10 +592,40 @@ def restore_backup(uploaded_zip_path: str,
             _restore_to_target(extracted_file, target, entry.get("kind", meta["kind"]))
             restored_files.append(name)
 
+        # v7.6.7: Verzeichnisse wiederherstellen
+        restored_dirs: list[str] = []
+        manifest_dirs = manifest.get("dirs") or {}
+        for dir_name, dir_entry in manifest_dirs.items():
+            if dir_name not in MANAGED_DIRS:
+                # Unbekanntes Dir im Manifest → ignorieren (Forward-
+                # Compat: alte Backups sehen evtl. neue Dir-Einträge
+                # nicht; neue Backups dürfen Dirs haben die ältere
+                # Versionen nicht kennen)
+                continue
+            target_root = DATA_DIR / dir_name
+            target_root.mkdir(parents=True, exist_ok=True)
+            for member in dir_entry.get("members", []):
+                rel = member.get("rel", "")
+                archive_path = member.get("archive_path", "")
+                extracted_file = temp_dir / archive_path
+                if not extracted_file.exists():
+                    raise RuntimeError(f"Backup-Verzeichnis-Eintrag fehlt: {archive_path}")
+                if fernet_key is not None and archive_path.endswith(".enc"):
+                    ciphertext = extracted_file.read_bytes()
+                    plaintext = _decrypt_bytes(ciphertext, fernet_key)
+                    decrypted_path = extracted_file.with_suffix("")
+                    decrypted_path.write_bytes(plaintext)
+                    extracted_file = decrypted_path
+                target_file = target_root / rel
+                target_file.parent.mkdir(parents=True, exist_ok=True)
+                _restore_to_target(extracted_file, target_file, "plain")
+            restored_dirs.append(dir_name)
+
     return {
         "restored_at": _utc_now(),
         "backup_version": manifest.get("version", ""),
         "backup_created_at": manifest.get("created_at", ""),
         "restored_files": restored_files,
+        "restored_dirs":  restored_dirs,
         "restart_required": True,
     }

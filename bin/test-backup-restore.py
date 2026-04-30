@@ -23,7 +23,8 @@ from pathlib import Path
 
 
 def _seed_data_dir(data_dir: Path) -> None:
-    """Schreibt eine kleine Test-DB + Dummy-Fernet-Key + JSON-Datei."""
+    """Schreibt eine kleine Test-DB + Dummy-Fernet-Key + JSON-Datei.
+    v7.6.7: + web_session_key + tls/ + letsencrypt/ Subdirs."""
     data_dir.mkdir(parents=True, exist_ok=True)
     db_path = data_dir / "printix_multi.db"
     with sqlite3.connect(db_path) as conn:
@@ -32,6 +33,17 @@ def _seed_data_dir(data_dir: Path) -> None:
         conn.commit()
     (data_dir / "fernet.key").write_text("dummy-fernet-key-for-test\n")
     (data_dir / "report_templates.json").write_text(json.dumps({"hello": "world"}))
+    (data_dir / "web_session_key").write_text("dummy-session-signing-key\n")
+
+    # tls/ + letsencrypt/ als realistische Sub-Trees
+    (data_dir / "tls").mkdir(exist_ok=True)
+    (data_dir / "tls" / "cert.pem").write_text("---FAKE CERT---\n")
+    (data_dir / "tls" / "key.pem").write_text("---FAKE KEY---\n")
+    le_live = data_dir / "letsencrypt" / "live" / "example.com"
+    le_live.mkdir(parents=True, exist_ok=True)
+    (le_live / "fullchain.pem").write_text("---FAKE LE FULLCHAIN---\n")
+    (data_dir / "letsencrypt" / "renewal" / "example.com.conf").parent.mkdir(parents=True, exist_ok=True)
+    (data_dir / "letsencrypt" / "renewal" / "example.com.conf").write_text("[renewalparams]\n")
 
 
 def _read_marker(data_dir: Path) -> str | None:
@@ -99,11 +111,19 @@ def main() -> int:
             f"marker mismatch: {marker_restored!r} != {marker_orig!r}"
         print(f"      restored DB marker = {marker_restored!r} ✓")
 
-        print(f"[6/6] verify managed files all present in restore target")
-        for f in ("printix_multi.db", "fernet.key", "report_templates.json"):
+        print(f"[6/6] verify managed files + dirs all present in restore target")
+        for f in ("printix_multi.db", "fernet.key", "report_templates.json",
+                  "web_session_key"):
             p = restore_data / f
             assert p.exists() and p.stat().st_size > 0, p
             print(f"      {f}: {p.stat().st_size} bytes ✓")
+        # Verzeichnisse
+        for rel in ("tls/cert.pem", "tls/key.pem",
+                    "letsencrypt/live/example.com/fullchain.pem",
+                    "letsencrypt/renewal/example.com.conf"):
+            p = restore_data / rel
+            assert p.exists() and p.stat().st_size > 0, p
+            print(f"      {rel}: {p.stat().st_size} bytes ✓")
 
     # ── v7.6.6: Encrypted-Backup-Roundtrip ──────────────────────────────
     with tempfile.TemporaryDirectory(prefix="bm-orig2-") as orig2_root, \
@@ -153,6 +173,12 @@ def main() -> int:
         marker_restored = _read_marker(restore2)
         assert marker_restored == "printix-mcp-backup-test", marker_restored
         print(f"          DB marker = {marker_restored!r} ✓")
+        # Encrypted-Roundtrip muss auch dirs durchhalten
+        assert (restore2 / "tls" / "cert.pem").read_text().startswith("---FAKE CERT---"), \
+            "tls/cert.pem decryption mismatch"
+        assert (restore2 / "letsencrypt" / "live" / "example.com" / "fullchain.pem")\
+            .read_text().startswith("---FAKE LE FULLCHAIN---"), "le fullchain mismatch"
+        print(f"          dirs restored & decrypted (tls/, letsencrypt/) ✓")
 
     print("\nALL TESTS PASSED ✓")
     return 0

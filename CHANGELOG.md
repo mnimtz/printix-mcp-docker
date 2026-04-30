@@ -2,6 +2,50 @@
 
 This project follows [Semantic Versioning](https://semver.org/).
 
+## 7.6.7 (2026-04-30) — Backup-Vollständigkeits-Audit
+
+Audit: was kommt im Backup wirklich mit, was fehlt? Bestand:
+
+**War schon drin:**
+- `printix_multi.db` mit ALLEN Settings/Tenants/Users/Audit/Capture/
+  GuestPrint/RBAC/Cards/Reports/Roadmap/Cloudprint-Tabellen
+  (Printix-API-Keys, tenant_url, Entra-Config, Mail-Config, RBAC-
+  Rollen, public_url, Display-Timezone, etc.)
+- `demo_data.db`, `fernet.key`, `report_templates.json`,
+  `mcp_secrets.json`
+
+**Fehlte:**
+- `web_session_key` (Starlette-Session-Signing-Key) → bei Restore
+  ohne den werden alle aktiven Browser-Sessions invalidiert
+- `tls/` Verzeichnis (Cert+Key bei Auto-TLS oder TLS-Import) → bei
+  Restore wäre HTTPS bis Re-Issue down
+- `letsencrypt/` Verzeichnis (certbot-State) → bei Restore ohne den
+  triggert man eine NEUE Cert-Issuance gegen Let's Encrypt's
+  Rate-Limit (50 Certs/Domain/Woche)
+
+Alle drei sind jetzt drin. Backup-Manager unterstützt zusätzlich zu
+`MANAGED_FILES` jetzt `MANAGED_DIRS` mit rekursivem Walk. Encrypted-
+Mode (v7.6.6) funktioniert für Dirs gleich wie für Files — jeder
+Datei-Inhalt wird einzeln Fernet-encrypted vor dem Zippen.
+
+### Manifest-Format
+
+`v1`/`v1-encrypted` weiter unverändert; Dirs landen in
+`manifest.dirs[<name>].members[]` als List von
+`{rel, archive_path, size}`. Restore liest beides ein. Vorwärts-
+kompatibel: alte (v7.6.6) Backups OHNE `dirs`-Block bleiben
+restorebar.
+
+### E2E-Test erweitert
+
+`bin/test-backup-restore.py` seedet jetzt zusätzlich `tls/cert.pem`,
+`tls/key.pem`, `letsencrypt/live/example.com/fullchain.pem` und
+`letsencrypt/renewal/example.com.conf`. Nach Restore werden alle
+geprüft (sowohl im plain als auch im encrypted-Mode). Lief lokal
+durch — alle 13 Schritte ✓.
+
+---
+
 ## 7.6.6 (2026-04-30) — AES-verschlüsseltes Backup mit Passphrase
 
 Optionale Passphrase auf der Backup-Erstellungs-Form. Wenn gesetzt:
