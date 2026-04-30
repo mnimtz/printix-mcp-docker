@@ -2,6 +2,54 @@
 
 This project follows [Semantic Versioning](https://semver.org/).
 
+## 7.2.47 (2026-04-29) — Hotfix: Cards column always shows 0 in Users & Cards list
+
+### Fixed
+
+The "CARDS" column on `/tenant/users` (Printix Management → Users & Cards)
+showed 0 for every user even when cards existed in Printix. Root cause:
+`_load_card_counts_parallel()` extracted the card list from
+`list_user_cards()` response as:
+
+```python
+raw = data.get("cards", data.get("content", [])) if isinstance(data, dict) else []
+```
+
+This handled two response shapes (`{"cards": [...]}` and
+`{"content": [...]}`), but the Printix API can return up to four
+shapes depending on tenant/version:
+
+1. `{"cards": [...]}` ✓
+2. `{"content": [...]}` ✓
+3. `{"items": [...]}` ✗ — fell through to `[]`
+4. Top-level list `[{...}]` ✗ — `isinstance(data, dict)` was False, fell through to `[]`
+
+The MCP server's `_card_items()` helper in `server.py` had handled all
+four shapes for years. The web UI duplicated a stripped-down version
+when card-count parallelisation was added in v6.0.0.
+
+### Fix
+
+`_count()` inside `_load_card_counts_parallel()` now mirrors the
+`_card_items()` logic and counts only dict entries:
+
+```python
+if isinstance(data, list):
+    raw = data
+elif isinstance(data, dict):
+    raw = data.get("cards") or data.get("content") or data.get("items") or []
+else:
+    raw = []
+n = sum(1 for c in raw if isinstance(c, dict))
+```
+
+### After upgrade
+
+The cached counts from the broken version may still display "0" for
+about 15 minutes (TTL of the per-user cards cache). To force an
+immediate refresh: click the **Refresh** button on
+`/tenant/users` — that flushes the cards cache.
+
 ## 7.2.46 (2026-04-29) — README: network architecture + proxy bypass recipes
 
 ### Documentation

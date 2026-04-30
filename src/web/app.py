@@ -4867,10 +4867,28 @@ def create_app(session_secret: str) -> FastAPI:
             return results
 
         async def _count(uid: str) -> tuple[str, int]:
+            """v7.2.47: Robuste Karten-Zählung — unterstützt alle vier
+            Response-Formen die die Printix-API für /users/{id}/cards
+            zurückgibt:
+              1. Dict mit 'cards': [...]
+              2. Dict mit 'content': [...]
+              3. Dict mit 'items': [...]
+              4. Top-Level-Liste [...]
+            Vorher wurde nur Form 1+2 abgedeckt; Tenants die Form 4
+            zurückbekamen sahen 0 Karten für jeden User."""
             try:
                 data = await _aio.to_thread(lambda u=uid: client.list_user_cards(u))
-                raw = data.get("cards", data.get("content", [])) if isinstance(data, dict) else []
-                n = len(raw) if isinstance(raw, list) else 0
+                if isinstance(data, list):
+                    raw = data
+                elif isinstance(data, dict):
+                    raw = (data.get("cards")
+                           or data.get("content")
+                           or data.get("items")
+                           or [])
+                else:
+                    raw = []
+                # Filter — nur Dict-Einträge zählen, keine Strings/None
+                n = sum(1 for c in raw if isinstance(c, dict))
             except Exception:
                 n = 0
             return uid, n
