@@ -85,8 +85,10 @@
         <div style="font-weight:600; color:#003366; font-family:monospace; font-size:.92em;
                     overflow-wrap:anywhere; flex:1; min-width:200px;">{{ target_url }}</div>
         <div style="font-size:.82em; color:#666;">{{ purpose }}</div>
+        {# v7.6.2: onclick mit Single-Quotes — `tojson` produziert
+           Doppel-Quotes, die brachen den `onclick="..."` Wert. #}
         <button type="button" class="btn btn-sm btn-primary"
-                onclick="ssldTestUrl({{ target_url | tojson }}, this)"
+                onclick='ssldTestUrl({{ target_url | tojson }}, this)'
                 style="padding:4px 12px; font-size:.85em;">
           🧪 {{ _('ssld_test_button') }}
         </button>

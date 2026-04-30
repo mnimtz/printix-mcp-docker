@@ -2,6 +2,19 @@
 
 This project follows [Semantic Versioning](https://semver.org/).
 
+## 7.6.2 (2026-04-30) — Diagnose Test-Button HTML-Quote-Fix
+
+In v7.6.0 habe ich die Test-Buttons auf URL-Mode umgestellt. Der
+`onclick="ssldTestUrl({{ url | tojson }}, this)"` enthielt aber
+Doppel-Quotes vom JSON-Filter inside einem doppelt-gequoteten
+HTML-Attribut → Attribut wurde frühzeitig terminiert, der Click-
+Handler war nie wirklich registriert. Klick → nichts passiert.
+
+Fix: Single-Quotes fürs onclick-Attribut. JSON-Doppel-Quotes drinnen
+sind dann valide.
+
+---
+
 ## 7.6.1 (2026-04-30) — Suche-Hotfixes + Diagnose 500-Fix
 
 Drei Bugs aus v7.6.0 die direkt aufgefallen sind:
