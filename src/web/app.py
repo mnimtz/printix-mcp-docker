@@ -6629,17 +6629,61 @@ def create_app(session_secret: str) -> FastAPI:
                         if src_dir not in _sys.path:
                             _sys.path.insert(0, src_dir)
                         from cards.store import search_mappings
-                        from cache import search_cached_cards
+                        from cache import search_cached_cards, tenant_cache
                         local_tid = tenant.get("id", "")
+
+                        # v7.6.3: Defensiv — wenn der Bulk-Cards-Prefetch
+                        # noch nicht gelaufen ist (z.B. nach Container-
+                        # Restart, vor erstem Login der diesen Patch sah),
+                        # füllen wir den Cache hier on-demand. Tritt nur
+                        # einmal pro Tenant-Session auf — danach übernimmt
+                        # der periodische Refresher.
+                        cached_card_users = sum(
+                            1 for k in tenant_cache._sub
+                            if len(k) == 3 and k[0] == local_tid
+                            and k[1] == "card_list_per_user"
+                        )
+                        if cached_card_users == 0 and isinstance(all_users, list) and all_users:
+                            logger.info(
+                                "tenant_users: card_list cache empty for %s — "
+                                "running on-demand bulk fill (%d users)",
+                                local_tid[:8], len(all_users),
+                            )
+                            try:
+                                # Re-Use _load_card_counts_parallel — befüllt
+                                # _SUB-Cache als Seiteneffekt (auch card_list).
+                                page_uids_warmup = [
+                                    u.get("id", "") for u in all_users
+                                    if isinstance(u, dict) and u.get("id")
+                                ]
+                                await _load_card_counts_parallel(
+                                    client, local_tid, page_uids_warmup,
+                                )
+                            except Exception as _we:
+                                logger.warning(
+                                    "tenant_users: on-demand card warmup failed: %s",
+                                    _we,
+                                )
+
                         hits = search_mappings(local_tid, search)
                         card_user_ids = {
                             h["printix_user_id"] for h in (hits or [])
                             if h.get("printix_user_id")
                         }
-                        # v7.6.1: zusätzlich durch den Karten-Prefetch-Cache
-                        # scannen (findet auch nicht-gemappte Printix-Karten)
                         live_hits = search_cached_cards(local_tid, search)
                         card_user_ids |= live_hits
+
+                        # v7.6.3: Diagnostisches Log — beim Debugging eines
+                        # 0-Treffer-Falls in /logs sichtbar.
+                        logger.info(
+                            "tenant_users search='%s' tid=%s mappings=%d "
+                            "live_cache_hits=%d cards_in_cache=%d total=%d",
+                            search, local_tid[:8],
+                            len([h for h in (hits or []) if h.get("printix_user_id")]),
+                            len(live_hits),
+                            cached_card_users,
+                            len(card_user_ids),
+                        )
                         if card_user_ids:
                             known_ids = {u.get("id", "") for u in all_users}
                             missing = card_user_ids - known_ids
@@ -6661,11 +6705,22 @@ def create_app(session_secret: str) -> FastAPI:
                         logger.warning("tenant_users card search failed: %s", _ce)
 
                 # v5.20.0: Role-Filter (all | user | guest) für die UI-Chips
+                # v7.6.3: + "with_cards" — zeigt nur User die mindestens 1
+                # Karte haben (nutzt den Bulk-Prefetch-Cache).
                 role_key = (role or "all").lower()
                 if role_key == "user":
                     all_users = [u for u in all_users if u.get("role") == "USER"]
                 elif role_key == "guest":
                     all_users = [u for u in all_users if u.get("role") == "GUEST_USER"]
+                elif role_key == "with_cards":
+                    _ltid = tenant.get("id", "")
+                    def _has_cards(u: dict) -> bool:
+                        uid = u.get("id", "")
+                        if not uid:
+                            return False
+                        hit = _tcache._sub.get((_ltid, "cards_per_user", uid))
+                        return bool(hit and hit[1] > 0)
+                    all_users = [u for u in all_users if _has_cards(u)]
                 # Stabile Sortierung: USER vor GUEST_USER, dann nach Name
                 all_users.sort(key=lambda u: (
                     0 if u.get("role") == "USER" else 1,

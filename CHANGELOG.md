@@ -2,6 +2,42 @@
 
 This project follows [Semantic Versioning](https://semver.org/).
 
+## 7.6.3 (2026-04-30) — Karten-Suche debuggen + „Mit Karten"-Filter
+
+### „Mit Karten"-Filter-Chip neu
+
+Vierter Filter-Chip in der Tenant-Users-Seite neben Alle/Benutzer/
+Gäste: 🃏 **Mit Karten** zeigt nur User die mindestens eine Karte
+besitzen. Liest aus dem Bulk-Karten-Cache (v7.6.0+) — keine
+zusätzlichen API-Calls. Funktioniert sobald der Login-Prefetch
+durchgelaufen ist (oder spätestens beim ersten Suche-Versuch durch
+den neuen On-Demand-Warmup, siehe unten).
+
+i18n: `tenant_filter_with_cards` für de/en/no, andere Sprachen über
+EN-Fallback.
+
+### Karten-Suche: defensiver On-Demand-Warmup
+
+Falls jemand das Image ohne Re-Login updated, war der
+`card_list_per_user`-Sub-Cache leer und die Live-Karten-Suche fand
+nichts (selbst bei vorhandener Karte). Jetzt: erkennt
+`/tenant/users` einen leeren Karten-Cache UND ist eine Suche aktiv,
+fährt der Bulk-Fetch on-demand auf den gerade-sichtbaren User-Set —
+einmalig. Danach übernimmt der periodische Refresher.
+
+### Diagnostik
+
+Bei jedem Such-Vorgang loggt das Backend nun in /logs (INFO):
+```
+tenant_users search='123' tid=abc12345 mappings=0 live_cache_hits=2 cards_in_cache=42 total=2
+```
+
+Damit kann man im Log unterscheiden ob der Cache leer war (→
+Prefetch-Problem) oder ob die Such-Heuristik den richtigen User
+nicht erwischt hat (→ Matching-Logik anpassen).
+
+---
+
 ## 7.6.2 (2026-04-30) — Diagnose Test-Button HTML-Quote-Fix
 
 In v7.6.0 habe ich die Test-Buttons auf URL-Mode umgestellt. Der

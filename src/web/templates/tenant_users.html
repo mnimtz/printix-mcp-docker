@@ -92,6 +92,12 @@
              href="/tenant/users?role=guest{% if search %}&search={{ search }}{% endif %}">
             👤 {{ _('tenant_filter_guests') }}
           </a>
+          {# v7.6.3: 4. Filter — nur User mit Karten anzeigen. Nutzt den
+             Bulk-Karten-Cache, also keine zusätzlichen API-Calls. #}
+          <a class="filter-chip {% if role_param == 'with_cards' %}active{% endif %}"
+             href="/tenant/users?role=with_cards{% if search %}&search={{ search }}{% endif %}">
+            🃏 {{ _('tenant_filter_with_cards') }}
+          </a>
           {% if search and card_matches %}
             <span style="margin-left:auto;font-size:.8em;color:#b91c1c;">
               🃏 {{ _('tenant_card_match_info', count=card_matches) }}
