@@ -2,6 +2,34 @@
 
 This project follows [Semantic Versioning](https://semver.org/).
 
+## 7.6.4 (2026-04-30) — Karten-Treffer-Auflösung-Bug
+
+**Bug aus Logs identifiziert** — `mappings=2` aber `total=2` Treffer
+landen nicht in der UI:
+
+```
+tenant_users search='456' tid=95229f8e mappings=2 live_cache_hits=0 cards_in_cache=7 total=2
+```
+
+Karten-Mappings-DB liefert 2 User-IDs korrekt. Problem: der Code
+versuchte die User über `client.get_user(uid)` aufzulösen → falls
+das fehlschlägt (404/403/Token-Issue), wurde die Exception auf
+DEBUG-Level geschluckt und der User landete nicht in der Trefferliste.
+„0 Treffer weiter" — obwohl die Match-User da waren.
+
+**Fix:** Card-Match-User werden jetzt aus der bereits gecachten
+Vollliste (`_tcache.get(tid, "users")`) aufgelöst — wir haben sie eh
+schon. `get_user()` ist nur noch Fallback für gerade-frisch-angelegte
+User die noch nicht im Cache sind, mit Warning-Level-Log statt Debug,
+damit Auflösungs-Probleme nicht mehr unsichtbar bleiben.
+
+Plus zusätzliche Log-Zeile zeigt:
+```
+tenant_users: card-match resolved 2/2 users (cache=2, live=0 missing)
+```
+
+---
+
 ## 7.6.3 (2026-04-30) — Karten-Suche debuggen + „Mit Karten"-Filter
 
 ### „Mit Karten"-Filter-Chip neu

@@ -6687,20 +6687,62 @@ def create_app(session_secret: str) -> FastAPI:
                         if card_user_ids:
                             known_ids = {u.get("id", "") for u in all_users}
                             missing = card_user_ids - known_ids
+                            # v7.6.4: Card-Match-User aus der gecachten
+                            # FULL-User-Liste auflösen statt per get_user()
+                            # zu fetchen — vorher waren get_user-Fehler
+                            # (404/403/etc.) der Grund warum die Treffer
+                            # in der Anzeige verschwanden. Die Vollliste
+                            # haben wir eh vom Login-Prefetch bzw. von
+                            # `_cached_users(tenant, client, "")`.
+                            full_users = _tcache.get(
+                                tenant.get("id", ""), "users",
+                                loader=lambda: client.list_all_users(
+                                    query=None, page_size=200,
+                                ),
+                            )
+                            full_by_id = {}
+                            if isinstance(full_users, list):
+                                for fu in full_users:
+                                    if isinstance(fu, dict) and fu.get("id"):
+                                        full_by_id[fu["id"]] = fu
+                            resolved = 0
                             for uid in missing:
-                                try:
-                                    u = client.get_user(uid)
-                                    if isinstance(u, dict) and u.get("id"):
-                                        all_users.append(u)
-                                        card_match_ids.add(uid)
-                                except Exception as _ue:
-                                    logger.debug(
-                                        "tenant_users card-hit user lookup failed: %s", _ue
-                                    )
+                                fu = full_by_id.get(uid)
+                                if fu:
+                                    all_users.append(fu)
+                                    card_match_ids.add(uid)
+                                    resolved += 1
+                                else:
+                                    # Fallback: Live-Lookup falls der User
+                                    # noch nicht im Cache ist (frisch
+                                    # angelegt zwischen Prefetch und
+                                    # Suche).
+                                    try:
+                                        u = client.get_user(uid)
+                                        if isinstance(u, dict) and u.get("id"):
+                                            all_users.append(u)
+                                            card_match_ids.add(uid)
+                                            resolved += 1
+                                        else:
+                                            logger.warning(
+                                                "tenant_users: get_user(%s) returned %r",
+                                                uid, type(u).__name__,
+                                            )
+                                    except Exception as _ue:
+                                        logger.warning(
+                                            "tenant_users card-hit user lookup failed for %s: %s",
+                                            uid, _ue,
+                                        )
                             # Auch bestehende Treffer markieren falls Karte matcht
                             for u in all_users:
                                 if u.get("id") in card_user_ids:
                                     card_match_ids.add(u.get("id", ""))
+                            logger.info(
+                                "tenant_users: card-match resolved %d/%d users (cache=%d, live=%d missing)",
+                                resolved, len(missing),
+                                len([uid for uid in missing if uid in full_by_id]),
+                                len([uid for uid in missing if uid not in full_by_id]),
+                            )
                     except Exception as _ce:
                         logger.warning("tenant_users card search failed: %s", _ce)
 
