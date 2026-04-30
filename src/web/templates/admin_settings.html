@@ -77,6 +77,64 @@
     {% endif %}
   </div>
 
+  <!-- ── Anzeige-Zeitzone (v7.2.48) ──────────────────────────────────────── -->
+  <div id="timezone" class="card" style="max-width:680px; margin:0 auto 20px auto;">
+    <div style="display:flex; align-items:center; gap:10px; margin-bottom:8px;">
+      <div style="font-size:1.4em;">🕐</div>
+      <div>
+        <div class="section-title" style="margin:0;">{{ _('tz_card_title') }}</div>
+        <div style="font-size:.85em; color:#666;">{{ _('tz_card_sub') }}</div>
+      </div>
+    </div>
+
+    {% set _tz_ok = request.query_params.get('ok') %}
+    {% set _tz_err = request.query_params.get('err') %}
+    {% if _tz_ok == 'tz_saved' %}
+      <div class="alert alert-success" style="margin-bottom:14px;">✓ {{ _('tz_saved_ok') }}</div>
+    {% elif _tz_err == 'tz_invalid' %}
+      <div class="alert alert-error" style="margin-bottom:14px;">⚠ {{ _('tz_saved_err') }}</div>
+    {% endif %}
+
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:18px; padding:14px; background:#f7f9fb; border-radius:8px;">
+      <div>
+        <div style="font-size:.78em; color:#666; text-transform:uppercase; font-weight:600;">{{ _('tz_now_utc') }}</div>
+        <div style="font-family:monospace; color:#003366; font-weight:500;">{{ tz_current_utc }}</div>
+      </div>
+      <div>
+        <div style="font-size:.78em; color:#666; text-transform:uppercase; font-weight:600;">{{ _('tz_now_local') }}</div>
+        <div style="font-family:monospace; color:#16a34a; font-weight:500;">{{ tz_current_local }}</div>
+      </div>
+    </div>
+
+    <form method="post" action="/admin/settings/timezone" style="display:flex; flex-direction:column; gap:12px;">
+      <div>
+        <label style="display:block; font-weight:600; color:#003366; margin-bottom:4px;">{{ _('tz_select_label') }}</label>
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          <input type="text" name="timezone" id="tz-input"
+                 list="tz-suggestions"
+                 value="{{ tz_current_name }}"
+                 placeholder="Europe/Berlin"
+                 required
+                 style="flex:1; min-width:240px; font-family:monospace;">
+          <button type="button" onclick="detectBrowserTimezone()" class="btn btn-secondary btn-sm">
+            🌍 {{ _('tz_detect_browser') }}
+          </button>
+          <button type="submit" class="btn btn-primary btn-sm">💾 {{ _('tz_save_btn') }}</button>
+        </div>
+        <datalist id="tz-suggestions">
+          {% for z in tz_common_zones %}<option value="{{ z }}">{% endfor %}
+        </datalist>
+        <small style="color:#666; display:block; margin-top:6px;">
+          {{ _('tz_hint_iana') }}
+        </small>
+      </div>
+
+      <div style="padding:10px 14px; background:#fef3c7; border-left:3px solid #f59e0b; border-radius:4px; font-size:.86em; color:#78350f;">
+        ℹ <strong>{{ _('tz_apply_scope_title') }}</strong> — {{ _('tz_apply_scope_body') | safe }}
+      </div>
+    </form>
+  </div>
+
   <div class="card" style="max-width:680px;margin:0 auto 40px auto;">
     <h2 class="section-title">{{ _('admin_settings') }}</h2>
     <p class="section-sub" style="margin-bottom:24px;">
@@ -819,6 +877,22 @@ function entraImportJson() {
   status.className = 'alert alert-success';
   status.innerHTML = '\u2713 <strong>' + i18n.ok + '</strong>';
   document.getElementById('entra-f-tenant').scrollIntoView({behavior:'smooth', block:'center'});
+}
+
+// v7.2.48: Detect browser timezone (Intl API)
+function detectBrowserTimezone() {
+  try {
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    if (tz) {
+      const inp = document.getElementById('tz-input');
+      if (inp) {
+        inp.value = tz;
+        inp.focus();
+      }
+    }
+  } catch (e) {
+    alert('Browser-Zeitzone konnte nicht ermittelt werden: ' + e.message);
+  }
 }
 </script>
 {% endblock %}

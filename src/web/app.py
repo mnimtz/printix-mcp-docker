@@ -237,6 +237,62 @@ def create_app(session_secret: str) -> FastAPI:
             return lang
         return detect_language(request.headers.get("accept-language"))
 
+    # ─── Display Timezone (v7.2.48) ───────────────────────────────────────
+    # Container läuft intern in UTC (Best Practice für Storage).
+    # Anzeige im Web-UI: konfigurierbar über `display_timezone` Setting.
+    # Resolution: DB-Setting → TZ Env-Var → Default 'Europe/Berlin'.
+
+    def _resolve_display_tz_name() -> str:
+        try:
+            from db import get_setting
+            v = (get_setting("display_timezone", "") or "").strip()
+            if v:
+                return v
+        except Exception:
+            pass
+        return (os.environ.get("TZ", "") or "Europe/Berlin").strip()
+
+    def _resolve_display_tz():
+        """Returns a ZoneInfo instance for the configured display TZ.
+        Falls back to UTC if everything fails."""
+        try:
+            from zoneinfo import ZoneInfo
+            return ZoneInfo(_resolve_display_tz_name())
+        except Exception:
+            try:
+                from zoneinfo import ZoneInfo
+                return ZoneInfo("UTC")
+            except Exception:
+                from datetime import timezone as _tz
+                return _tz.utc
+
+    def _localtime_filter(value):
+        """Jinja-Filter: konvertiert UTC-ISO-String oder datetime zur
+        konfigurierten Display-Zeitzone und formatiert als
+        'YYYY-MM-DD HH:MM:SS TZ'."""
+        if not value:
+            return ""
+        try:
+            from datetime import datetime as _dt
+            tz = _resolve_display_tz()
+            if isinstance(value, _dt):
+                d = value
+            else:
+                # ISO-String parse — Z-Suffix für UTC unterstützen
+                s = str(value).strip()
+                if s.endswith("Z"):
+                    s = s[:-1] + "+00:00"
+                d = _dt.fromisoformat(s)
+            if d.tzinfo is None:
+                from datetime import timezone as _utc
+                d = d.replace(tzinfo=_utc.utc)
+            local = d.astimezone(tz)
+            return local.strftime("%Y-%m-%d %H:%M:%S %Z")
+        except Exception:
+            return str(value)
+
+    templates.env.filters["localtime"] = _localtime_filter
+
     def t_ctx(request: Request) -> dict:
         """Gibt den i18n-Kontext für Templates zurück."""
         lang = get_lang(request)
@@ -4467,8 +4523,49 @@ def create_app(session_secret: str) -> FastAPI:
             "saved": saved, "error": error,
             "license_status": license_status,
             **_license_context(),
+            **_timezone_context(),
             **t_ctx(request),
         }
+
+    def _timezone_context() -> dict:
+        """v7.2.48: Daten für die Timezone-Karte unter /admin/settings."""
+        try:
+            from datetime import datetime as _dt, timezone as _utc
+            from zoneinfo import ZoneInfo
+            tz_name = _resolve_display_tz_name()
+            tz = ZoneInfo(tz_name)
+            now_utc = _dt.now(_utc.utc)
+            now_local = now_utc.astimezone(tz)
+            # Curated Liste der häufigsten Zeitzonen — vollständige
+            # zoneinfo.available_timezones() hätte 600+ Einträge.
+            common = [
+                "UTC",
+                "Europe/Berlin", "Europe/Vienna", "Europe/Zurich",
+                "Europe/Amsterdam", "Europe/Brussels", "Europe/Paris",
+                "Europe/London", "Europe/Madrid", "Europe/Rome",
+                "Europe/Stockholm", "Europe/Oslo", "Europe/Copenhagen",
+                "Europe/Helsinki", "Europe/Warsaw", "Europe/Prague",
+                "America/New_York", "America/Los_Angeles", "America/Chicago",
+                "America/Denver", "America/Phoenix", "America/Toronto",
+                "America/Vancouver", "America/Sao_Paulo", "America/Mexico_City",
+                "Asia/Tokyo", "Asia/Shanghai", "Asia/Hong_Kong",
+                "Asia/Singapore", "Asia/Dubai", "Asia/Kolkata",
+                "Asia/Seoul", "Asia/Bangkok", "Asia/Jerusalem",
+                "Australia/Sydney", "Australia/Melbourne", "Australia/Perth",
+                "Pacific/Auckland", "Africa/Johannesburg", "Africa/Cairo",
+            ]
+            return {
+                "tz_current_name":    tz_name,
+                "tz_current_utc":     now_utc.strftime("%Y-%m-%d %H:%M:%S UTC"),
+                "tz_current_local":   now_local.strftime("%Y-%m-%d %H:%M:%S %Z (UTC%z)"),
+                "tz_common_zones":    common,
+            }
+        except Exception as e:
+            logger.warning("timezone context: %s", e)
+            return {"tz_current_name": "Europe/Berlin",
+                    "tz_current_utc": "?",
+                    "tz_current_local": "?",
+                    "tz_common_zones": []}
 
     def _license_context() -> dict:
         """v7.2.39: Pro-Feature-Lizenz-Status für admin_settings.html."""
@@ -4579,6 +4676,45 @@ def create_app(session_secret: str) -> FastAPI:
 
         return templates.TemplateResponse("admin_settings.html",
             _admin_settings_ctx(request, user, saved=True))
+
+    # v7.2.48: Display-Timezone speichern
+    @app.post("/admin/settings/timezone")
+    async def admin_settings_timezone(
+        request: Request,
+        timezone: str = Form(...),
+    ):
+        user = get_session_user(request)
+        if not user or not user.get("is_admin"):
+            return RedirectResponse("/login", status_code=302)
+        tz_name = (timezone or "").strip()
+        try:
+            from zoneinfo import ZoneInfo
+            ZoneInfo(tz_name)  # validiert — wirft bei unbekannter Zone
+            from db import set_setting, audit
+            set_setting("display_timezone", tz_name)
+            audit(user["id"], "admin_set_timezone",
+                  f"Display timezone → {tz_name}",
+                  object_type="setting", object_id="display_timezone")
+            # v7.2.48: tzset() auf Web-Prozess-Ebene — danach erscheinen
+            # neue Log-Zeilen mit %(asctime)s in der neuen Zeitzone (für
+            # diesen Prozess). Der MCP-Server-Prozess (Port 8765) ist
+            # separat — voller Effekt auf stdout/docker-logs erfordert
+            # Container-Restart, ggf. zusätzlich TZ env in compose.
+            try:
+                import time as _time_mod
+                os.environ["TZ"] = tz_name
+                _time_mod.tzset()
+                logger.info("Display timezone changed to %s (this process)", tz_name)
+            except Exception as _tz_err:
+                logger.warning("tzset() failed: %s", _tz_err)
+            return RedirectResponse(
+                "/admin/settings?ok=tz_saved#timezone", status_code=302,
+            )
+        except Exception as e:
+            logger.warning("invalid timezone '%s': %s", tz_name, e)
+            return RedirectResponse(
+                f"/admin/settings?err=tz_invalid#timezone", status_code=302,
+            )
 
     # v7.2.39: Pro-Feature-Aktivierung — Code unter /admin/settings einreichen
     @app.post("/admin/settings/license/activate")
@@ -4749,11 +4885,10 @@ def create_app(session_secret: str) -> FastAPI:
             logger.error("Logs-Fehler: %s", e)
             entries = []
             tid = None
-        # UTC → Lokale Zeit konvertieren (TZ-Umgebungsvariable, Fallback Europe/Berlin)
+        # v7.2.48: zentraler Resolver — DB-Setting > Env > Fallback
         try:
             import datetime as _dt
-            from zoneinfo import ZoneInfo as _ZI
-            _tz = _ZI(os.environ.get("TZ", "Europe/Berlin"))
+            _tz = _resolve_display_tz()
             for _e in entries:
                 try:
                     _ts = _dt.datetime.fromisoformat(_e["timestamp"])

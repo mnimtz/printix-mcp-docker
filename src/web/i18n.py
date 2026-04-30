@@ -1046,6 +1046,20 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "lic_locked_how_body":   "Pro-Features werden mit einem Aktivierungscode freigeschaltet. <strong>Fragen Sie Ihren Ansprechpartner</strong> nach dem Code und geben Sie ihn unter <em>Server-Einstellungen → Pro-Features</em> ein.",
         "lic_locked_cta":        "Code eingeben",
         "login_employee_locked": "Anmeldung für normale Benutzer ist auf dieser Installation nicht aktiviert (Free Tier). Bitte deinen Administrator um Aktivierung des Pro-Features 'Print Job Management'.",
+
+        # ─── v7.2.48: Display Timezone ────────────────────────────────────
+        "tz_card_title":         "Anzeige-Zeitzone",
+        "tz_card_sub":           "Steuert wie Zeitstempel im Web-UI und in den Logs angezeigt werden. Daten werden weiter intern in UTC gespeichert.",
+        "tz_now_utc":            "Server-Zeit (UTC)",
+        "tz_now_local":          "Anzeige-Zeit",
+        "tz_select_label":       "Zeitzone (IANA)",
+        "tz_detect_browser":     "Browser erkennen",
+        "tz_save_btn":           "Speichern",
+        "tz_hint_iana":          "Bekannte IANA-Zeitzonen: Europe/Berlin, Europe/Vienna, America/New_York, Asia/Tokyo, Australia/Sydney, UTC. Vollständige Liste: <a href='https://en.wikipedia.org/wiki/List_of_tz_database_time_zones' target='_blank'>Wikipedia</a>.",
+        "tz_apply_scope_title":  "Wirkungsbereich",
+        "tz_apply_scope_body":   "Web-UI und Logs-Seite reagieren <strong>sofort</strong>. Container-stdout (<code>docker logs</code>) für die Web-UI ebenfalls direkt; für den MCP-Server-Prozess (Port 8765) wirkt der Wechsel erst nach <strong>Container-Restart</strong>. Optional zusätzlich <code>TZ=Europe/Berlin</code> in <code>docker-compose.yml</code> für vollständig systemweiten Effekt von Anfang an.",
+        "tz_saved_ok":           "Zeitzone gespeichert.",
+        "tz_saved_err":          "Ungültige Zeitzone — IANA-Name prüfen (z.B. Europe/Berlin).",
         "mp_gdpr_pdf":            "GDPR Compliance Guide (PDF)",
         "mp_matrix_pdf":          "Permission Matrix (PDF)",
 
@@ -2196,6 +2210,20 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "lic_locked_how_body":   "Pro features are unlocked with an activation code. <strong>Please ask your contact person</strong> for the code and enter it under <em>Server settings → Pro features</em>.",
         "lic_locked_cta":        "Enter code",
         "login_employee_locked": "Login for regular users is not enabled on this installation (Free Tier). Please ask your administrator to activate the Pro feature \"Print Job Management\".",
+
+        # ─── v7.2.48: Display Timezone ────────────────────────────────────
+        "tz_card_title":         "Display timezone",
+        "tz_card_sub":           "Controls how timestamps are shown in the web UI and the logs page. Data is still stored internally in UTC.",
+        "tz_now_utc":            "Server time (UTC)",
+        "tz_now_local":          "Display time",
+        "tz_select_label":       "Time zone (IANA)",
+        "tz_detect_browser":     "Detect browser",
+        "tz_save_btn":           "Save",
+        "tz_hint_iana":          "Common IANA time zones: Europe/Berlin, America/New_York, Asia/Tokyo, Australia/Sydney, UTC. Full list: <a href='https://en.wikipedia.org/wiki/List_of_tz_database_time_zones' target='_blank'>Wikipedia</a>.",
+        "tz_apply_scope_title":  "Where it applies",
+        "tz_apply_scope_body":   "Web UI and the logs page react <strong>immediately</strong>. Container stdout (<code>docker logs</code>) for the web process also right away; the MCP-server process (port 8765) needs a <strong>container restart</strong> to pick up the change. Optionally also set <code>TZ=Europe/Berlin</code> in <code>docker-compose.yml</code> for full system-wide effect from the start.",
+        "tz_saved_ok":           "Timezone saved.",
+        "tz_saved_err":          "Invalid timezone — please check the IANA name (e.g. Europe/Berlin).",
         "mp_gdpr_pdf":            "GDPR Compliance Guide (PDF)",
         "mp_matrix_pdf":          "Permission Matrix (PDF)",
 
@@ -6894,6 +6922,20 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "lic_locked_how_body":   "Pro-funksjoner låses opp med en aktiveringskode. <strong>Vennligst spør kontaktpersonen din</strong> om koden og skriv den inn under <em>Server-innstillinger → Pro-funksjoner</em>.",
         "lic_locked_cta":        "Skriv inn kode",
         "login_employee_locked": "Innlogging for vanlige brukere er ikke aktivert på denne installasjonen (Free Tier). Be administratoren din om å aktivere Pro-funksjonen «Print Job Management».",
+
+        # ─── v7.2.48: Display Timezone ────────────────────────────────────
+        "tz_card_title":         "Visnings-tidssone",
+        "tz_card_sub":           "Styrer hvordan tidsstempler vises i web-UI og logg-siden. Data lagres fortsatt internt i UTC.",
+        "tz_now_utc":            "Server-tid (UTC)",
+        "tz_now_local":          "Visnings-tid",
+        "tz_select_label":       "Tidssone (IANA)",
+        "tz_detect_browser":     "Oppdage nettleser",
+        "tz_save_btn":           "Lagre",
+        "tz_hint_iana":          "Vanlige IANA-tidssoner: Europe/Oslo, Europe/Berlin, America/New_York, Asia/Tokyo, UTC. Full liste: <a href='https://en.wikipedia.org/wiki/List_of_tz_database_time_zones' target='_blank'>Wikipedia</a>.",
+        "tz_apply_scope_title":  "Hvor det gjelder",
+        "tz_apply_scope_body":   "Web-UI og logg-siden reagerer <strong>umiddelbart</strong>. Container-stdout (<code>docker logs</code>) for web-prosessen også med en gang; MCP-server-prosessen (port 8765) krever <strong>container-omstart</strong> for å plukke opp endringen. Valgfritt også sette <code>TZ=Europe/Oslo</code> i <code>docker-compose.yml</code> for full systemomfattende effekt fra starten.",
+        "tz_saved_ok":           "Tidssone lagret.",
+        "tz_saved_err":          "Ugyldig tidssone — sjekk IANA-navnet (f.eks. Europe/Oslo).",
         "mp_gdpr_pdf":            "GDPR-veiledning (PDF)",
         "mp_matrix_pdf":          "Tillatelsesmatrise (PDF)",
 

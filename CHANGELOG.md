@@ -2,6 +2,58 @@
 
 This project follows [Semantic Versioning](https://semver.org/).
 
+## 7.2.48 (2026-04-29) — Display timezone configurable from the web UI
+
+### Added
+
+A new "🕐 Anzeige-Zeitzone / Display Timezone" card on
+`/admin/settings#timezone`. Container internals stay in UTC (best
+practice for storage), but the **display** of timestamps in the web
+UI and the logs page is now per-installation configurable without a
+container restart.
+
+### How it works
+
+- New DB setting `display_timezone` (default empty → falls back to env
+  var `TZ`, then to `Europe/Berlin`).
+- Central helpers `_resolve_display_tz_name()` /
+  `_resolve_display_tz()` in `web/app.py` — used by the `/logs`
+  route and the new Jinja filter.
+- New Jinja filter `{{ ts | localtime }}` that converts UTC ISO
+  strings (or datetime objects) to the configured display timezone
+  with format `YYYY-MM-DD HH:MM:SS TZ`. Templates can now use
+  `{{ entry.created_at | localtime }}` instead of repeating the
+  conversion logic inline.
+- POST handler validates the IANA zone via `zoneinfo.ZoneInfo(name)`
+  and rejects unknown values with a clear error.
+- After saving, calls `os.environ["TZ"] = name; time.tzset()` —
+  affects subsequent `%(asctime)s` log records in the **web process**
+  (port 8080) immediately. The MCP server process (port 8765) is
+  separate and requires a container restart to pick up the change.
+
+### UI
+
+The card shows two side-by-side panels:
+- **Server time (UTC)** — the absolute internal timestamp
+- **Display time** — the same moment in the configured zone
+
+A typeahead input with HTML5 `<datalist>` autocompletes ~40 common
+zones (Europe/*, America/*, Asia/*, Australia/*, etc.). A "🌍
+Browser erkennen" button reads
+`Intl.DateTimeFormat().resolvedOptions().timeZone` and fills the
+input with the user's local TZ. A yellow info panel below explains
+the scope of the change (immediate for web, restart needed for the
+MCP-server process, optional `TZ` env var for full effect from
+startup).
+
+### i18n
+Twelve new keys (`tz_*`) per language in `de`, `en`, `no`.
+
+### Files
+- `src/web/app.py` — helpers + POST handler + ctx
+- `src/web/templates/admin_settings.html` — new card + JS detection
+- `src/web/i18n.py` — translations
+
 ## 7.2.47 (2026-04-29) — Hotfix: Cards column always shows 0 in Users & Cards list
 
 ### Fixed
