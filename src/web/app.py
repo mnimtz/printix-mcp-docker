@@ -2348,6 +2348,294 @@ def create_app(session_secret: str) -> FastAPI:
             media_type="application/pdf",
         )
 
+    # ─── SSL & Domain Overview (v7.2.49) ──────────────────────────────────
+    # Konsolidiert die drei HTTPS-Strategien (Cloudflare Tunnel, eigenes
+    # Cert, Auto-HTTPS sslip.io) auf einer Übersichts-Seite mit Live-
+    # Status pro Option. Admin sieht auf einen Blick was aktiv ist und
+    # springt von dort in die jeweilige Detail-Konfiguration.
+
+    @app.get("/admin/ssl", response_class=HTMLResponse)
+    async def admin_ssl(request: Request):
+        user = get_session_user(request)
+        if not user or not user.get("is_admin"):
+            return RedirectResponse("/login", status_code=302)
+
+        # Status pro Option ermitteln
+        try:
+            from db import get_setting
+        except Exception:
+            get_setting = lambda *_a, **_kw: ""
+
+        # Cloudflare Tunnel
+        tunnel_status = {"active": False, "mode": "off", "url": ""}
+        try:
+            from tunnel import get_manager as _tm
+            st = _tm().status() or {}
+            tunnel_status = {
+                "active": bool(st.get("running")),
+                "mode":   st.get("mode") or "off",
+                "url":    st.get("url") or "",
+            }
+        except Exception as e:
+            logger.debug("ssl overview tunnel status: %s", e)
+
+        # TLS-Import: tls_enabled=1 + Cert-Datei vorhanden
+        tls_status = {"active": False, "expires": "", "subject": "", "days_remaining": 0}
+        try:
+            tls_enabled = (get_setting("tls_enabled", "0") or "0").strip() == "1"
+            cert_path = "/data/tls/cert.pem"
+            if tls_enabled and os.path.isfile(cert_path):
+                from cryptography import x509
+                from cryptography.hazmat.backends import default_backend
+                with open(cert_path, "rb") as fh:
+                    cert = x509.load_pem_x509_certificate(fh.read(), default_backend())
+                from datetime import datetime, timezone as _tz
+                now = datetime.now(_tz.utc)
+                expires = cert.not_valid_after_utc
+                # Vorsicht: das könnte auch durch Auto-TLS aktiviert sein —
+                # für die "TLS-Import"-Tile wollen wir aber nur den Fall
+                # zeigen, wo der User MANUELL einen Cert hochgeladen hat.
+                # Heuristik: wenn auto_tls_enabled=1, gehört's zu Auto-TLS.
+                if (get_setting("auto_tls_enabled", "0") or "0").strip() != "1":
+                    tls_status = {
+                        "active":         expires > now,
+                        "subject":        cert.subject.rfc4514_string(),
+                        "expires":        expires.strftime("%Y-%m-%d"),
+                        "days_remaining": max(0, (expires - now).days),
+                    }
+        except Exception as e:
+            logger.debug("ssl overview tls status: %s", e)
+
+        # Auto-HTTPS sslip.io
+        atls_status = {"active": False, "hostname": "", "expires": "", "days_remaining": 0}
+        try:
+            atls_enabled = (get_setting("auto_tls_enabled", "0") or "0").strip() == "1"
+            if atls_enabled:
+                hostname = get_setting("auto_tls_hostname", "") or ""
+                cert_path = "/data/tls/cert.pem"
+                if os.path.isfile(cert_path):
+                    from cryptography import x509
+                    from cryptography.hazmat.backends import default_backend
+                    with open(cert_path, "rb") as fh:
+                        cert = x509.load_pem_x509_certificate(fh.read(), default_backend())
+                    from datetime import datetime, timezone as _tz
+                    now = datetime.now(_tz.utc)
+                    expires = cert.not_valid_after_utc
+                    atls_status = {
+                        "active":         expires > now,
+                        "hostname":       hostname,
+                        "expires":        expires.strftime("%Y-%m-%d"),
+                        "days_remaining": max(0, (expires - now).days),
+                    }
+                else:
+                    atls_status = {
+                        "active": False,
+                        "hostname": hostname,
+                        "expires": "",
+                        "days_remaining": 0,
+                    }
+        except Exception as e:
+            logger.debug("ssl overview auto_tls status: %s", e)
+
+        # Public-URL ist eine der drei aktiv?
+        any_active = tunnel_status["active"] or tls_status["active"] or atls_status["active"]
+        try:
+            public_url = (get_setting("public_url", "") or "").strip()
+        except Exception:
+            public_url = ""
+
+        return templates.TemplateResponse("admin_ssl.html", {
+            "request": request, "user": user,
+            "tunnel_status": tunnel_status,
+            "tls_status":    tls_status,
+            "atls_status":   atls_status,
+            "any_active":    any_active,
+            "public_url":    public_url,
+            **t_ctx(request),
+        })
+
+    # ─── SSL Network Diagnostics (v7.2.49) ─────────────────────────────────
+    @app.get("/admin/ssl/diagnose", response_class=HTMLResponse)
+    async def admin_ssl_diagnose(request: Request):
+        """Pre-flight check für die HTTPS-Setup-Entscheidung. Sammelt
+        was wir vom Container aus überhaupt sehen können (Public-IP,
+        Outbound-Erreichbarkeit relevanter Services, lokale Listener,
+        DNS-Resolve), plus generiert Copy-Paste curl-Befehle für die
+        externe Port-Verifizierung. Liefert am Ende eine konkrete
+        Empfehlung welche der drei HTTPS-Strategien zur Lage passt."""
+        user = get_session_user(request)
+        if not user or not user.get("is_admin"):
+            return RedirectResponse("/login", status_code=302)
+
+        import asyncio as _aio_diag
+        import socket as _sock
+        from urllib.parse import urlparse
+
+        diag: dict = {
+            "checks": [],
+            "public_ip": "",
+            "suggested_hostname": "",
+            "open_ports_internal": [],
+            "public_url": "",
+            "public_url_resolves": None,
+            "recommendation": "",
+        }
+
+        # 1. Public IP via api.ipify.org
+        try:
+            import urllib.request as _ur
+            with _ur.urlopen("https://api.ipify.org", timeout=5) as resp:
+                ip = resp.read().decode("ascii", errors="ignore").strip()
+                _sock.inet_aton(ip)
+                diag["public_ip"] = ip
+                diag["suggested_hostname"] = ip.replace(".", "-") + ".sslip.io"
+                diag["checks"].append({
+                    "name": "public_ip", "status": "ok",
+                    "value": ip,
+                    "label_de": "Public IP erkannt", "label_en": "Public IP detected",
+                })
+        except Exception as e:
+            diag["checks"].append({
+                "name": "public_ip", "status": "error",
+                "value": str(e),
+                "label_de": "Public IP nicht erkennbar",
+                "label_en": "Public IP detection failed",
+            })
+
+        # 2. Outbound — Cloudflare API
+        try:
+            import urllib.request as _ur
+            with _ur.urlopen("https://api.cloudflare.com/client/v4/", timeout=5) as resp:
+                code = resp.getcode()
+            diag["checks"].append({
+                "name": "outbound_cloudflare", "status": "ok",
+                "value": f"HTTP {code}",
+                "label_de": "Cloudflare API erreichbar (für Tunnel)",
+                "label_en": "Cloudflare API reachable (for tunnel setup)",
+            })
+        except Exception as e:
+            diag["checks"].append({
+                "name": "outbound_cloudflare", "status": "warn",
+                "value": str(e)[:80],
+                "label_de": "Cloudflare API nicht erreichbar — Tunnel-Setup könnte scheitern",
+                "label_en": "Cloudflare API unreachable — tunnel setup may fail",
+            })
+
+        # 3. Outbound — Let's Encrypt ACME directory
+        try:
+            import urllib.request as _ur
+            with _ur.urlopen("https://acme-v02.api.letsencrypt.org/directory", timeout=5) as resp:
+                code = resp.getcode()
+            diag["checks"].append({
+                "name": "outbound_letsencrypt", "status": "ok",
+                "value": f"HTTP {code}",
+                "label_de": "Let's Encrypt ACME erreichbar (für Auto-HTTPS)",
+                "label_en": "Let's Encrypt ACME reachable (for Auto-HTTPS)",
+            })
+        except Exception as e:
+            diag["checks"].append({
+                "name": "outbound_letsencrypt", "status": "warn",
+                "value": str(e)[:80],
+                "label_de": "Let's Encrypt ACME nicht erreichbar — Auto-HTTPS scheitert",
+                "label_en": "Let's Encrypt ACME unreachable — Auto-HTTPS will fail",
+            })
+
+        # 4. Lokale Listener (welche Ports lauschen IM Container)
+        try:
+            import subprocess
+            ss_out = subprocess.run(
+                ["ss", "-tlnH"], capture_output=True, text=True, timeout=3,
+            )
+            ports = set()
+            for line in (ss_out.stdout or "").splitlines():
+                # ss-Format: State  Recv-Q Send-Q  Local Address:Port  Peer:Port ...
+                parts = line.split()
+                if len(parts) >= 4:
+                    addr = parts[3]
+                    if ":" in addr:
+                        port = addr.rsplit(":", 1)[-1]
+                        if port.isdigit():
+                            ports.add(int(port))
+            diag["open_ports_internal"] = sorted(ports)
+            diag["checks"].append({
+                "name": "internal_listeners", "status": "ok",
+                "value": ", ".join(str(p) for p in sorted(ports)) or "—",
+                "label_de": "Container-interne Listener",
+                "label_en": "Container internal listeners",
+            })
+        except Exception as e:
+            diag["checks"].append({
+                "name": "internal_listeners", "status": "warn",
+                "value": str(e)[:80],
+                "label_de": "Lokale Listener-Liste nicht ermittelbar",
+                "label_en": "Could not enumerate local listeners",
+            })
+
+        # 5. DNS-Resolve von public_url (wenn gesetzt)
+        try:
+            from db import get_setting
+            pu = (get_setting("public_url", "") or "").strip()
+        except Exception:
+            pu = ""
+        diag["public_url"] = pu
+        if pu:
+            try:
+                host = urlparse(pu).hostname or ""
+                if host:
+                    addr = _sock.gethostbyname(host)
+                    diag["public_url_resolves"] = True
+                    diag["checks"].append({
+                        "name": "dns_resolve", "status": "ok",
+                        "value": f"{host} → {addr}",
+                        "label_de": "DNS-Resolve der konfigurierten Public-URL",
+                        "label_en": "DNS resolve of configured public URL",
+                    })
+                    # Stimmt der DNS-Eintrag mit unserer Public-IP überein?
+                    if diag["public_ip"] and addr == diag["public_ip"]:
+                        diag["checks"].append({
+                            "name": "dns_matches_ip", "status": "ok",
+                            "value": "matches",
+                            "label_de": "Public-URL zeigt auf diese Maschine",
+                            "label_en": "Public URL points at this machine",
+                        })
+                    elif diag["public_ip"]:
+                        diag["checks"].append({
+                            "name": "dns_matches_ip", "status": "warn",
+                            "value": f"{addr} ≠ {diag['public_ip']}",
+                            "label_de": "Public-URL zeigt auf andere IP — Tunnel oder Proxy?",
+                            "label_en": "Public URL points elsewhere — tunnel or proxy?",
+                        })
+            except Exception as e:
+                diag["public_url_resolves"] = False
+                diag["checks"].append({
+                    "name": "dns_resolve", "status": "error",
+                    "value": str(e)[:80],
+                    "label_de": "DNS-Resolve gescheitert",
+                    "label_en": "DNS resolve failed",
+                })
+
+        # 6. Empfehlung basierend auf den Befunden
+        outbound_ok = any(c["name"] == "outbound_cloudflare" and c["status"] == "ok"
+                          for c in diag["checks"])
+        ip_ok = bool(diag["public_ip"])
+        le_ok = any(c["name"] == "outbound_letsencrypt" and c["status"] == "ok"
+                    for c in diag["checks"])
+
+        if outbound_ok and not ip_ok:
+            diag["recommendation"] = "tunnel"  # outbound only — perfekt für Tunnel
+        elif ip_ok and le_ok:
+            diag["recommendation"] = "atls"    # Public-IP + LE erreichbar — Auto-TLS funktioniert
+        elif outbound_ok:
+            diag["recommendation"] = "tunnel"
+        else:
+            diag["recommendation"] = "tls"     # nur manueller Cert-Import übrig
+
+        return templates.TemplateResponse("admin_ssl_diagnose.html", {
+            "request": request, "user": user,
+            "diag": diag,
+            **t_ctx(request),
+        })
+
     # ─── Auto-HTTPS via sslip.io + Let's Encrypt (v7.2.36) ───────────────
     # 1-Klick HTTPS für Public-IP-only Setups. Kein Cloudflare-Account,
     # keine Domain, keine manuelle Cert-Generierung — komplett kostenlos.

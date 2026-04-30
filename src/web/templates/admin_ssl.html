@@ -1,0 +1,154 @@
+{% extends "base.html" %}
+{% block title %}{{ _('ssl_title') }} — {{ _('brand_console_name') }}{% endblock %}
+{% block content %}
+<div class="container">
+
+  <!-- Header -->
+  <div class="card" style="margin-bottom:20px;">
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; flex-wrap:wrap; gap:10px;">
+      <div>
+        <div class="section-title">🌐 {{ _('ssl_title') }}</div>
+        <div class="section-sub">{{ _('ssl_subtitle') }}</div>
+      </div>
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <a href="/admin/ssl/diagnose" class="btn btn-primary btn-sm">🔍 {{ _('ssld_title') }}</a>
+        <a href="/admin" class="btn btn-secondary btn-sm">← {{ _('mp_back') }}</a>
+      </div>
+    </div>
+
+    {% if any_active and public_url %}
+    <div style="padding:14px 18px; background:#dcfce7; border-left:4px solid #16a34a; border-radius:8px; display:flex; align-items:center; gap:12px;">
+      <div style="font-size:1.5em;">🔒</div>
+      <div style="flex:1;">
+        <div style="font-weight:700; color:#14532d; margin-bottom:2px;">{{ _('ssl_running_title') }}</div>
+        <div style="font-size:.88em; color:#166534;">
+          {{ _('ssl_running_url_label') }}: <code>{{ public_url }}</code>
+        </div>
+      </div>
+    </div>
+    {% else %}
+    <div style="padding:14px 18px; background:#fef3c7; border-left:4px solid #f59e0b; border-radius:8px; display:flex; align-items:center; gap:12px;">
+      <div style="font-size:1.5em;">⚠️</div>
+      <div style="flex:1;">
+        <div style="font-weight:700; color:#78350f; margin-bottom:2px;">{{ _('ssl_inactive_title') }}</div>
+        <div style="font-size:.88em; color:#92400e;">{{ _('ssl_inactive_sub') }}</div>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Three tiles in a grid -->
+  <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:18px; margin-bottom:20px;">
+
+    <!-- Tile 1: Cloudflare Tunnel -->
+    <a href="/admin/tunnel" style="text-decoration:none; color:inherit;">
+      <div class="card" style="height:100%; transition:transform .15s; cursor:pointer; {% if tunnel_status.active %}border-left:4px solid #16a34a;{% else %}border-left:4px solid #cbd5e1;{% endif %}"
+           onmouseover="this.style.transform='translateY(-2px)'"
+           onmouseout="this.style.transform='translateY(0)'">
+        <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px;">
+          <div style="font-size:1.8em;">🌐</div>
+          <div style="flex:1;">
+            <div style="font-weight:700; color:#003366; font-size:1.05em;">{{ _('ssl_tile_tunnel') }}</div>
+            {% if tunnel_status.active %}
+              <div style="font-size:.78em; color:#16a34a; font-weight:600;">● {{ _('ssl_tile_active') }} ({{ tunnel_status.mode | upper }})</div>
+            {% else %}
+              <div style="font-size:.78em; color:#94a3b8;">○ {{ _('ssl_tile_inactive') }}</div>
+            {% endif %}
+          </div>
+        </div>
+        <div style="font-size:.86em; color:#444; line-height:1.5; margin-bottom:10px;">
+          {{ _('ssl_tile_tunnel_desc') }}
+        </div>
+        {% if tunnel_status.active and tunnel_status.url %}
+        <div style="font-size:.78em; color:#666; word-break:break-all; padding:6px 8px; background:#f7f9fb; border-radius:4px;">
+          <code>{{ tunnel_status.url }}</code>
+        </div>
+        {% endif %}
+        <div style="margin-top:12px; font-size:.82em; color:#003366; font-weight:600;">
+          {% if tunnel_status.active %}{{ _('ssl_tile_manage') }} →{% else %}{{ _('ssl_tile_setup') }} →{% endif %}
+        </div>
+      </div>
+    </a>
+
+    <!-- Tile 2: TLS Import -->
+    <a href="/admin/tls" style="text-decoration:none; color:inherit;">
+      <div class="card" style="height:100%; transition:transform .15s; cursor:pointer; {% if tls_status.active %}border-left:4px solid #16a34a;{% else %}border-left:4px solid #cbd5e1;{% endif %}"
+           onmouseover="this.style.transform='translateY(-2px)'"
+           onmouseout="this.style.transform='translateY(0)'">
+        <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px;">
+          <div style="font-size:1.8em;">🔒</div>
+          <div style="flex:1;">
+            <div style="font-weight:700; color:#003366; font-size:1.05em;">{{ _('ssl_tile_tls') }}</div>
+            {% if tls_status.active %}
+              <div style="font-size:.78em; color:#16a34a; font-weight:600;">● {{ _('ssl_tile_active') }}</div>
+            {% else %}
+              <div style="font-size:.78em; color:#94a3b8;">○ {{ _('ssl_tile_inactive') }}</div>
+            {% endif %}
+          </div>
+        </div>
+        <div style="font-size:.86em; color:#444; line-height:1.5; margin-bottom:10px;">
+          {{ _('ssl_tile_tls_desc') }}
+        </div>
+        {% if tls_status.active and tls_status.expires %}
+        <div style="font-size:.78em; color:#666; padding:6px 8px; background:#f7f9fb; border-radius:4px;">
+          {{ _('ssl_tile_expires') }}: <strong>{{ tls_status.expires }}</strong>
+          {% if tls_status.days_remaining < 30 %}
+            <span style="color:#dc2626; font-weight:600;">({{ tls_status.days_remaining }} {{ _('tls_days') }})</span>
+          {% else %}
+            ({{ tls_status.days_remaining }} {{ _('tls_days') }})
+          {% endif %}
+        </div>
+        {% endif %}
+        <div style="margin-top:12px; font-size:.82em; color:#003366; font-weight:600;">
+          {% if tls_status.active %}{{ _('ssl_tile_manage') }} →{% else %}{{ _('ssl_tile_setup') }} →{% endif %}
+        </div>
+      </div>
+    </a>
+
+    <!-- Tile 3: Auto-HTTPS sslip.io -->
+    <a href="/admin/auto-tls" style="text-decoration:none; color:inherit;">
+      <div class="card" style="height:100%; transition:transform .15s; cursor:pointer; {% if atls_status.active %}border-left:4px solid #16a34a;{% else %}border-left:4px solid #cbd5e1;{% endif %}"
+           onmouseover="this.style.transform='translateY(-2px)'"
+           onmouseout="this.style.transform='translateY(0)'">
+        <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px;">
+          <div style="font-size:1.8em;">🌍</div>
+          <div style="flex:1;">
+            <div style="font-weight:700; color:#003366; font-size:1.05em;">{{ _('ssl_tile_atls') }}
+              <span style="font-size:.62em; background:#16a34a; color:#fff; padding:2px 6px; border-radius:8px; vertical-align:middle; margin-left:4px;">{{ _('atls_badge_free') }}</span>
+            </div>
+            {% if atls_status.active %}
+              <div style="font-size:.78em; color:#16a34a; font-weight:600;">● {{ _('ssl_tile_active') }}</div>
+            {% else %}
+              <div style="font-size:.78em; color:#94a3b8;">○ {{ _('ssl_tile_inactive') }}</div>
+            {% endif %}
+          </div>
+        </div>
+        <div style="font-size:.86em; color:#444; line-height:1.5; margin-bottom:10px;">
+          {{ _('ssl_tile_atls_desc') }}
+        </div>
+        {% if atls_status.active and atls_status.hostname %}
+        <div style="font-size:.78em; color:#666; padding:6px 8px; background:#f7f9fb; border-radius:4px;">
+          <code>{{ atls_status.hostname }}</code>
+          {% if atls_status.expires %}
+          <br>{{ _('ssl_tile_expires') }}: <strong>{{ atls_status.expires }}</strong> ({{ atls_status.days_remaining }} {{ _('tls_days') }})
+          {% endif %}
+        </div>
+        {% endif %}
+        <div style="margin-top:12px; font-size:.82em; color:#003366; font-weight:600;">
+          {% if atls_status.active %}{{ _('ssl_tile_manage') }} →{% else %}{{ _('ssl_tile_setup') }} →{% endif %}
+        </div>
+      </div>
+    </a>
+
+  </div>
+
+  <!-- Decision Helper -->
+  <details class="card" style="margin-bottom:20px;">
+    <summary style="cursor:pointer; font-weight:600; color:#003366;">📚 {{ _('ssl_help_choose') }}</summary>
+    <div style="margin-top:14px; font-size:.92em; line-height:1.7; color:#444;">
+      {{ _('ssl_help_choose_body') | safe }}
+    </div>
+  </details>
+
+</div>
+{% endblock %}

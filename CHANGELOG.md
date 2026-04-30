@@ -2,6 +2,76 @@
 
 This project follows [Semantic Versioning](https://semver.org/).
 
+## 7.2.49 (2026-04-30) — SSL & Domain hub + setup diagnostics
+
+### Changed
+
+The admin dashboard's three HTTPS-related buttons (🌐 HTTPS Tunnel,
+🔒 TLS Certificate, 🌍 Free HTTPS) are consolidated into a single
+**🌐 SSL & Domain** entry that opens an overview hub. Less visual
+clutter on `/admin`, all related decisions in one place.
+
+### Added — `/admin/ssl` overview hub
+
+Three status tiles, side-by-side, each with:
+
+- Icon + name + active/inactive indicator (green dot when running,
+  grey when off)
+- One-line description of the option
+- Live data: tunnel URL when active, cert expiry + days remaining,
+  sslip.io hostname when configured
+- Direct deep-link to the detail config page
+
+The hub also surfaces the **currently active public URL** as a green
+banner at the top — admin sees at a glance whether HTTPS is up
+without scanning each tile, and which strategy provides it.
+
+A collapsible "Which option fits me?" decision-tree section explains
+when each strategy makes sense.
+
+### Added — `/admin/ssl/diagnose` setup diagnostics
+
+A pre-flight check that examines the network conditions from inside
+the container and recommends a concrete strategy based on what it
+finds:
+
+**Server-side checks**:
+- Public IP detection (api.ipify.org)
+- Suggested sslip.io hostname
+- Outbound reachability to Cloudflare API
+- Outbound reachability to Let's Encrypt ACME directory
+- Container-internal listeners (ss -tlnH)
+- DNS resolution of the configured public_url
+- Whether the public_url DNS matches the public IP
+
+**External-test recipes**: copy-paste curl commands for the admin to
+run from a laptop/phone (not the container) to confirm whether ports
+80, 443, 8080, 8765 are actually reachable from the internet — the
+only way to catch Azure NSG / firewall gaps reliably.
+
+**Recommendation**: based on the results, the page suggests one of
+the three HTTPS strategies with a one-paragraph rationale and a
+direct setup link. Examples:
+
+- Public IP detected + Let's Encrypt reachable + outbound OK
+  → recommend Auto-HTTPS (sslip.io)
+- Outbound to Cloudflare OK but no public IP → recommend Tunnel
+- Limited outbound → recommend manual cert import
+
+### Implementation
+
+- `src/web/app.py` — two new routes: `/admin/ssl` (status hub) and
+  `/admin/ssl/diagnose` (live network checks). Both admin-only.
+- `src/web/templates/admin_ssl.html` (new) — three-tile grid with
+  hover lift + status indicators + decision helper.
+- `src/web/templates/admin_ssl_diagnose.html` (new) — three-section
+  layout (server-side checks / external-test recipes /
+  recommendation), copy-buttons on every command.
+- `src/web/templates/admin_dashboard.html` — three button rows
+  collapsed into one.
+- i18n: 24 new keys (`ssl_*` + `ssld_*`) per language in `de`,
+  `en`, `no`.
+
 ## 7.2.48 (2026-04-29) — Display timezone configurable from the web UI
 
 ### Added
