@@ -59,23 +59,22 @@
        die Public-IP. #}
     {% set base       = diag.test_base %}
     {% set base_kind  = diag.test_base_kind %}
-    {% set test_rows  = [] %}
+    {# v7.6.1: Jinja-sandbox erlaubt kein list.append → Liste mit `+` aufbauen. #}
+    {% set test_rows = [] %}
     {% if base %}
-      {% set _ = test_rows.append(('home',   base ~ '/',
-                                   _('ssld_test_home_purpose') ~ ' (' ~ base_kind ~ ')',
-                                   base)) %}
-      {% set _ = test_rows.append(('health', base ~ '/health',
-                                   _('ssld_test_health_purpose'),
-                                   base ~ '/health')) %}
+      {% set test_rows = test_rows + [
+        ('home',   base ~ '/',       _('ssld_test_home_purpose') ~ ' (' ~ base_kind ~ ')', base),
+        ('health', base ~ '/health', _('ssld_test_health_purpose'),                        base ~ '/health'),
+      ] %}
     {% endif %}
     {% if diag.public_ip %}
-      {% set _ = test_rows.append(('p80',    'http://' ~ diag.public_ip ~ '/',
-                                   _('ssld_port_80_purpose'),
-                                   'http://' ~ diag.public_ip ~ '/')) %}
+      {% set test_rows = test_rows + [
+        ('p80', 'http://' ~ diag.public_ip ~ '/', _('ssld_port_80_purpose'), 'http://' ~ diag.public_ip ~ '/'),
+      ] %}
       {% if base_kind != 'public_ip' %}
-        {% set _ = test_rows.append(('p8080', 'http://' ~ diag.public_ip ~ ':8080/',
-                                     _('ssld_port_8080_purpose'),
-                                     'http://' ~ diag.public_ip ~ ':8080/')) %}
+        {% set test_rows = test_rows + [
+          ('p8080', 'http://' ~ diag.public_ip ~ ':8080/', _('ssld_port_8080_purpose'), 'http://' ~ diag.public_ip ~ ':8080/'),
+        ] %}
       {% endif %}
     {% endif %}
 

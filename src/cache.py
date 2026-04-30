@@ -282,8 +282,10 @@ def _set_prefetch_status(tenant_id: str, status: str) -> None:
         _prefetch_status[tenant_id] = status
 
 
-def count_user_cards_robust(client, user_id: str) -> int:
-    """v7.6.0: Single-Source-of-Truth für die Karten-Zählung pro User.
+def list_user_cards_robust(client, user_id: str) -> list[dict]:
+    """v7.6.1: Liefert die normalisierte Liste der Karten eines Users —
+    Single-Source-of-Truth für alle Code-Pfade die mit Karten arbeiten
+    (Bulk-Prefetch, on-demand Count, Live-Search in /tenant/users).
 
     Die Printix-API liefert /users/{id}/cards in vier verschiedenen
     Formen zurück (variiert pro Tenant-Konfiguration):
@@ -294,18 +296,13 @@ def count_user_cards_robust(client, user_id: str) -> int:
       4. ``[...]``  (Top-Level-Liste)
 
     Vor v7.2.47 wurde nur Form 1+2 abgedeckt — Tenants mit Form 3+4
-    sahen 0 Karten für jeden User. Diese Helper-Funktion deckt alle
-    vier ab und filtert Strings/None aus dem Listen-Inhalt heraus
-    (nur Dict-Einträge zählen als echte Karte).
-
-    Wird sowohl vom Bulk-Prefetch als auch vom on-demand
-    ``_load_card_counts_parallel`` aufgerufen — dadurch zeigt
-    /tenant/users immer den gleichen Zähler wie der Cache.
+    sahen 0 Karten für jeden User. Hier alle 4 abgedeckt, plus Filter
+    auf Dict-Einträge (Strings/None werden ignoriert).
     """
     try:
         data = client.list_user_cards(user_id)
     except Exception:
-        return 0
+        return []
     if isinstance(data, list):
         raw = data
     elif isinstance(data, dict):
@@ -314,8 +311,82 @@ def count_user_cards_robust(client, user_id: str) -> int:
                or data.get("items")
                or [])
     else:
-        return 0
-    return sum(1 for c in raw if isinstance(c, dict))
+        return []
+    return [c for c in raw if isinstance(c, dict)]
+
+
+def count_user_cards_robust(client, user_id: str) -> int:
+    """Kompat-Wrapper — liefert nur die Anzahl. Bestehender Code-Pfad."""
+    return len(list_user_cards_robust(client, user_id))
+
+
+def get_cached_user_cards(tenant_id: str, user_id: str) -> Optional[list]:
+    """Liefert die im Bulk-Prefetch abgelegten Karten-Daten eines Users
+    (oder None wenn noch nicht im Cache). Wird von /tenant/users
+    benutzt um auch Karten zu finden die nicht in der lokalen
+    card_mappings-DB stehen (z.B. direkt in Printix angelegte)."""
+    hit = tenant_cache._sub.get((tenant_id, "card_list_per_user", user_id))
+    if not hit:
+        return None
+    ts, data = hit
+    ttl = DEFAULT_TTLS.get("cards_per_user", 900)
+    if (time.time() - ts) > ttl:
+        return None
+    return data if isinstance(data, list) else None
+
+
+def search_cached_cards(tenant_id: str, query: str) -> set[str]:
+    """v7.6.1: Live-Suche durch die im Bulk-Prefetch gecachten Karten-
+    Listen. Liefert die Set der user_ids deren Karten dem Query
+    entsprechen (Substring-Match auf id, secret, b64-decoded value).
+
+    Erweitert die lokale card_mappings-Suche um Karten die nur in
+    Printix existieren — typisch wenn die Karte über die Printix-UI
+    statt über unsere Mapping-Flow registriert wurde.
+    """
+    if not query or not tenant_id:
+        return set()
+    import base64 as _b64
+    needles = {query.lower()}
+    # Numerische Variante ohne Trennzeichen
+    import re as _re
+    norm = _re.sub(r"[\s:\-]", "", query).lower()
+    if norm:
+        needles.add(norm)
+        needles.add(norm.lstrip("0") or "0")
+    matches: set[str] = set()
+    # Iteriere alle Sub-Cache-Einträge mit Topic 'card_list_per_user'
+    for key, val in list(tenant_cache._sub.items()):
+        if len(key) != 3:
+            continue
+        tid, topic, uid = key
+        if tid != tenant_id or topic != "card_list_per_user":
+            continue
+        ts, cards = val
+        if not isinstance(cards, list):
+            continue
+        for c in cards:
+            if not isinstance(c, dict):
+                continue
+            # Bekannte Felder durchsuchen — Printix-API ist heterogen
+            haystack_parts = []
+            for fld in ("id", "cardId", "secret", "value", "number",
+                        "cardNumber", "displayValue"):
+                v = c.get(fld)
+                if isinstance(v, str):
+                    haystack_parts.append(v.lower())
+                    # Versuche b64-decode für secret-Felder
+                    try:
+                        decoded = _b64.b64decode(v + "==", validate=False).decode("utf-8", errors="ignore")
+                        if decoded.isprintable():
+                            haystack_parts.append(decoded.lower())
+                    except Exception:
+                        pass
+            haystack = " ".join(haystack_parts)
+            if any(n in haystack for n in needles):
+                matches.add(uid)
+                break
+    return matches
 
 
 async def _bulk_prefetch_card_counts(tenant_id: str, client, users) -> int:
@@ -334,17 +405,21 @@ async def _bulk_prefetch_card_counts(tenant_id: str, client, users) -> int:
     if not user_ids:
         return 0
 
-    async def _one(uid: str) -> tuple[str, int]:
+    async def _one(uid: str) -> tuple[str, list]:
         try:
-            n = await _aio.to_thread(count_user_cards_robust, client, uid)
+            cards = await _aio.to_thread(list_user_cards_robust, client, uid)
         except Exception:
-            n = 0
-        return uid, n
+            cards = []
+        return uid, cards
 
     pairs = await _aio.gather(*(_one(uid) for uid in user_ids))
     now = time.time()
-    for uid, n in pairs:
-        tenant_cache._sub[(tenant_id, "cards_per_user", uid)] = (now, n)
+    for uid, cards in pairs:
+        # v7.6.1: BEIDE Slots befüllen — Count (legacy) + Liste (für
+        # Live-Suche). Count bleibt für /tenant/users-Spalte; Liste
+        # wird von search_cached_cards() gescannt.
+        tenant_cache._sub[(tenant_id, "cards_per_user", uid)]    = (now, len(cards))
+        tenant_cache._sub[(tenant_id, "card_list_per_user", uid)] = (now, cards)
     return len(pairs)
 
 

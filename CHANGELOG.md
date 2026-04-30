@@ -2,6 +2,53 @@
 
 This project follows [Semantic Versioning](https://semver.org/).
 
+## 7.6.1 (2026-04-30) — Suche-Hotfixes + Diagnose 500-Fix
+
+Drei Bugs aus v7.6.0 die direkt aufgefallen sind:
+
+### 1. Karten-Suche fand Karten nie
+
+`/tenant/users` Suche nach Kartennummer ergab IMMER 0 Treffer — auch
+direkt nach dem Speichern. Ursache: `save_mapping` schreibt mit
+`tenant.get("id")` (DB-interne UUID), die Suche las aber mit
+`tenant.get("printix_tenant_id")` (Printix-seitige UUID). Zwei
+verschiedene Felder → garantierter Miss seit v5.20.0. Jetzt
+konsistent auf `tenant.get("id")`.
+
+Plus erweitert: die Suche scannt jetzt zusätzlich durch die im
+Bulk-Prefetch gecachten Karten-Listen — findet damit auch Karten die
+nur in Printix existieren (über die Printix-UI angelegt, nicht über
+unseren Mapping-Flow).
+
+### 2. Teilsuche bei Usernamen klappte nicht
+
+„cus" fand kein „Marcus", „mar" fand nichts. Ursache: der Printix-
+API-`query`-Parameter macht Server-side Prefix-/Wort-Matching und
+match keine Substrings in der Mitte eines Namens. Lösung: Cache lädt
+jetzt immer die Vollliste (ein Roundtrip alle 10 min, durch den
+Prefetch eh schon warm), Filterung läuft lokal mit case-insensitive
+Substring-Match auf alle relevanten Felder (fullName, email, sub,
+telephone, displayName, first/last_name).
+
+### 3. /admin/ssl/diagnose 500 Internal Server Error
+
+Zwei Fehler:
+- `from tunnel import _manager` — den Symbol gibt's nicht, korrekt
+  ist `get_manager()`. Dadurch crashte die Diagnose-Route schon vor
+  dem Render.
+- Template nutzte `test_rows.append(...)` was Jinja's Sandbox als
+  None-Call interpretiert. Liste wird jetzt mit `+`-Konkatenation
+  aufgebaut.
+
+### Bonus
+
+Karten-Bulk-Prefetch speichert jetzt nicht nur den Count sondern die
+volle Karten-Liste pro User. Damit kann die Live-Suche durch alle
+Karten des Tenants scannen (siehe Punkt 1) — single round-trip pro
+User beim Login warmt alles vor.
+
+---
+
 ## 7.6.0 (2026-04-30) — Cache-Prefetch + dynamische Diagnose-Tests
 
 ### Hintergrund-Cache wesentlich aggressiver

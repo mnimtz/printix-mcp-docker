@@ -2620,12 +2620,15 @@ def create_app(session_secret: str) -> FastAPI:
         # konfigurierte public_url, dann Fallback Public-IP. Damit
         # testen die Buttons das was der User wirklich nutzt, nicht
         # nur die WAN-IP der Maschine.
+        # v7.6.1: tunnel-Singleton heißt get_manager(), nicht _manager.
+        tunnel_url = ""
         try:
-            from tunnel import _manager as _tm
-            _ts = _tm.status()
-            tunnel_url = (_ts.get("url") or "").strip().rstrip("/") if _ts.get("running") else ""
-        except Exception:
-            tunnel_url = ""
+            from tunnel import get_manager as _get_tm
+            _ts = _get_tm().status()
+            if _ts.get("running"):
+                tunnel_url = (_ts.get("url") or "").strip().rstrip("/")
+        except Exception as _te:
+            logger.debug("diagnose: tunnel status not available: %s", _te)
         diag["test_base"] = (
             tunnel_url or
             (diag.get("public_url") or "").rstrip("/") or
@@ -2671,12 +2674,14 @@ def create_app(session_secret: str) -> FastAPI:
                 pu_setting = (get_setting("public_url", "") or "").strip().rstrip("/")
             except Exception:
                 pu_setting = ""
+            tunnel_url = ""
             try:
-                from tunnel import _manager as _tm
-                _ts = _tm.status()
-                tunnel_url = (_ts.get("url") or "").strip().rstrip("/") if _ts.get("running") else ""
+                from tunnel import get_manager as _get_tm
+                _ts = _get_tm().status()
+                if _ts.get("running"):
+                    tunnel_url = (_ts.get("url") or "").strip().rstrip("/")
             except Exception:
-                tunnel_url = ""
+                pass
             try:
                 import urllib.request as _ur
                 with _ur.urlopen("https://api.ipify.org", timeout=4) as _r:
@@ -5419,17 +5424,38 @@ def create_app(session_secret: str) -> FastAPI:
     def _cached_users(tenant: dict, client, query: str = "") -> list[dict]:
         """Liefert list_all_users() über den zentralen Cache.
 
-        Query ist Teil des Cache-Keys weil der `query=`-Parameter an
-        Printix geht und das Ergebnis dort bereits filtert. Ohne Query
-        haben wir die Vollliste die wir lokal weiterfiltern können.
+        v7.6.1: Wir laden IMMER die Vollliste und filtern lokal — der
+        Printix-`query`-Parameter macht nur Prefix-/Wort-Matching,
+        deshalb fand „cus" früher kein „Marcus". Lokal mit case-
+        insensitive Substring-Match auf alle relevanten Felder
+        (fullName, email, sub, telephone). Cache-Key ist der gleiche
+        für alle Queries — ein einziger Tenant-Roundtrip pro 10 min.
         """
-        topic = "users" if not query else f"users:q={query.strip().lower()}"
-        return _tcache.get(
-            tenant.get("id", ""), topic,
-            loader=lambda: client.list_all_users(
-                query=query or None, page_size=200,
-            ),
+        full = _tcache.get(
+            tenant.get("id", ""), "users",
+            loader=lambda: client.list_all_users(query=None, page_size=200),
         )
+        if not query:
+            return full
+        q = query.strip().lower()
+        if not q:
+            return full
+        if not isinstance(full, list):
+            return full
+
+        def _hay(u: dict) -> str:
+            if not isinstance(u, dict):
+                return ""
+            parts = [
+                u.get("fullName", ""), u.get("email", ""),
+                u.get("first_name", "") or u.get("firstName", ""),
+                u.get("last_name", "") or u.get("lastName", ""),
+                u.get("sub", ""), u.get("telephone", ""),
+                u.get("displayName", ""),
+            ]
+            return " ".join(p for p in parts if isinstance(p, str)).lower()
+
+        return [u for u in full if q in _hay(u)]
 
     async def _load_card_counts_parallel(client, tenant_id: str,
                                           user_ids: list[str]) -> dict[str, int]:
@@ -5466,24 +5492,28 @@ def create_app(session_secret: str) -> FastAPI:
         if not to_fetch:
             return results
 
-        # v7.6.0: Karten-Zähl-Logik in cache.count_user_cards_robust()
+        # v7.6.0: Karten-Zähl-Logik in cache.list_user_cards_robust()
         # zentralisiert — Bulk-Prefetch und on-demand benutzen jetzt die
         # gleiche Implementierung. Damit ist garantiert dass /tenant/users
         # die gleichen Zahlen zeigt egal ob aus Prefetch oder Live-Call.
-        from cache import count_user_cards_robust as _count_cards
+        # v7.6.1: BEIDE Slots befüllen (Count + Liste) damit die Live-
+        # Karten-Suche durch den Cache scannen kann.
+        from cache import list_user_cards_robust as _list_cards
         async def _count(uid: str) -> tuple[str, int]:
             try:
-                n = await _aio.to_thread(_count_cards, client, uid)
+                cards = await _aio.to_thread(_list_cards, client, uid)
             except Exception:
-                n = 0
-            return uid, n
+                cards = []
+            return uid, cards
 
         pairs = await _aio.gather(*(_count(uid) for uid in to_fetch))
         import time as _time
         now = _time.time()
-        for uid, n in pairs:
+        for uid, cards in pairs:
+            n = len(cards) if isinstance(cards, list) else 0
             results[uid] = n
-            _tcache._sub[(tenant_id, "cards_per_user", uid)] = (now, n)
+            _tcache._sub[(tenant_id, "cards_per_user", uid)]    = (now, n)
+            _tcache._sub[(tenant_id, "card_list_per_user", uid)] = (now, cards)
         return results
 
     def _invalidate_tenant_user_cache(tenant_id: str) -> None:
@@ -6585,6 +6615,13 @@ def create_app(session_secret: str) -> FastAPI:
                 # v5.20.0: Zusätzliche Karten-Suche in der lokalen card_mappings-DB.
                 # Die Printix-`query`-Filter matcht nur auf Name/Email — wer nach
                 # einer Kartennummer sucht, bekam bisher 0 Treffer.
+                # v7.6.1 BUG-FIX: Suche nutzte tenant.get("printix_tenant_id"),
+                # save_mapping speichert aber mit tenant.get("id") — daher 0
+                # Treffer für JEDE Karten-Suche bis jetzt. Ist nun konsistent.
+                # PLUS: Live-Search durch die im Prefetch gecachten Karten-
+                # Listen — findet jetzt auch Karten die nur in Printix
+                # existieren (über Printix-UI angelegt, nicht über unseren
+                # Mapping-Flow).
                 if search.strip():
                     try:
                         import sys as _sys, os as _os
@@ -6592,11 +6629,17 @@ def create_app(session_secret: str) -> FastAPI:
                         if src_dir not in _sys.path:
                             _sys.path.insert(0, src_dir)
                         from cards.store import search_mappings
-                        hits = search_mappings(tenant.get("printix_tenant_id", ""), search)
+                        from cache import search_cached_cards
+                        local_tid = tenant.get("id", "")
+                        hits = search_mappings(local_tid, search)
                         card_user_ids = {
                             h["printix_user_id"] for h in (hits or [])
                             if h.get("printix_user_id")
                         }
+                        # v7.6.1: zusätzlich durch den Karten-Prefetch-Cache
+                        # scannen (findet auch nicht-gemappte Printix-Karten)
+                        live_hits = search_cached_cards(local_tid, search)
+                        card_user_ids |= live_hits
                         if card_user_ids:
                             known_ids = {u.get("id", "") for u in all_users}
                             missing = card_user_ids - known_ids
