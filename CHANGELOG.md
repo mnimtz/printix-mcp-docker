@@ -2,6 +2,25 @@
 
 This project follows [Semantic Versioning](https://semver.org/).
 
+## 7.6.10 (2026-05-01) — Demo-Daten-Hinweis auf der Reports-Seite
+
+Wenn der Tenant aktive Demo-Sessions in der lokalen Demo-DB hat,
+zeigt `/reports` jetzt oben einen kleinen 🧪-gelben Banner:
+
+> Demo-Daten aktiv: Dieser Tenant hat aktive Demo-Sessions in der
+> lokalen Demo-DB. Diese Datensätze fließen in alle SQL-Reports
+> ein. → Demo verwalten
+
+Klick führt direkt zu `/tenant/demo` wo man die Sessions sehen +
+löschen kann. Banner erscheint nur wenn `has_active_demo()` True
+zurückgibt (existierte schon in `local_demo_db.py`); ohne aktive
+Demo-Sessions bleibt die Seite unverändert clean.
+
+i18n: `rpt_list_demo_active_title/body`, `rpt_list_demo_manage`
+für de/en/no, andere Sprachen über EN-Fallback.
+
+---
+
 ## 7.6.9 (2026-05-01) — Report-Sprache + Währung im Builder
 
 In der Report-Form (Create + Edit) gibt's jetzt zwei neue Felder:

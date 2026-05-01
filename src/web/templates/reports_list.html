@@ -49,6 +49,20 @@
     </div>
     {% endif %}
 
+    {# v7.6.10: Demo-Daten-Hinweis — taucht nur auf wenn der Tenant
+       aktive Demo-Sessions hat. Klick führt zur Demo-Seite. #}
+    {% if has_demo %}
+    <div class="alert" style="margin-bottom:20px; padding:10px 14px;
+                              background:#fef3c7; border-left:3px solid #f59e0b;
+                              border-radius:4px; font-size:.9em; color:#78350f;">
+      🧪 <strong>{{ _('rpt_list_demo_active_title') }}</strong>
+      {{ _('rpt_list_demo_active_body') }}
+      <a href="/tenant/demo" style="color:#78350f; font-weight:600; text-decoration:underline;">
+        {{ _('rpt_list_demo_manage') }} →
+      </a>
+    </div>
+    {% endif %}
+
     <div class="reports-header">
       <h2>📊 {{ _('reports_title') }}</h2>
       <a href="/reports/new" class="btn btn-primary">+ {{ _('reports_new') }}</a>

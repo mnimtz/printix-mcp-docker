@@ -320,6 +320,20 @@ def register_reports_routes(
         for tag in tags:
             presets_by_tag[tag] = [p for p in presets if p.get("tag") == tag]
 
+        # v7.6.10: Demo-Daten-Hinweis — wenn der Tenant aktive
+        # Demo-Sessions hat, fließen die in alle SQL-Reports ein.
+        # Das ist gewollt (Demo-Reports brauchen Daten), aber wenn man
+        # später echte Production-Reports baut leicht zu vergessen.
+        # Ein kleines Info-Banner reicht.
+        has_demo = False
+        try:
+            from reporting.local_demo_db import has_active_demo
+            ptid = (tenant or {}).get("printix_tenant_id", "")
+            if ptid:
+                has_demo = has_active_demo(ptid)
+        except Exception as _de:
+            logger.debug("demo-banner check failed: %s", _de)
+
         return templates.TemplateResponse("reports_list.html", {
             "request":          request,
             "user":             user,
@@ -329,6 +343,7 @@ def register_reports_routes(
             "tags":             tags,
             "reporting_ok":     _reporting_available(tenant),
             "mail_ok":          _mail_configured(tenant),
+            "has_demo":         has_demo,
             "flash_msg":        flash_msg,
             "flash_kind":       flash_kind,
             "query_type_labels": QUERY_TYPE_LABELS,
