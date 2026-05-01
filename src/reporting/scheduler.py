@@ -232,6 +232,36 @@ def _run_report_job(report_id: str) -> None:
     if not mail_api_key:
         logger.warning("Report '%s': kein mail_api_key — Mail nicht versendet", template.get("name"))
 
+    # v7.6.8: SQL-Config IN den APScheduler-Thread reinpushen, damit
+    # query_tools.run_query() innerhalb von sql_client.get_connection()
+    # eine konfigurierte ContextVar findet. Vorher war das nur bei
+    # Web-Requests (via auth-Middleware) gesetzt \u2014 geplante Reports
+    # crashten mit "SQL nicht konfiguriert" obwohl der Tenant Creds
+    # hinterlegt hatte.
+    try:
+        import sys as _scheduler_sys
+        if "/app" not in _scheduler_sys.path:
+            _scheduler_sys.path.insert(0, "/app")
+        from db import get_tenant_full_by_user_id as _get_t
+        from reporting import sql_client as _sql_client
+        _tenant_for_sql = _get_t(owner_user_id) if owner_user_id else None
+        if _tenant_for_sql:
+            _sql_client.set_config_from_tenant(_tenant_for_sql)
+            logger.debug(
+                "Scheduler-Thread: SQL-Config fuer Tenant %s gesetzt (server=%s, db=%s)",
+                (_tenant_for_sql.get("printix_tenant_id", "") or "?")[:8],
+                _tenant_for_sql.get("sql_server", ""),
+                _tenant_for_sql.get("sql_database", ""),
+            )
+        else:
+            logger.warning(
+                "Scheduler: kein Tenant fuer owner_user_id=%s gefunden \u2014 "
+                "SQL-Reports werden mit 'nicht konfiguriert' fehlschlagen",
+                owner_user_id,
+            )
+    except Exception as _se:
+        logger.warning("Scheduler: SQL-Config-Setup fehlgeschlagen: %s", _se)
+
     params = _resolve_dynamic_dates(params)
 
     try:
@@ -382,9 +412,27 @@ def run_report_now(
     subject    = template.get("mail_subject", f"Printix Report: {template.get('name','')}")
     formats    = template.get("output_formats", ["html"])
 
+    owner_user_id = template.get("owner_user_id", "")
     if not mail_api_key:
-        owner_user_id = template.get("owner_user_id", "")
         mail_api_key, mail_from, mail_from_name = _load_tenant_mail_credentials(owner_user_id)
+
+    # v7.6.8: SQL-Config-Setup auch hier \u2014 run_report_now wird zwar
+    # meist aus dem Web-Request-Kontext aufgerufen (wo die Middleware
+    # die ContextVar schon gesetzt hat), aber ein direkter Aufruf
+    # aus einem anderen Thread (z.B. CLI, Hintergrundtask) h\u00e4tte
+    # sonst denselben Fehler wie _run_report_job.
+    try:
+        import sys as _now_sys
+        if "/app" not in _now_sys.path:
+            _now_sys.path.insert(0, "/app")
+        from db import get_tenant_full_by_user_id as _get_t
+        from reporting import sql_client as _sql_client
+        if not _sql_client.is_configured():
+            _t = _get_t(owner_user_id) if owner_user_id else None
+            if _t:
+                _sql_client.set_config_from_tenant(_t)
+    except Exception:
+        pass
 
     # v3.7.9: run_query dispatcht Stufe 1 + Stufe 2 (17 Query-Typen).
     # Vorher waren nur 6 Typen hardcoded; "Jetzt senden" f\u00fcr Stufe-2-Reports

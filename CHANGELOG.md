@@ -2,6 +2,61 @@
 
 This project follows [Semantic Versioning](https://semver.org/).
 
+## 7.6.8 (2026-05-01) — Scheduled Reports: „SQL nicht konfiguriert" Fix
+
+Geplante Reports crashten beim Ausführen mit:
+
+```
+RuntimeError: SQL nicht konfiguriert. Bitte SQL-Credentials für
+diesen Tenant in der Web-UI eintragen.
+```
+
+obwohl der Tenant in der Web-UI komplett konfiguriert war. Auch der
+Alert-Mail-Versand zeigte den Stack-Trace. Trat bei JEDEM
+SQL-basierten Report-Typ auf (sensible_documents, service_desk,
+print_trends, anomalies, …) — nicht nur „Sensible Dokumente".
+
+### Ursache
+
+`sql_client._current_sql_config` ist eine **ContextVar**. Die wird
+für Web-Requests von der `BearerAuthMiddleware`/`auth.py` aus den
+Tenant-DB-Feldern befüllt — pro Request frisch, danach reset.
+
+APScheduler startet `_run_report_job` aber in einem **eigenen Thread
+ohne Request-Kontext**. Der erbt den asyncio-/Web-Context nicht →
+ContextVar bleibt None → `is_configured()` False → RuntimeError.
+
+### Fix
+
+Sowohl `_run_report_job` (geplante Reports) als auch
+`run_report_now` (manueller „Jetzt senden"-Knopf, defensiv für
+Direkt-Aufrufe aus anderen Threads) laden jetzt vor `run_query()`
+den Tenant des Report-Owners aus der DB und rufen
+`set_config_from_tenant()` — exakt das gleiche was die
+Web-Middleware pro Request macht.
+
+Mit Debug-Log:
+```
+Scheduler-Thread: SQL-Config fuer Tenant abc12345 gesetzt
+(server=tenant-sql.example.com, db=printix_data)
+```
+
+und Warning falls owner_user_id leer ist oder kein Tenant gefunden
+wird — dann scheitern Reports weiterhin, aber sichtbar mit klarer
+Diagnose statt nutzlosem „nicht konfiguriert".
+
+### Andere Reports / Pfade
+
+Die Web-UI Report-Seiten + die MCP-Tool-Calls (printix_query_*) sind
+NICHT betroffen — die laufen in HTTP-Request-Kontexten wo
+`BearerAuthMiddleware` die ContextVar setzt. Bug war ausschließlich
+in der Background-Scheduler-Thread-Lane.
+
+Synchroner Fix für `printix-mcp-addon` (HA-Addon-Variante) in
+v6.9.2 — gleicher Code-Pfad, gleiche Quelle.
+
+---
+
 ## 7.6.7 (2026-04-30) — Backup-Vollständigkeits-Audit
 
 Audit: was kommt im Backup wirklich mit, was fehlt? Bestand:
