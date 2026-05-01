@@ -1081,6 +1081,13 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "mp_rbac_source_db_on":   "ℹ️ Per UI-Toggle aktiviert (DB-Setting). Wirkt sofort, kein Restart nötig.",
         "mp_rbac_source_db_off":  "ℹ️ Per UI-Toggle deaktiviert (DB-Setting). Klick auf Aktivieren schaltet sofort um.",
 
+        "mp_peer_title": "Gruppen-Vergleichs-Reports",
+        "mp_peer_status_on": "aktiv",
+        "mp_peer_status_off": "inaktiv",
+        "mp_peer_body": "Wenn aktiv, dürfen End-User <code>printix_my_group_print_history</code> aufrufen — sie sehen ihre eigene Druck-Performance im Vergleich zu Mitgliedern derselben Printix-Gruppen. Andere Namen sind <strong>anonymisiert</strong> per Stable-Hash. <strong>Default deaktiviert</strong> wegen GDPR/Mitarbeiter-Datenschutz — in Deutschland erfordert peer-Druckvergleich i.d.R. Zustimmung des Betriebsrats.",
+        "mp_peer_enable": "Aktivieren",
+        "mp_peer_disable": "Deaktivieren",
+        "mp_peer_confirm": "Wirklich aktivieren? End-User sehen dann anonymisierten Druckvergleich mit Kolleg:innen ihrer Gruppen.",
         # ─── v7.2.39: Pro-Feature License ─────────────────────────────────
         "lic_card_title":        "Pro-Features",
         "lic_card_active":       "aktiv",
@@ -2392,6 +2399,13 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "mp_rbac_source_db_on":   "ℹ️ Enabled via UI toggle (DB setting). Effective immediately, no restart needed.",
         "mp_rbac_source_db_off":  "ℹ️ Disabled via UI toggle (DB setting). Click Enable to switch back instantly.",
 
+        "mp_peer_title": "Group peer-comparison reports",
+        "mp_peer_status_on": "enabled",
+        "mp_peer_status_off": "disabled",
+        "mp_peer_body": "When enabled, end-users can call <code>printix_my_group_print_history</code> — they see their own printing performance compared to members of their Printix groups. Other names are <strong>anonymized</strong> via stable hash. <strong>Default disabled</strong> for GDPR / employee privacy — in Germany peer-print comparisons typically require works-council approval.",
+        "mp_peer_enable": "Enable",
+        "mp_peer_disable": "Disable",
+        "mp_peer_confirm": "Really enable? End-users will then see anonymized print comparison with their group peers.",
         # ─── v7.2.39: Pro-Feature License ─────────────────────────────────
         "lic_card_title":        "Pro features",
         "lic_card_active":       "active",
@@ -7253,6 +7267,13 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "mp_rbac_source_db_on":   "ℹ️ Aktivert via UI-bryter (DB-innstilling). Virker umiddelbart, ingen omstart nødvendig.",
         "mp_rbac_source_db_off":  "ℹ️ Deaktivert via UI-bryter (DB-innstilling). Klikk Aktiver for å bytte tilbake umiddelbart.",
 
+        "mp_peer_title": "Gruppe peer-sammenligningsrapporter",
+        "mp_peer_status_on": "aktiv",
+        "mp_peer_status_off": "inaktiv",
+        "mp_peer_body": "Når aktiv kan sluttbrukere kalle <code>printix_my_group_print_history</code> — de ser sin egen utskrifts-ytelse sammenlignet med medlemmer av sine Printix-grupper. Andre navn er <strong>anonymisert</strong> via stabil hash. <strong>Standard deaktivert</strong> for GDPR / ansatt-personvern.",
+        "mp_peer_enable": "Aktiver",
+        "mp_peer_disable": "Deaktiver",
+        "mp_peer_confirm": "Sikker på å aktivere? Sluttbrukere ser da anonymisert sammenligning med gruppe-kolleger.",
         # ─── v7.2.39: Pro-Feature License ─────────────────────────────────
         "lic_card_title":        "Pro-funksjoner",
         "lic_card_active":       "aktive",

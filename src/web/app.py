@@ -4698,6 +4698,11 @@ def create_app(session_secret: str) -> FastAPI:
             "role_labels": role_labels,
             "role_descriptions": role_descriptions,
             "rbac_enabled": rbac_enabled,
+            # v7.7.1: Tenant-Gate für Peer-Reports
+            "group_peer_reports_enabled": (
+                (get_setting("group_peer_reports_enabled", "0") or "0").strip().lower()
+                in ("1", "true", "yes", "on")
+            ),
             "rbac_source": rbac_source,
             "flash_ok": flash_ok, "flash_err": flash_err,
             **ctx,
@@ -4724,6 +4729,38 @@ def create_app(session_secret: str) -> FastAPI:
             )
         except Exception as e:
             logger.error("rbac toggle: %s", e)
+            return RedirectResponse(
+                f"/admin/mcp-permissions?err={quote_plus(str(e))}",
+                status_code=302,
+            )
+
+    @app.post("/admin/mcp-permissions/group-peer-toggle")
+    async def admin_group_peer_toggle(request: Request, action: str = Form("")):
+        """v7.7.1: Toggle für `group_peer_reports_enabled` —
+        End-User können dann via printix_my_group_print_history sehen
+        wie sie im Vergleich zu Kolleg:innen ihrer Printix-Gruppen
+        ranken. Default off; Admin muss bewusst aktivieren wegen
+        GDPR/Mitarbeiter-Datenschutz (DE: Betriebsrat-Mitwirkung
+        notwendig in vielen Fällen)."""
+        admin = get_session_user(request)
+        if not admin or not admin.get("is_admin"):
+            return RedirectResponse("/login", status_code=302)
+        try:
+            from db import set_setting, audit
+            new_state = "1" if action == "enable" else "0"
+            set_setting("group_peer_reports_enabled", new_state)
+            audit(
+                admin["id"],
+                "group_peer_reports_set",
+                f"Group peer reports {'enabled' if new_state == '1' else 'disabled'} via Admin-UI",
+                object_type="setting", object_id="group_peer_reports_enabled",
+            )
+            return RedirectResponse(
+                "/admin/mcp-permissions?ok=" + ("group_peer_enabled" if new_state == "1" else "group_peer_disabled"),
+                status_code=302,
+            )
+        except Exception as e:
+            logger.error("group peer toggle: %s", e)
             return RedirectResponse(
                 f"/admin/mcp-permissions?err={quote_plus(str(e))}",
                 status_code=302,

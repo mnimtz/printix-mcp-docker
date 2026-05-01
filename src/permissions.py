@@ -281,6 +281,12 @@ TOOL_SCOPES: dict[str, str] = {
     "printix_my_print_history":         SCOPE_SELF,
     "printix_my_costs":                 SCOPE_SELF,
     "printix_my_environment_impact":    SCOPE_SELF,
+    # v7.7.1: Peer-Vergleich in der eigenen Printix-Gruppe — Tenant-
+    # Setting `group_peer_reports_enabled` muss aktiv sein (default
+    # OFF). Tool anonymisiert fremde Namen ("Colleague N"), nur die
+    # eigene Zeile zeigt den eigenen Namen. SCOPE_SELF reicht weil das
+    # Tool die Tenant-Schiene selbst gated.
+    "printix_my_group_print_history":   SCOPE_SELF,
 
     # ─── Tools that touch other users' data — require write privileges ─────
     # quick_print and register_card take an explicit user/recipient arg and

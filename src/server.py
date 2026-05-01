@@ -5684,6 +5684,189 @@ def printix_my_environment_impact(
         return _ok({"error": str(e)})
 
 
+def _resolve_caller_group_emails(user_id: str, caller_email: str) -> tuple[set[str], list[str], int]:
+    """v7.7.1: Findet alle Email-Adressen der Mitglieder von Gruppen
+    in denen der Caller drin ist.
+
+    Returns:
+        (emails, group_ids, group_count) — Set deduppte Emails inklusive
+        des Callers selbst, Liste der group_ids in denen er Mitglied
+        ist, und ihre Anzahl. Bei Fehler oder fehlenden Daten (kein
+        cache, kein User in keinen Gruppen) → (set(), [], 0).
+
+    Privacy: das ist eine reine Lookup-Funktion. Die Berechtigung dies
+    überhaupt aufzurufen wird vom Caller (Tool-Funktion) gegated über
+    Tenant-Setting `group_peer_reports_enabled`.
+    """
+    if not user_id:
+        return set(), [], 0
+    try:
+        import db as _db_local
+        group_ids = _db_local.get_user_group_cache(user_id, ttl_seconds=3600)
+    except Exception as e:
+        logger.debug("_resolve_caller_group_emails: cache lookup failed: %s", e)
+        group_ids = None
+    if not group_ids:
+        # Kein Cache → einmalig Live-Lookup über Printix nicht hier
+        # versuchen (zu teuer im Self-Service-Pfad). Erwartung: RBAC
+        # warmt user_group_cache beim ersten Tool-Call. Fallback: nur
+        # eigene Email zurück.
+        return ({caller_email} if caller_email else set()), [], 0
+
+    emails: set[str] = {caller_email} if caller_email else set()
+    try:
+        tenant = current_tenant.get() or {}
+        client = _make_printix_client(tenant) if tenant else None
+        if client is None:
+            return emails, list(group_ids), len(group_ids)
+        for gid in group_ids:
+            try:
+                group_obj = client.get_group(gid)
+                members = _group_members_from_obj(client, group_obj or {})
+                for m in members or []:
+                    em = (m.get("email") or "").strip().lower()
+                    if em:
+                        emails.add(em)
+            except Exception as ge:
+                logger.debug("group %s lookup failed: %s", gid, ge)
+                continue
+    except Exception as e:
+        logger.warning("group-emails resolution failed: %s", e)
+    return emails, list(group_ids), len(group_ids)
+
+
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=True))
+def printix_my_group_print_history(
+    start_date: str = "last_month_start",
+    end_date: str = "last_month_end",
+    anonymize_others: bool = True,
+) -> str:
+    """
+        Eigene + Gruppen-Druckhistorie — Vergleich mit Kolleg:innen aus
+        denselben Printix-Gruppen. STANDARDMÄSSIG DEAKTIVIERT (Tenant-
+        Admin muss `group_peer_reports_enabled` aktivieren).
+
+        Wann nutzen: "Wieviel druckt unsere Abteilung?" • "Wo ranke
+            ich vergleichend?" • "Wer in meinem Team druckt am meisten?"
+        Wann NICHT — stattdessen: nur eigene Daten → printix_my_print_history ;
+            tenant-weiter Top-User-Report (admin) → printix_query_top_users
+        Returns: rows mit anonymisierten Kollegen + own_label="👤 You".
+            Plus group_count, total_peers, peer_emails (anonymisiert wenn
+            anonymize_others=True).
+        Args: start_date, end_date, anonymize_others (bool, default true).
+
+    """
+    err = _reporting_check()
+    if err:
+        return _ok({"error": err})
+
+    # Tenant-Gate: nur wenn Admin's es enabled hat
+    try:
+        from db import get_setting
+        enabled = (get_setting("group_peer_reports_enabled", "0") or "0").strip()
+        if enabled not in ("1", "true", "yes", "on"):
+            return _ok({
+                "error": "tenant_disabled",
+                "message": ("Group peer reports are disabled for this tenant. "
+                            "Admin must enable 'group_peer_reports_enabled' "
+                            "in /admin/mcp-permissions."),
+                "hint":    "Standardmäßig deaktiviert wegen GDPR/Mitarbeiter-Datenschutz.",
+            })
+    except Exception as _se:
+        logger.warning("group-peer-tool: setting check failed: %s", _se)
+
+    pu_id, email, _t = _resolve_caller_for_reports()
+    if not email:
+        return _ok({"error": "no_user_email"})
+
+    tenant = current_tenant.get() or {}
+    user_id_local = tenant.get("user_id") or ""
+    peer_emails, group_ids, group_count = _resolve_caller_group_emails(
+        user_id_local, email,
+    )
+    if group_count == 0:
+        return _ok({
+            "error":   "no_groups",
+            "message": "You're not a member of any Printix group, so there are no peers to compare with.",
+            "hint":    "Ask your admin to assign you to a group, or use printix_my_print_history for solo data.",
+            "your_email": email,
+        })
+
+    try:
+        from reporting.scheduler import _resolve_dynamic_dates
+        from reporting import query_tools
+        params = _resolve_dynamic_dates({"start_date": start_date, "end_date": end_date})
+        # Kein user_email-Filter → query_user_detail liefert alle User;
+        # wir filtern client-side auf peer_emails. Bei kleinen Tenants
+        # OK; bei sehr großen (>1000 User) wäre eine custom WHERE IN
+        # SQL effizienter — Stage 2 falls nötig.
+        all_rows = query_tools.query_user_detail(
+            start_date=params["start_date"],
+            end_date=params["end_date"],
+            user_email="",
+            group_by="month",
+        )
+        peer_emails_lower = {e.lower() for e in peer_emails}
+        filtered = [r for r in (all_rows or [])
+                    if (r.get("email") or "").lower() in peer_emails_lower]
+        # Anonymisieren (außer eigener Zeile)
+        # User → stable label "Colleague N" basierend auf Email-Hash
+        import hashlib as _hl
+        def _label(em: str, name: str) -> str:
+            if em.lower() == email.lower():
+                return f"👤 {name or email} (you)"
+            if not anonymize_others:
+                return name or em
+            # Stable but unrevealing — Hash-Prefix als pseudonyme ID
+            tag = _hl.sha1(em.lower().encode()).hexdigest()[:6].upper()
+            return f"Colleague {tag}"
+        out_rows = []
+        for r in filtered:
+            r_copy = dict(r)
+            r_copy["display_label"] = _label(r.get("email", ""), r.get("name", ""))
+            if anonymize_others and r.get("email", "").lower() != email.lower():
+                r_copy.pop("email", None)
+                r_copy.pop("name", None)
+                r_copy.pop("department", None)
+            out_rows.append(r_copy)
+        # Aggregate für eine kompakte "where do I rank?"-View
+        per_user_totals = {}
+        for r in filtered:
+            em = (r.get("email") or "").lower()
+            per_user_totals.setdefault(em, {
+                "label": _label(r.get("email", ""), r.get("name", "")),
+                "is_you": em == email.lower(),
+                "total_pages": 0,
+                "color_pages": 0,
+            })
+            per_user_totals[em]["total_pages"] += int(r.get("print_pages", 0) or 0)
+            per_user_totals[em]["color_pages"] += int(r.get("color_pages", 0) or 0)
+        ranked = sorted(
+            per_user_totals.values(),
+            key=lambda x: x["total_pages"],
+            reverse=True,
+        )
+        for i, x in enumerate(ranked, 1):
+            x["rank"] = i
+        return _ok({
+            "your_email":      email,
+            "period":          f"{params['start_date']} — {params['end_date']}",
+            "group_count":     group_count,
+            "peers_count":     max(0, len(peer_emails) - 1),
+            "anonymized":      bool(anonymize_others),
+            "ranked":          ranked,
+            "rows":            out_rows,
+            "row_count":       len(out_rows),
+            "privacy_note":    ("Names of other group members are anonymized "
+                                "(stable hash). Set anonymize_others=false to "
+                                "see real names — depending on your jurisdiction "
+                                "this might require works-council clearance."),
+        })
+    except Exception as e:
+        logger.error("printix_my_group_print_history failed: %s", e)
+        return _ok({"error": str(e)})
+
+
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=False, openWorldHint=True))
 def printix_quick_print(recipient_email: str, file_url: str, filename: str = "document.pdf") -> str:
     """

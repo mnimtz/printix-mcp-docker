@@ -2,6 +2,51 @@
 
 This project follows [Semantic Versioning](https://semver.org/).
 
+## 7.7.1 (2026-05-01) — Group-Peer-Reports (anonymisiert, opt-in)
+
+End-User können sich jetzt mit Kolleg:innen aus den **eigenen
+Printix-Gruppen** vergleichen — wie viel druckt mein Team, wo ranke
+ich? Default deaktiviert (DSGVO + Mitarbeiter-Datenschutz).
+
+### Neues MCP-Tool
+
+`printix_my_group_print_history(start_date, end_date, anonymize_others=true)`
+
+- **Identität** kommt aus `current_tenant.user_id` (Bearer-Token), kein
+  fremder User-Param möglich
+- **Gruppen** werden aus `user_group_cache` aufgelöst, Member-Emails
+  via `get_group_members`
+- **Output** enthält ein `ranked`-Array (User + Position + Seitenzahlen)
+  und `rows` mit Detail-Daten pro Periode
+- **Anonymisierung**: andere Namen werden zu „Colleague AB12CD" (stabiler
+  SHA1-Prefix-Hash) — eigene Zeile zeigt „👤 You"
+- **Tenant-Gate**: Tool refused mit `tenant_disabled`-Error wenn Admin
+  das Setting nicht aktiviert hat
+- **Scope**: `mcp:self` — End-User-Rolle reicht
+
+### Tenant-Setting
+
+Neuer Setting-Key: `group_peer_reports_enabled` (Default `0`).
+Toggle-UI auf `/admin/mcp-permissions` mit klarer Privacy-Warnung
+(in DE: Hinweis auf Betriebsrats-Mitwirkung). Audit-Log mitgeschrieben.
+
+### Sicherheit / Privacy by Design
+
+- **Default OFF** — Admin muss bewusst aktivieren
+- **Anonymisierung default ON** — `anonymize_others=true` ist Default;
+  echte Namen erfordern explizites Opt-out im Tool-Call (KI-Prompt)
+- **Stable Hash statt sequentielle ID** — kein Re-Identification über
+  Zeit unmöglich aber erschwert; ein User bleibt für sich „Colleague
+  AB12CD" über mehrere Calls hinweg
+- **Keine Drittgruppen** — nur Gruppen in denen der Caller selbst
+  Mitglied ist; kein Argument für `group_id`
+
+### i18n
+
+`mp_peer_*`-Keys in de/en/no, andere Sprachen über EN-Fallback.
+
+---
+
 ## 7.7.0 (2026-05-01) — Reports via MCP: Self-Service + Cookbook + Hint
 
 Drei zusammengehörige Verbesserungen die das Thema „Reports per

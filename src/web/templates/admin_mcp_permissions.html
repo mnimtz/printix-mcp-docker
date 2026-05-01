@@ -76,6 +76,36 @@
     </div>
     {% endif %}
 
+    {# v7.7.1: Peer-Reports-Toggle — End-User dürfen ihre eigenen Druck-
+       Daten gegen die Daten der Kolleg:innen aus denselben Printix-
+       Gruppen vergleichen. Default off (GDPR/Mitarbeiter-Datenschutz).
+       Andere Mitglieder werden anonymisiert ("Colleague AB12CD") außer
+       der Caller setzt anonymize_others=false explizit. #}
+    <div class="card" style="margin-bottom:18px; background:{% if group_peer_reports_enabled %}#dcfce7{% else %}#f7f9fb{% endif %};
+                              border-left:4px solid {% if group_peer_reports_enabled %}#16a34a{% else %}#9ca3af{% endif %};">
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:14px; flex-wrap:wrap;">
+        <div style="flex:1; min-width:240px;">
+          <div style="font-weight:700; color:{% if group_peer_reports_enabled %}#14532d{% else %}#374151{% endif %}; margin-bottom:4px;">
+            🤝 {{ _('mp_peer_title') }}
+            <span style="background:#fff; padding:2px 8px; border-radius:10px; font-size:.78em; margin-left:6px;">
+              {% if group_peer_reports_enabled %}{{ _('mp_peer_status_on') }}{% else %}{{ _('mp_peer_status_off') }}{% endif %}
+            </span>
+          </div>
+          <div style="font-size:.88em; color:#374151; line-height:1.6;">
+            {{ _('mp_peer_body') | safe }}
+          </div>
+        </div>
+        <form method="post" action="/admin/mcp-permissions/group-peer-toggle" style="margin:0;">
+          <input type="hidden" name="action" value="{% if group_peer_reports_enabled %}disable{% else %}enable{% endif %}">
+          <button type="submit" class="btn btn-sm
+                  {% if group_peer_reports_enabled %}btn-secondary{% else %}btn-primary{% endif %}"
+                  onclick="return confirm('{{ _('mp_peer_confirm') }}');">
+            {% if group_peer_reports_enabled %}🚫 {{ _('mp_peer_disable') }}{% else %}✅ {{ _('mp_peer_enable') }}{% endif %}
+          </button>
+        </form>
+      </div>
+    </div>
+
     <details style="margin-bottom:8px;">
       <summary style="cursor:pointer; font-weight:600; color:#003366;">
         ℹ️ {{ _('mp_legend_summary') }}
