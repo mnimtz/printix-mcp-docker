@@ -373,11 +373,38 @@
             </div>
           </div>
 
-          <div class="form-group" style="margin-bottom:0;">
+          <div class="form-group">
             <label>{{ _('rpt_footer') }} <small class="hint" style="display:inline;">({{ _('rpt_footer_hint') }})</small></label>
             <input type="text" name="footer_text"
                    value="{{ report.get('layout',{}).get('footer_text','') }}"
                    placeholder="{{ _('rpt_footer_placeholder') }}">
+          </div>
+
+          {# v7.6.9: Sprache + Währung des generierten Reports — getrennt
+             vom UI-Sprache-Switcher der Web-Console. #}
+          {% set _rpt_lang = report.get('layout',{}).get('language', lang or 'en') %}
+          {% set _rpt_curr = report.get('layout',{}).get('currency', 'EUR') %}
+          <div class="form-row" style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+            <div class="form-group" style="margin-bottom:0;">
+              <label>🌐 {{ _('rpt_language') }}
+                <small class="hint" style="display:inline;">({{ _('rpt_language_hint') }})</small>
+              </label>
+              <select name="language" style="width:100%;">
+                {% for code in (supported_langs or ['de','en','fr','it','es','nl','no','sv']) %}
+                <option value="{{ code }}" {% if code == _rpt_lang %}selected{% endif %}>
+                  {{ (lang_names or {}).get(code, code | upper) }}
+                </option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="form-group" style="margin-bottom:0;">
+              <label>💶 {{ _('rpt_currency') }}</label>
+              <select name="currency" style="width:100%;">
+                {% for c in ['EUR','USD','GBP','CHF','SEK','NOK','DKK','JPY'] %}
+                <option value="{{ c }}" {% if c == _rpt_curr %}selected{% endif %}>{{ c }}</option>
+                {% endfor %}
+              </select>
+            </div>
           </div>
 
         </div>

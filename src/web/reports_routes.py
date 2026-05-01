@@ -387,6 +387,11 @@ def register_reports_routes(
         logo_remove:   str  = Form(default=""),
         primary_color: str  = Form(default="#0078D4"),
         footer_text:   str  = Form(default=""),
+        # v7.6.9: Sprache des generierten Reports (Titel, Spaltenlabel,
+        # Datumsformat, Footer). Lebt im layout-Dict, scheduler reicht
+        # sie an generate_report(lang=...) weiter (war schon da).
+        language:      str  = Form(default="en"),
+        currency:      str  = Form(default="EUR"),
         fmt_html:      str  = Form(default=""),
         fmt_csv:       str  = Form(default=""),
         fmt_json:      str  = Form(default=""),
@@ -491,6 +496,8 @@ def register_reports_routes(
                     "logo_url":      _lurl,
                     "logo_base64":   _lb64,
                     "logo_mime":     _lmime,
+                    "language":      (language or "en").strip().lower(),
+                    "currency":      (currency or "EUR").strip().upper(),
                 },
                 schedule=schedule,
                 owner_user_id=user["id"],
@@ -569,6 +576,9 @@ def register_reports_routes(
         logo_remove:   str  = Form(default=""),
         primary_color: str  = Form(default="#0078D4"),
         footer_text:   str  = Form(default=""),
+        # v7.6.9: Sprache + W\u00e4hrung im layout (siehe Create-Route oben).
+        language:      str  = Form(default="en"),
+        currency:      str  = Form(default="EUR"),
         fmt_html:      str  = Form(default=""),
         fmt_csv:       str  = Form(default=""),
         fmt_json:      str  = Form(default=""),
@@ -667,6 +677,8 @@ def register_reports_routes(
             "logo_url":      _lurl,
             "logo_base64":   _lb64,
             "logo_mime":     _lmime,
+            "language":      (language or "en").strip().lower(),
+            "currency":      (currency or "EUR").strip().upper(),
         })
 
         try:

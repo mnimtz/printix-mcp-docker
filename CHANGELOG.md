@@ -2,6 +2,41 @@
 
 This project follows [Semantic Versioning](https://semver.org/).
 
+## 7.6.9 (2026-05-01) — Report-Sprache + Währung im Builder
+
+In der Report-Form (Create + Edit) gibt's jetzt zwei neue Felder:
+
+- **🌐 Sprache des Reports** — Dropdown mit allen unterstützten
+  Sprachen (de/en/fr/it/es/nl/no/sv + Dialekte). Steuert Titel,
+  Spaltennamen, Datumsformat im generierten Output (HTML/PDF/CSV).
+  Default: aktuelle UI-Sprache.
+- **💶 Währung** — Dropdown EUR/USD/GBP/CHF/SEK/NOK/DKK/JPY für
+  Cost-Reports.
+
+Die Engine konnte das schon — `generate_report(lang=...,
+currency=...)` und der Scheduler las `layout.language` /
+`layout.currency` schon seit v6.5.0. Es fehlte nur die UI um den
+Wert zu setzen — bisher nur über manuelles JSON-Editieren der
+template-Datei möglich. Jetzt ein Mausklick.
+
+i18n-Keys `rpt_language`, `rpt_language_hint`, `rpt_currency` für
+de/en/no, andere Sprachen über EN-Fallback.
+
+### Verhalten
+
+- Bestehende Templates ohne `language` im layout → Engine fällt
+  weiter auf `"en"` zurück. Sobald du sie einmal speicherst, kommt
+  der Wert aus dem Dropdown.
+- Schedule-Mail-Subjekt wird NICHT lokalisiert (steht ja im
+  `mail_subject`-Feld) — User schreibt das selbst in der
+  gewünschten Sprache.
+- Report-Inhalt (`generate_report`) lokalisiert sich an die
+  Sprache des Templates, NICHT an die Browser-Sprache des
+  Senders. Damit kann ein deutscher Admin Reports auf Englisch
+  versenden ohne erst die UI umzustellen.
+
+---
+
 ## 7.6.8 (2026-05-01) — Scheduled Reports: „SQL nicht konfiguriert" Fix
 
 Geplante Reports crashten beim Ausführen mit:
