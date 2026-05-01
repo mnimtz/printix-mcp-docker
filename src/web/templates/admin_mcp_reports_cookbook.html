@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+{% block title %}{{ _('rcb_title') }} — {{ _('brand_console_name') }}{% endblock %}
+{% block content %}
+<div class="container">
+
+  <div class="card" style="margin-bottom:20px;">
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; flex-wrap:wrap; gap:10px;">
+      <div>
+        <div class="section-title">📖 {{ _('rcb_title') }}</div>
+        <div class="section-sub">{{ _('rcb_subtitle') }}</div>
+      </div>
+      <a href="/reports" class="btn btn-secondary btn-sm">← {{ _('rcb_back') }}</a>
+    </div>
+  </div>
+
+  <!-- Quick-Setup -->
+  <div class="card" style="margin-bottom:20px;">
+    <div class="section-title" style="margin-bottom:8px;">{{ _('rcb_setup_title') }}</div>
+    <div class="section-sub" style="margin-bottom:14px;">{{ _('rcb_setup_body') | safe }}</div>
+    <a href="/my/connect" class="btn btn-primary">🔌 {{ _('rcb_setup_open_connect') }}</a>
+  </div>
+
+  <!-- Beispiel 1: einfacher Top-User-Report -->
+  <div class="card" style="margin-bottom:20px;">
+    <div class="section-title" style="margin-bottom:8px;">🥇 {{ _('rcb_ex1_title') }}</div>
+    <div style="font-size:.92em; color:#444; margin-bottom:10px;">{{ _('rcb_ex1_intro') }}</div>
+    <div style="background:#f7f9fb; padding:14px; border-radius:8px; border-left:3px solid #3b82f6;">
+      <div style="font-weight:600; color:#1e3a8a; margin-bottom:6px; font-size:.85em;">{{ _('rcb_ex_prompt_label') }}:</div>
+      <div style="font-style:italic; line-height:1.6;">{{ _('rcb_ex1_prompt') }}</div>
+    </div>
+    <div style="margin-top:12px; font-size:.85em; color:#666;">
+      <strong>{{ _('rcb_ex_uses') }}</strong> <code>printix_save_report_template</code> · <code>printix_run_report_now</code>
+    </div>
+  </div>
+
+  <!-- Beispiel 2: Cost-Report mit Schedule -->
+  <div class="card" style="margin-bottom:20px;">
+    <div class="section-title" style="margin-bottom:8px;">💶 {{ _('rcb_ex2_title') }}</div>
+    <div style="font-size:.92em; color:#444; margin-bottom:10px;">{{ _('rcb_ex2_intro') }}</div>
+    <div style="background:#f7f9fb; padding:14px; border-radius:8px; border-left:3px solid #16a34a;">
+      <div style="font-weight:600; color:#14532d; margin-bottom:6px; font-size:.85em;">{{ _('rcb_ex_prompt_label') }}:</div>
+      <div style="font-style:italic; line-height:1.6;">{{ _('rcb_ex2_prompt') }}</div>
+    </div>
+    <div style="margin-top:12px; font-size:.85em; color:#666;">
+      <strong>{{ _('rcb_ex_uses') }}</strong> <code>printix_save_report_template</code> · <code>printix_schedule_report</code>
+    </div>
+  </div>
+
+  <!-- Beispiel 3: Anomalies mit Custom Branding -->
+  <div class="card" style="margin-bottom:20px;">
+    <div class="section-title" style="margin-bottom:8px;">🔍 {{ _('rcb_ex3_title') }}</div>
+    <div style="font-size:.92em; color:#444; margin-bottom:10px;">{{ _('rcb_ex3_intro') }}</div>
+    <div style="background:#f7f9fb; padding:14px; border-radius:8px; border-left:3px solid #dc2626;">
+      <div style="font-weight:600; color:#7f1d1d; margin-bottom:6px; font-size:.85em;">{{ _('rcb_ex_prompt_label') }}:</div>
+      <div style="font-style:italic; line-height:1.6;">{{ _('rcb_ex3_prompt') }}</div>
+    </div>
+  </div>
+
+  <!-- Beispiel 4: Self-Service für End-User -->
+  <div class="card" style="margin-bottom:20px; border-left:3px solid #f59e0b;">
+    <div class="section-title" style="margin-bottom:8px;">👤 {{ _('rcb_ex4_title') }}</div>
+    <div style="font-size:.92em; color:#444; margin-bottom:10px;">{{ _('rcb_ex4_intro') | safe }}</div>
+    <div style="background:#fff7ed; padding:14px; border-radius:8px; border-left:3px solid #f59e0b;">
+      <div style="font-weight:600; color:#78350f; margin-bottom:6px; font-size:.85em;">{{ _('rcb_ex_prompt_label') }}:</div>
+      <div style="font-style:italic; line-height:1.6;">{{ _('rcb_ex4_prompt') }}</div>
+    </div>
+    <div style="margin-top:12px; font-size:.85em; color:#666;">
+      <strong>{{ _('rcb_ex_uses') }}</strong>
+      <code>printix_my_print_history</code> · <code>printix_my_costs</code> · <code>printix_my_environment_impact</code>
+      <br><span style="color:#9ca3af;">{{ _('rcb_ex4_scope_note') }}</span>
+    </div>
+  </div>
+
+  <!-- Verfügbare Query-Typen -->
+  <div class="card" style="margin-bottom:20px;">
+    <div class="section-title" style="margin-bottom:8px;">📚 {{ _('rcb_query_types_title') }}</div>
+    <div style="font-size:.9em; color:#444; margin-bottom:10px;">{{ _('rcb_query_types_intro') }}</div>
+    <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(220px,1fr)); gap:10px;">
+      {% set query_types = [
+        ('print_stats',         '📊 ' ~ _('rcb_qt_print_stats')),
+        ('cost_report',         '💶 ' ~ _('rcb_qt_cost_report')),
+        ('top_users',           '🥇 ' ~ _('rcb_qt_top_users')),
+        ('top_printers',        '🖨 ' ~ _('rcb_qt_top_printers')),
+        ('trend',               '📈 ' ~ _('rcb_qt_trend')),
+        ('anomalies',           '🔍 ' ~ _('rcb_qt_anomalies')),
+        ('sensitive_documents', '📄 ' ~ _('rcb_qt_sensitive')),
+        ('cost_by_department',  '🏢 ' ~ _('rcb_qt_dept')),
+        ('user_print_pattern',  '👤 ' ~ _('rcb_qt_user_pattern')),
+        ('printer_history',     '🖨 ' ~ _('rcb_qt_printer_history')),
+        ('workstation_health',  '💻 ' ~ _('rcb_qt_ws_health')),
+        ('service_desk',        '📋 ' ~ _('rcb_qt_service_desk')),
+      ] %}
+      {% for qt_id, qt_label in query_types %}
+      <div style="padding:10px 12px; background:#f7f9fb; border:1px solid #e5e7eb; border-radius:6px; font-size:.88em;">
+        <div style="font-weight:600; color:#1e3a8a; margin-bottom:2px;">{{ qt_label }}</div>
+        <div style="font-family:monospace; font-size:.82em; color:#9ca3af;">{{ qt_id }}</div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- RBAC-Hinweis -->
+  <div class="card" style="margin-bottom:20px; background:#fef3c7;">
+    <div class="section-title" style="margin-bottom:8px;">🔐 {{ _('rcb_rbac_title') }}</div>
+    <div style="font-size:.9em; color:#78350f; line-height:1.7;">{{ _('rcb_rbac_body') | safe }}</div>
+    <a href="/admin/mcp-permissions" class="btn btn-secondary btn-sm" style="margin-top:8px;">
+      🔐 {{ _('rcb_rbac_open_settings') }}
+    </a>
+  </div>
+
+</div>
+{% endblock %}

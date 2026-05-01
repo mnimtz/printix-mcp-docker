@@ -2,6 +2,62 @@
 
 This project follows [Semantic Versioning](https://semver.org/).
 
+## 7.7.0 (2026-05-01) — Reports via MCP: Self-Service + Cookbook + Hint
+
+Drei zusammengehörige Verbesserungen die das Thema „Reports per
+Claude/ChatGPT bauen" rund machen.
+
+### (a) Hint-Banner auf `/reports`
+
+Kleine blaue Info-Box: *„💡 Reports lassen sich auch über Claude/
+ChatGPT bauen — sag z.B. 'Bau mir einen Top-User-Report'."* Mit
+Links zum Cookbook und Connect Center. Erscheint immer.
+
+### (b) Self-Service-Reports für End-User (3 neue MCP-Tools)
+
+End-User mit RBAC-Rolle `end_user` können jetzt **eigene** Reports
+abfragen — ohne Admin-Eingriff. Identität kommt aus dem MCP-Token
+(`current_tenant.user_id`), Filter wird server-side gesetzt; das
+User-Argument akzeptiert keiner der Tools, also kann ein Caller
+niemals fremde Daten lesen.
+
+| Tool | Was es liefert | Scope |
+|------|----------------|-------|
+| `printix_my_print_history(start, end, group_by)` | Eigene Druckhistorie über Zeit | `mcp:self` |
+| `printix_my_costs(start, end, rates...)` | Eigene Druckkosten + Aufschlüsselung | `mcp:self` |
+| `printix_my_environment_impact(start, end)` | CO2/Papier/Wasser/Bäume aus eigenen Drucken | `mcp:self` |
+
+Identitäts-Resolution via `_resolve_caller_for_reports()` Helper —
+liest current_tenant, lädt User-Row aus DB, setzt SQL-ContextVar
+defensiv falls leer. Klare Fehlermeldung wenn keine email/printix_user_id
+verknüpft ist.
+
+### (c) Cookbook-Seite `/admin/mcp-reports-cookbook`
+
+Admin-only. Vier Beispiel-Prompts:
+- Top-User-Report mit Schedule
+- Cost-Report mit eigenen Kostensätzen
+- Anomalie-Report
+- Self-Service für End-User (zeigt die neuen `printix_my_*`-Tools)
+
+Plus eine Übersicht der 12 Query-Typen die die KI ansprechen kann +
+ein RBAC-Block der erklärt welche Rolle welche Tools sieht.
+Verlinkt von Admin-Dashboard und vom Hint-Banner auf `/reports`.
+
+### Permissions
+
+`printix_my_print_history`, `printix_my_costs`,
+`printix_my_environment_impact` → `SCOPE_SELF`. End-User-Rolle hat
+diesen Scope. Helpdesk + Admin natürlich auch (übergeordnet).
+
+### i18n
+
+Alle UI-Strings (`rpt_list_mcp_hint_*`, `rcb_*`) für de/en/no.
+Andere 11 Sprachen (fr/it/es/nl/sv/bar/hessisch/oesterreichisch/
+schwiizerdütsch/cockney/us_south) fallen wie üblich auf EN zurück.
+
+---
+
 ## 7.6.10 (2026-05-01) — Demo-Daten-Hinweis auf der Reports-Seite
 
 Wenn der Tenant aktive Demo-Sessions in der lokalen Demo-DB hat,

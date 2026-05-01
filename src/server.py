@@ -5474,6 +5474,216 @@ def printix_my_role() -> str:
         return _ok({"error": str(e)})
 
 
+# ─── v7.7.0: Self-Service Reports ──────────────────────────────────────────
+# Drei MCP-Tools die End-User ihre EIGENEN Druckdaten abfragen lassen.
+# Wichtig:
+#   - Identität kommt aus current_tenant.user_id (auth-Middleware)
+#   - SQL-Filter setzt printix_user_id == eigene ID, NIEMALS aus Args
+#   - Permission-Scope: SCOPE_SELF — End-User-Rolle reicht
+#   - Liefert klaren Fehler wenn der User kein Reporting-fähigen
+#     Tenant hat oder noch keine printix_user_id verknüpft ist.
+
+def _resolve_caller_for_reports() -> tuple[str, str, dict | None]:
+    """v7.7.0: Liefert (printix_user_id, email, tenant) für den
+    aufrufenden User. Empty-Strings + None wenn nicht auflösbar.
+    Setzt SQL-ContextVar nebenbei (defensiv, falls noch nicht gesetzt
+    weil RBAC vor Auth lief). Ruft NIEMALS aus Args."""
+    tenant = current_tenant.get() or {}
+    user_id = tenant.get("user_id") or ""
+    if not user_id:
+        return "", "", None
+    try:
+        import db as _db_local
+        # get_user_by_id sollte email + printix_user_id zurückgeben
+        user_row = _db_local.get_user_by_id(user_id) if hasattr(_db_local, "get_user_by_id") else None
+    except Exception as e:
+        logger.warning("self-service: user lookup failed for %s: %s", user_id, e)
+        return "", "", tenant
+    if not user_row:
+        return "", "", tenant
+    pu_id = user_row.get("printix_user_id", "") or ""
+    email = user_row.get("email", "") or ""
+    # SQL-Config defensiv setzen falls leer
+    try:
+        from reporting import sql_client as _sql
+        if not _sql.is_configured():
+            full_tenant = _db_local.get_tenant_full_by_user_id(user_id) if hasattr(_db_local, "get_tenant_full_by_user_id") else tenant
+            if full_tenant:
+                _sql.set_config_from_tenant(full_tenant)
+    except Exception as _se:
+        logger.debug("self-service: SQL config setup skipped: %s", _se)
+    return pu_id, email, tenant
+
+
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=True))
+def printix_my_print_history(
+    start_date: str = "last_month_start",
+    end_date: str = "last_month_end",
+    group_by: str = "month",
+) -> str:
+    """
+        Eigene Druckhistorie — wieviel hast DU im Zeitraum gedruckt?
+
+        Wann nutzen: "Wieviel habe ich diesen Monat gedruckt?" •
+            "Mein Druckverlauf der letzten 90 Tage" • "How much did I print?"
+        Wann NICHT — stattdessen: für andere User → printix_describe_user_print_pattern
+            (admin-only); tenant-weite Übersicht → printix_query_print_stats
+        Returns: rows mit Periode, Seiten, Jobs.
+        Args: start_date, end_date (oder Tokens wie 'last_month_start'),
+            group_by (day|week|month).
+
+    """
+    err = _reporting_check()
+    if err:
+        return _ok({"error": err})
+    pu_id, email, _t = _resolve_caller_for_reports()
+    if not email:
+        return _ok({
+            "error": "no_user_email",
+            "hint":  "Dein Account ist nicht mit einer Printix-Mail verknüpft. Admin muss printix_user_id im User-Profil setzen.",
+        })
+    try:
+        from reporting.scheduler import _resolve_dynamic_dates
+        from reporting import query_tools
+        params = _resolve_dynamic_dates({"start_date": start_date, "end_date": end_date})
+        rows = query_tools.query_user_detail(
+            start_date=params["start_date"],
+            end_date=params["end_date"],
+            user_email=email,
+            group_by=group_by,
+        )
+        return _ok({
+            "your_email": email,
+            "period":     f"{params['start_date']} — {params['end_date']}",
+            "group_by":   group_by,
+            "rows":       rows or [],
+            "row_count":  len(rows or []),
+        })
+    except Exception as e:
+        logger.error("printix_my_print_history failed: %s", e)
+        return _ok({"error": str(e)})
+
+
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=True))
+def printix_my_costs(
+    start_date: str = "last_month_start",
+    end_date: str = "last_month_end",
+    cost_per_sheet: float = 0.01,
+    cost_per_mono:  float = 0.02,
+    cost_per_color: float = 0.08,
+    currency: str = "EUR",
+) -> str:
+    """
+        Eigene Druckkosten im Zeitraum — basiert auf eigener Druckhistorie
+        und konfigurierbaren Kostensätzen.
+
+        Wann nutzen: "Was haben mich meine Drucke diesen Monat gekostet?" •
+            "My printing cost last quarter"
+        Wann NICHT — stattdessen: tenant-weiter Cost-Report → printix_query_cost_report
+            (admin); kosten pro Abteilung → printix_cost_by_department (admin)
+        Returns: total_cost, mono_pages, color_pages, sheets, breakdown.
+        Args: start_date, end_date, cost_per_sheet/mono/color, currency.
+
+    """
+    err = _reporting_check()
+    if err:
+        return _ok({"error": err})
+    pu_id, email, _t = _resolve_caller_for_reports()
+    if not email:
+        return _ok({"error": "no_user_email"})
+    try:
+        from reporting.scheduler import _resolve_dynamic_dates
+        from reporting import query_tools
+        params = _resolve_dynamic_dates({"start_date": start_date, "end_date": end_date})
+        rows = query_tools.query_user_detail(
+            start_date=params["start_date"],
+            end_date=params["end_date"],
+            user_email=email,
+            group_by="month",
+        )
+        # Aggregation client-side — sicher, weil rows nur eigene sind
+        mono = sum(int(r.get("mono_pages", 0) or 0) for r in (rows or []))
+        color = sum(int(r.get("color_pages", 0) or 0) for r in (rows or []))
+        sheets = sum(int(r.get("sheets", r.get("total_pages", 0)) or 0) for r in (rows or []))
+        cost = (mono * float(cost_per_mono)
+                + color * float(cost_per_color)
+                + sheets * float(cost_per_sheet))
+        return _ok({
+            "your_email": email,
+            "period":     f"{params['start_date']} — {params['end_date']}",
+            "currency":   currency.upper(),
+            "totals": {
+                "sheets":      sheets,
+                "mono_pages":  mono,
+                "color_pages": color,
+                "cost":        round(cost, 4),
+            },
+            "rates": {
+                "cost_per_sheet": cost_per_sheet,
+                "cost_per_mono":  cost_per_mono,
+                "cost_per_color": cost_per_color,
+            },
+            "rows": rows or [],
+        })
+    except Exception as e:
+        logger.error("printix_my_costs failed: %s", e)
+        return _ok({"error": str(e)})
+
+
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=True))
+def printix_my_environment_impact(
+    start_date: str = "last_month_start",
+    end_date: str = "last_month_end",
+) -> str:
+    """
+        Eigener Umwelt-Impact — CO2, Papier, Wasser auf Basis der eigenen
+        Druckhistorie. Nutzt die gleichen Faktoren wie der tenant-weite
+        Environmental-Report.
+
+        Wann nutzen: "Wie nachhaltig drucke ich?" • "Mein CO2-Footprint" •
+            "How much paper did I use?"
+        Returns: trees_saved, co2_kg, paper_kg, water_l, total_pages.
+        Args: start_date, end_date.
+
+    """
+    err = _reporting_check()
+    if err:
+        return _ok({"error": err})
+    pu_id, email, _t = _resolve_caller_for_reports()
+    if not email:
+        return _ok({"error": "no_user_email"})
+    try:
+        from reporting.scheduler import _resolve_dynamic_dates
+        from reporting import query_tools
+        params = _resolve_dynamic_dates({"start_date": start_date, "end_date": end_date})
+        rows = query_tools.query_user_detail(
+            start_date=params["start_date"],
+            end_date=params["end_date"],
+            user_email=email,
+            group_by="month",
+        )
+        total_pages = sum(int(r.get("sheets", r.get("total_pages", 0)) or 0) for r in (rows or []))
+        # Standard-Faktoren (gleiche wie tenant_environment): pro Seite
+        # ~ 5g Papier, ~ 4.5g CO2, ~ 10ml Wasser; 8000 Seiten ≈ 1 Baum.
+        paper_kg = round(total_pages * 0.005, 3)
+        co2_kg   = round(total_pages * 0.0045, 3)
+        water_l  = round(total_pages * 0.01, 2)
+        trees    = round(total_pages / 8000, 3)
+        return _ok({
+            "your_email":     email,
+            "period":         f"{params['start_date']} — {params['end_date']}",
+            "total_pages":    total_pages,
+            "paper_kg":       paper_kg,
+            "co2_kg":         co2_kg,
+            "water_litres":   water_l,
+            "trees_consumed": trees,
+            "note":           "Schätzung basierend auf Standardfaktoren — siehe printix_describe_user_print_pattern für Tenant-weite Vergleichswerte.",
+        })
+    except Exception as e:
+        logger.error("printix_my_environment_impact failed: %s", e)
+        return _ok({"error": str(e)})
+
+
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=False, openWorldHint=True))
 def printix_quick_print(recipient_email: str, file_url: str, filename: str = "document.pdf") -> str:
     """

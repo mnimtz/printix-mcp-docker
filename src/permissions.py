@@ -274,6 +274,13 @@ TOOL_SCOPES: dict[str, str] = {
     "printix_explain_error":            SCOPE_SELF,
     "printix_suggest_next_action":      SCOPE_SELF,
     "printix_generate_id_code":         SCOPE_SELF,
+    # v7.7.0: Self-Service-Reports — End-User darf eigene Daten abfragen.
+    # Tools resolven ihre Identität aus current_tenant.user_id und filtern
+    # SQL-seitig auf printix_user_id == eigener User. Niemals Argument für
+    # Fremduser akzeptieren.
+    "printix_my_print_history":         SCOPE_SELF,
+    "printix_my_costs":                 SCOPE_SELF,
+    "printix_my_environment_impact":    SCOPE_SELF,
 
     # ─── Tools that touch other users' data — require write privileges ─────
     # quick_print and register_card take an explicit user/recipient arg and

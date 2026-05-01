@@ -63,6 +63,22 @@
     </div>
     {% endif %}
 
+    {# v7.7.0: MCP-Hinweis — Reports lassen sich auch über Claude/ChatGPT
+       bauen. Verlinkt auf das Cookbook + Connect-Center. #}
+    <div class="alert" style="margin-bottom:20px; padding:10px 14px;
+                              background:#eff6ff; border-left:3px solid #3b82f6;
+                              border-radius:4px; font-size:.9em; color:#1e3a8a;">
+      💡 <strong>{{ _('rpt_list_mcp_hint_title') }}</strong>
+      {{ _('rpt_list_mcp_hint_body') | safe }}
+      <a href="/admin/mcp-reports-cookbook" style="color:#1e3a8a; font-weight:600; text-decoration:underline; margin-left:6px;">
+        {{ _('rpt_list_mcp_hint_cookbook') }}
+      </a>
+      ·
+      <a href="/my/connect" style="color:#1e3a8a; font-weight:600; text-decoration:underline;">
+        {{ _('rpt_list_mcp_hint_connect') }}
+      </a>
+    </div>
+
     <div class="reports-header">
       <h2>📊 {{ _('reports_title') }}</h2>
       <a href="/reports/new" class="btn btn-primary">+ {{ _('reports_new') }}</a>

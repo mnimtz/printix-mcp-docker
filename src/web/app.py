@@ -4462,6 +4462,21 @@ def create_app(session_secret: str) -> FastAPI:
     # GDPR-konformes Rollenmodell für MCP-Tool-Zugriffe.
     # PR 1: Schema + Persistence + UI. PR 2 wird Decorator + tools/list-Filter
     # nachreichen — bis dahin werden Rollen erfasst aber NICHT erzwungen.
+    @app.get("/admin/mcp-reports-cookbook", response_class=HTMLResponse)
+    async def admin_mcp_reports_cookbook(request: Request):
+        """v7.7.0: Cookbook mit Beispiel-Prompts für Reports-via-MCP.
+        Admin-only — End-User können das Tool eh nicht nutzen
+        (mcp:write Scope ist admin-gegated). Aber den Hinweis auf das
+        Self-Service-Set (printix_my_*) sehen alle Admins damit sie
+        wissen was sie ihren Usern zur Verfügung stellen können."""
+        user = get_session_user(request)
+        if not user or not user.get("is_admin"):
+            return RedirectResponse("/login", status_code=302)
+        return templates.TemplateResponse("admin_mcp_reports_cookbook.html", {
+            "request": request, "user": user,
+            **t_ctx(request),
+        })
+
     @app.get("/admin/mcp-permissions", response_class=HTMLResponse)
     async def admin_mcp_permissions(request: Request):
         user = get_session_user(request)
