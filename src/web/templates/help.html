@@ -60,32 +60,12 @@
           <span id="gpt-url-val">{{ sse_url }}</span>
         </div>
       </li>
-      <li>{{ _('help_chatgpt_step4') }}
-        {% if tenant %}
-        <div style="margin:8px 0 4px;">
-          <div class="code-block" id="gpt-oauth-id" style="margin-bottom:6px;">
-            <button class="copy-btn" onclick="copyToClipboard('gpt-oauth-id-val', this)">⧉</button>
-            <span id="gpt-oauth-id-val">{{ tenant.oauth_client_id }}</span>
-          </div>
-        </div>
-        <div style="margin:0 0 6px;">
-          OAuth Token URL:
-          <div class="code-block" id="gpt-token-url" style="margin-top:4px;">
-            <button class="copy-btn" onclick="copyToClipboard('gpt-token-url-val', this)">⧉</button>
-            <span id="gpt-token-url-val">{{ oauth_token_url }}</span>
-          </div>
-        </div>
-        <div>
-          OAuth Auth URL:
-          <div class="code-block" id="gpt-auth-url" style="margin-top:4px;">
-            <button class="copy-btn" onclick="copyToClipboard('gpt-auth-url-val', this)">⧉</button>
-            <span id="gpt-auth-url-val">{{ oauth_authorize_url }}</span>
-          </div>
-        </div>
-        {% endif %}
-      </li>
+      <li>{{ _('help_chatgpt_step4') }}</li>
       <li>{{ _('help_chatgpt_step5') }}</li>
     </ol>
+    <div class="alert alert-info" style="margin-top:8px;font-size:.85em;">
+      {{ _('help_chatgpt_dcr_hint') }}
+    </div>
 
     <div class="divider"></div>
     <div style="display:flex;gap:12px;">

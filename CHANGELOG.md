@@ -2,6 +2,29 @@
 
 This project follows [Semantic Versioning](https://semver.org/).
 
+## 7.7.3 — 2026-05-11
+
+UI-Followup zu v7.7.2: Help-Seite an den neuen ChatGPT-Connect-Flow
+anpassen. Keine Code-/API-Aenderungen.
+
+### Changed
+
+- **`/help` — ChatGPT-Section.** Mit DCR + PKCE muss der Admin keine
+  Client-ID und kein Client-Secret mehr in ChatGPT eintragen. Die
+  entsprechenden Felder (OAuth-ID, OAuth-Token-URL, OAuth-Auth-URL) sind
+  aus der Anleitung entfernt. Sichtbar bleibt nur noch die **SSE-URL**;
+  alles weitere (Discovery, Self-Registration, Authorize, Token-Tausch
+  mit PKCE) laeuft beim Klick auf "Verbinden" in ChatGPT automatisch.
+- Neuer i18n-Key `help_chatgpt_dcr_hint` mit einem kleinen Hinweis-Banner
+  („Seit v7.7.2 vollautomatische OAuth-Verbindung — keine Client-ID/Secret
+  noetig"). Uebersetzt in alle 14 unterstuetzten Sprachen.
+- `help_chatgpt_step4` neu formuliert: vorher „OAuth Client-ID und Secret
+  eintragen", jetzt „Auf 'Verbinden' klicken — die Authentifizierung laeuft
+  automatisch."
+
+Die Claude-Section auf derselben Seite bleibt unveraendert — der manuelle
+Client-ID-Flow ist dort weiterhin der Weg.
+
 ## 7.7.2 — 2026-05-11
 
 ChatGPT-MCP-Connector funktioniert wieder. Vier Fixes, drei in der OAuth-
