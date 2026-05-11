@@ -17695,6 +17695,52 @@ for lang in ("cockney", "us_south"):
 for lang in ("bar", "hessisch", "oesterreichisch", "schwiizerdütsch"):
     TRANSLATIONS.setdefault(lang, {}).update(DASHBOARD_VERSION_TRANSLATIONS["de"])
 
+
+# v7.7.4: Update-Banner neben der Versions-Anzeige.
+DASHBOARD_UPDATE_TRANSLATIONS: dict[str, dict[str, str]] = {
+    "de": {
+        "dash_badge_update_available": "Update verfügbar",
+        "dash_badge_update_tooltip":   "Eine neuere Version ist auf GitHub veröffentlicht. Klicken für die Release-Notes.",
+    },
+    "en": {
+        "dash_badge_update_available": "Update available",
+        "dash_badge_update_tooltip":   "A newer version is available on GitHub. Click for release notes.",
+    },
+    "fr": {
+        "dash_badge_update_available": "Mise à jour disponible",
+        "dash_badge_update_tooltip":   "Une nouvelle version est disponible sur GitHub. Cliquez pour les notes de version.",
+    },
+    "it": {
+        "dash_badge_update_available": "Aggiornamento disponibile",
+        "dash_badge_update_tooltip":   "Una versione più recente è disponibile su GitHub. Clicca per le note di rilascio.",
+    },
+    "es": {
+        "dash_badge_update_available": "Actualización disponible",
+        "dash_badge_update_tooltip":   "Hay una versión más reciente disponible en GitHub. Haz clic para las notas de la versión.",
+    },
+    "nl": {
+        "dash_badge_update_available": "Update beschikbaar",
+        "dash_badge_update_tooltip":   "Een nieuwere versie is beschikbaar op GitHub. Klik voor de release notes.",
+    },
+    "no": {
+        "dash_badge_update_available": "Oppdatering tilgjengelig",
+        "dash_badge_update_tooltip":   "En nyere versjon er tilgjengelig på GitHub. Klikk for utgivelsesnotater.",
+    },
+    "sv": {
+        "dash_badge_update_available": "Uppdatering tillgänglig",
+        "dash_badge_update_tooltip":   "En nyare version finns på GitHub. Klicka för versionsnoteringar.",
+    },
+}
+
+for lang, extra in DASHBOARD_UPDATE_TRANSLATIONS.items():
+    TRANSLATIONS.setdefault(lang, {}).update(extra)
+
+for lang in ("cockney", "us_south"):
+    TRANSLATIONS.setdefault(lang, {}).update(DASHBOARD_UPDATE_TRANSLATIONS["en"])
+
+for lang in ("bar", "hessisch", "oesterreichisch", "schwiizerdütsch"):
+    TRANSLATIONS.setdefault(lang, {}).update(DASHBOARD_UPDATE_TRANSLATIONS["de"])
+
 LPR_DEBUG_TRANSLATIONS: dict[str, dict[str, str]] = {
     "de": {
         "admin_lpr_listener_port": "LPR-Listener-Port",

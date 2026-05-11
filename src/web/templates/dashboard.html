@@ -405,6 +405,14 @@
         <span class="landing-badge">{% if has_sql %}🗄️ {{ _('dash_badge_sql_ok') }}{% else %}ℹ️ {{ _('dash_badge_sql_optional') }}{% endif %}</span>
         <span class="landing-badge">👤 {{ user.full_name or user.username }}</span>
         <span class="landing-badge">🏷️ {{ _('dash_badge_version') }} {{ app_version }}</span>
+        {% if update_info and update_info.available %}
+        <a class="landing-badge"
+           style="background:#fef3c7;border-color:#fcd34d;color:#92400e;text-decoration:none;"
+           href="{{ update_info.url }}" target="_blank" rel="noopener"
+           title="{{ _('dash_badge_update_tooltip') }}">
+          🆙 {{ _('dash_badge_update_available') }} v{{ update_info.latest }}
+        </a>
+        {% endif %}
       </div>
     </section>
 

@@ -2,6 +2,38 @@
 
 This project follows [Semantic Versioning](https://semver.org/).
 
+## 7.7.4 — 2026-05-11
+
+Dezenter Update-Hinweis im Dashboard.
+
+### Added
+
+- **GitHub-Releases-Check** im Hintergrund. Beim App-Start startet ein
+  Thread, der einmal pro Stunde
+  `https://api.github.com/repos/mnimtz/printix-mcp-docker/releases/latest`
+  abfragt und das `tag_name` mit der lokalen `APP_VERSION` per Semver
+  vergleicht.
+- **Badge neben der Versions-Anzeige.** Wenn eine neuere Version
+  veroeffentlicht ist, erscheint in der Dashboard-Hero-Section direkt
+  neben „🏷️ Version X.Y.Z" ein gelbliches Banner
+  „🆙 Update verfügbar vX.Y.Z" — Klick fuehrt zu den Release-Notes.
+- **Cache + Failure-Tolerance.** Der erste Dashboard-Render wartet
+  NIEMALS auf GitHub: bei leerem/abgelaufenem Cache wird die Anfrage in
+  einem Daemon-Thread nachgeholt, die Seite rendert in der Zwischenzeit
+  ohne Banner. Netzwerk-/Rate-Limit-Fehler werden schweigend
+  geschluckt und nur auf DEBUG geloggt.
+
+### Config
+
+- `UPDATE_CHECK_ENABLED=false` deaktiviert den Check komplett (Default:
+  aktiviert). Wer keine ausgehenden Calls an api.github.com moechte
+  (airgapped Setups), kann das jederzeit per ENV abklemmen.
+
+### i18n
+
+- Neue Keys `dash_badge_update_available` und `dash_badge_update_tooltip`
+  in allen 14 unterstuetzten Sprachen.
+
 ## 7.7.3 — 2026-05-11
 
 UI-Followup zu v7.7.2: Help-Seite an den neuen ChatGPT-Connect-Flow

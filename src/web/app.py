@@ -1329,12 +1329,22 @@ def create_app(session_secret: str) -> FastAPI:
         has_api = bool(tenant and (tenant.get("print_client_id") or tenant.get("shared_client_id")))
         has_sql = bool(tenant and tenant.get("sql_server"))
 
+        # v7.7.4: dezenter Update-Hinweis neben der Versions-Anzeige
+        try:
+            import sys as _sys
+            _sys.path.insert(0, "/app")
+            from update_check import get_update_info
+            update_info = get_update_info(current_app_version())
+        except Exception:
+            update_info = {"available": False, "latest": "", "url": "", "enabled": False}
+
         return templates.TemplateResponse("dashboard.html", {
             "request": request, "user": user, "tenant": tenant,
             "base_url": base,
             "mcp_url":  f"{base}/mcp",
             "sse_url":  f"{base}/sse",
             "app_version": current_app_version(),
+            "update_info": update_info,
             "has_api": has_api,
             "has_sql": has_sql,
             # Initial leer — wird per /dashboard/data nachgeladen
@@ -7979,6 +7989,20 @@ def create_app(session_secret: str) -> FastAPI:
             start_background_refresher()
         except Exception as e:
             logger.warning("Periodic refresher startup failed: %s", e)
+
+    @app.on_event("startup")
+    async def _start_update_check():
+        """v7.7.4: GitHub-Releases-Check beim App-Start warm anstossen.
+        Damit hat der erste Dashboard-Render schon einen Wert (statt erst
+        die zweite Page-Navigation, in der der Background-Fetch fertig
+        ist). Reine Threadspawnerei — non-blocking."""
+        try:
+            import sys as _sys
+            _sys.path.insert(0, "/app")
+            from update_check import warm_up
+            warm_up()
+        except Exception as e:
+            logger.warning("Update-Check warm-up failed: %s", e)
 
     @app.on_event("startup")
     async def _start_ipp_listener():
