@@ -470,6 +470,24 @@ def init_db() -> None:
                 ON guestprint_job (mailbox_id, created_at DESC);
             CREATE INDEX IF NOT EXISTS idx_guestprint_job_status
                 ON guestprint_job (status, created_at DESC);
+
+            -- v7.7.2: Dynamic Client Registration (RFC 7591) fuer ChatGPT-MCP.
+            -- ChatGPT (und andere strict-OAuth2.1-Clients) registrieren sich
+            -- selbst per POST /register und nutzen PKCE statt client_secret.
+            -- Der DCR-Client wird auf den Single-Tenant der Installation
+            -- gebunden — Auth-Flow & Bearer Token = identisch zum manuell
+            -- konfigurierten OAuth-Client.
+            CREATE TABLE IF NOT EXISTS oauth_dcr_client (
+                client_id            TEXT PRIMARY KEY,
+                tenant_id            TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+                client_secret        TEXT NOT NULL DEFAULT '',   -- leer = Public Client (PKCE)
+                redirect_uris        TEXT NOT NULL DEFAULT '[]', -- JSON-Array
+                client_name          TEXT NOT NULL DEFAULT '',
+                token_auth_method    TEXT NOT NULL DEFAULT 'none', -- 'none' | 'client_secret_post'
+                created_at           TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_oauth_dcr_client_tenant
+                ON oauth_dcr_client (tenant_id);
         """)
 
     # v7.1.3: on_success je Postfach — move (Default, Altverhalten) | keep | delete
@@ -1687,6 +1705,126 @@ def verify_tenant_oauth_secret(tenant_id: str, client_secret: str) -> bool:
     if not row:
         return False
     return _dec(row["oauth_client_secret"]) == client_secret
+
+
+# ─── OAuth Dynamic Client Registration (v7.7.2, RFC 7591) ─────────────────────
+#
+# ChatGPT (und alle anderen MCP-Clients, die strikt OAuth-2.1/MCP-Authorization
+# folgen) registrieren sich SELBST per `POST /register` und nutzen PKCE statt
+# eines vorgegebenen client_secret. Wir speichern diese Clients in einer
+# eigenen Tabelle und binden sie auf den Single-Tenant der Installation.
+
+def _first_tenant_id() -> Optional[str]:
+    """Liefert die einzige Tenant-ID (Single-Tenant-Model ab v7.0.0)."""
+    with _conn() as conn:
+        row = conn.execute(
+            "SELECT id FROM tenants ORDER BY created_at ASC LIMIT 1"
+        ).fetchone()
+    return row["id"] if row else None
+
+
+def create_oauth_dcr_client(
+    client_id: str,
+    client_secret: str = "",
+    redirect_uris: Optional[list] = None,
+    client_name: str = "",
+    token_auth_method: str = "none",
+    tenant_id: Optional[str] = None,
+) -> Optional[dict]:
+    """Legt einen via DCR registrierten OAuth-Client an. `client_secret=""`
+    bedeutet Public Client (PKCE Pflicht beim Authorize-Flow).
+    """
+    import json as _json
+    tid = tenant_id or _first_tenant_id()
+    if not tid:
+        return None
+    uris = _json.dumps(redirect_uris or [], ensure_ascii=False)
+    method = "client_secret_post" if client_secret else "none"
+    if token_auth_method in ("none", "client_secret_post"):
+        method = token_auth_method
+    with _conn() as conn:
+        conn.execute(
+            "INSERT INTO oauth_dcr_client "
+            "(client_id, tenant_id, client_secret, redirect_uris, "
+            " client_name, token_auth_method, created_at) "
+            "VALUES (?,?,?,?,?,?,?)",
+            (
+                client_id, tid, _enc(client_secret) if client_secret else "",
+                uris, client_name, method, _now(),
+            ),
+        )
+    return get_oauth_dcr_client(client_id)
+
+
+def get_oauth_dcr_client(client_id: str) -> Optional[dict]:
+    """Liefert einen DCR-Client (mit dekrypiertem Secret + redirect_uris-Liste)."""
+    import json as _json
+    with _conn() as conn:
+        row = conn.execute(
+            "SELECT * FROM oauth_dcr_client WHERE client_id=?", (client_id,)
+        ).fetchone()
+    if not row:
+        return None
+    d = dict(row)
+    try:
+        uris = _json.loads(d.get("redirect_uris") or "[]")
+    except Exception:
+        uris = []
+    return {
+        "client_id":         d["client_id"],
+        "tenant_id":         d["tenant_id"],
+        "client_secret":     _dec(d.get("client_secret") or ""),
+        "redirect_uris":     uris,
+        "client_name":       d.get("client_name", ""),
+        "token_auth_method": d.get("token_auth_method", "none"),
+        "created_at":        d.get("created_at", ""),
+    }
+
+
+def resolve_oauth_client(client_id: str) -> Optional[dict]:
+    """Loest eine client_id auf — egal ob via DCR registriert oder per Hand
+    in der tenants-Tabelle eingetragen.
+
+    Returns: {tenant, client_secret, is_public, source} oder None.
+    `is_public=True` bedeutet: PKCE statt client_secret erwartet.
+    `source='dcr'` oder `'tenant'`.
+    """
+    dcr = get_oauth_dcr_client(client_id)
+    if dcr:
+        with _conn() as conn:
+            trow = conn.execute(
+                "SELECT * FROM tenants WHERE id=?", (dcr["tenant_id"],)
+            ).fetchone()
+        if not trow:
+            return None
+        td = dict(trow)
+        return {
+            "tenant": {
+                "id":               td["id"],
+                "name":             td.get("name", ""),
+                "bearer_token":     _dec(td.get("bearer_token", "")),
+                "oauth_client_id":  td.get("oauth_client_id", ""),
+            },
+            "client_secret": dcr["client_secret"],
+            "is_public":     dcr["token_auth_method"] == "none",
+            "source":        "dcr",
+        }
+    # Fallback: per Hand in tenants.oauth_client_id eingetragen
+    legacy = get_tenant_by_oauth_client_id(client_id)
+    if not legacy:
+        return None
+    with _conn() as conn:
+        srow = conn.execute(
+            "SELECT oauth_client_secret FROM tenants WHERE id=?",
+            (legacy["id"],),
+        ).fetchone()
+    secret = _dec(srow["oauth_client_secret"]) if srow else ""
+    return {
+        "tenant":        legacy,
+        "client_secret": secret,
+        "is_public":     False,
+        "source":        "tenant",
+    }
 
 
 def _tenant_decrypted(d: dict) -> dict:

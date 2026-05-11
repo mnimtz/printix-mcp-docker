@@ -15,6 +15,8 @@ Kompatibel mit:
   - ChatGPT MCP Connector (SSE /sse)
 """
 
+import base64
+import hashlib
 import html as _html
 import json
 import logging
@@ -26,9 +28,31 @@ from app_version import APP_VERSION
 
 logger = logging.getLogger("printix.oauth")
 
-# In-memory Authorization Code Store: {code: {tenant_id, client_id, redirect_uri, expires_at}}
+# In-memory Authorization Code Store. Felder pro Code:
+#   tenant_id, client_id, redirect_uri, expires_at,
+#   code_challenge (optional), code_challenge_method (optional)
 _auth_codes: dict = {}
 _request_count = 0
+
+
+# ─── PKCE Helper (RFC 7636) ──────────────────────────────────────────────────
+
+def _verify_pkce(challenge: str, method: str, verifier: str) -> bool:
+    """Prueft `code_verifier` gegen einen gespeicherten `code_challenge`.
+
+    `plain`: verifier == challenge.
+    `S256`:  base64url(sha256(verifier), kein Padding) == challenge.
+    """
+    if not challenge or not verifier:
+        return False
+    method = (method or "plain").upper()
+    if method == "PLAIN":
+        return verifier == challenge
+    if method == "S256":
+        digest = hashlib.sha256(verifier.encode("ascii")).digest()
+        expected = base64.urlsafe_b64encode(digest).rstrip(b"=").decode("ascii")
+        return expected == challenge
+    return False
 
 
 def _cleanup_codes():
@@ -164,18 +188,22 @@ _AUTHORIZE_HTML = """<!DOCTYPE html>
     <div class="tenant-box">Tenant: {tenant_name}<br><small>App: {client_id}</small></div>
 
     <form method="post" action="/oauth/authorize">
-      <input type="hidden" name="client_id"    value="{client_id}">
-      <input type="hidden" name="redirect_uri" value="{redirect_uri}">
-      <input type="hidden" name="state"        value="{state}">
-      <input type="hidden" name="approved"     value="true">
+      <input type="hidden" name="client_id"             value="{client_id}">
+      <input type="hidden" name="redirect_uri"          value="{redirect_uri}">
+      <input type="hidden" name="state"                 value="{state}">
+      <input type="hidden" name="code_challenge"        value="{code_challenge}">
+      <input type="hidden" name="code_challenge_method" value="{code_challenge_method}">
+      <input type="hidden" name="approved"              value="true">
       <button type="submit" class="btn btn-approve">✓ Zugriff erlauben</button>
     </form>
 
     <form method="post" action="/oauth/authorize">
-      <input type="hidden" name="client_id"    value="{client_id}">
-      <input type="hidden" name="redirect_uri" value="{redirect_uri}">
-      <input type="hidden" name="state"        value="{state}">
-      <input type="hidden" name="approved"     value="false">
+      <input type="hidden" name="client_id"             value="{client_id}">
+      <input type="hidden" name="redirect_uri"          value="{redirect_uri}">
+      <input type="hidden" name="state"                 value="{state}">
+      <input type="hidden" name="code_challenge"        value="{code_challenge}">
+      <input type="hidden" name="code_challenge_method" value="{code_challenge_method}">
+      <input type="hidden" name="approved"              value="false">
       <button type="submit" class="btn btn-deny">✗ Ablehnen</button>
     </form>
   </div>
@@ -195,6 +223,7 @@ class OAuthMiddleware:
     Routet:
       GET/POST /oauth/authorize  → Authorize-Logik
       POST     /oauth/token      → Token-Endpunkt (gibt tenant.bearer_token zurück)
+      POST     /register         → Dynamic Client Registration (RFC 7591)
       GET      /.well-known/*    → OAuth Discovery (RFC 8414 / 9728)
       GET      /health           → Health-Check
       *                          → BearerAuthMiddleware → DualTransportApp → MCP
@@ -224,6 +253,8 @@ class OAuthMiddleware:
                 await self._json(send, 405, {"error": "method_not_allowed"})
         elif path == "/oauth/token" and method == "POST":
             await self._token(scope, receive, send)
+        elif path == "/register" and method == "POST":
+            await self._register(scope, receive, send)
         else:
             await self.app(scope, receive, send)
 
@@ -275,10 +306,13 @@ class OAuthMiddleware:
         await send({"type": "http.response.body", "body": body})
 
     def _lookup_tenant_by_client(self, client_id: str) -> dict | None:
-        """Findet Tenant anhand der OAuth client_id in der DB."""
+        """Findet Tenant anhand der OAuth client_id in der DB. Deckt sowohl
+        DCR-registrierte als auch in tenants.oauth_client_id eingetragene
+        Clients ab — das DCR-Mapping hat Vorrang."""
         try:
-            from db import get_tenant_by_oauth_client_id
-            return get_tenant_by_oauth_client_id(client_id)
+            from db import resolve_oauth_client
+            resolved = resolve_oauth_client(client_id)
+            return resolved["tenant"] if resolved else None
         except Exception as e:
             logger.error("DB-Fehler bei OAuth-Client-Lookup: %s", e)
             return None
@@ -289,19 +323,21 @@ class OAuthMiddleware:
         base = os.environ.get("MCP_PUBLIC_URL", "").rstrip("/") or "http://localhost:8765"
 
         if "oauth-authorization-server" in path or "openid-configuration" in path:
+            # v7.7.2: PKCE + DCR werden jetzt unterstuetzt (ChatGPT-MCP).
             data = {
                 "issuer": base,
-                "authorization_endpoint": f"{base}/oauth/authorize",
-                "token_endpoint": f"{base}/oauth/token",
-                "token_endpoint_auth_methods_supported": ["client_secret_post"],
+                "authorization_endpoint":   f"{base}/oauth/authorize",
+                "token_endpoint":           f"{base}/oauth/token",
+                "registration_endpoint":    f"{base}/register",
+                "token_endpoint_auth_methods_supported": ["client_secret_post", "none"],
                 "response_types_supported": ["code"],
-                "grant_types_supported": ["authorization_code"],
-                "code_challenge_methods_supported": [],
+                "grant_types_supported":    ["authorization_code"],
+                "code_challenge_methods_supported": ["S256"],
             }
         elif "oauth-protected-resource" in path:
             data = {
-                "resource": f"{base}/mcp",
-                "resource_documentation": f"{base}/mcp",
+                "resource":              f"{base}/mcp",
+                "resource_documentation":f"{base}/mcp",
                 "authorization_servers": [base],
             }
         else:
@@ -311,14 +347,112 @@ class OAuthMiddleware:
         logger.debug("OAuth Discovery: %s", path)
         await self._json(send, 200, data)
 
+    # ── Dynamic Client Registration (RFC 7591) ─────────────────────────────────
+
+    async def _register(self, scope, receive, send):
+        """ChatGPT (und kompatible MCP-Clients) registrieren sich hier
+        selbst. Wir geben eine zufaellige client_id zurueck — Public Client,
+        also OHNE Secret. PKCE ist Pflicht beim Authorize-Flow.
+
+        Spec: RFC 7591. Akzeptiert JSON oder form-encoded.
+        """
+        raw = await self._read_body(receive)
+
+        ct = ""
+        for k, v in scope.get("headers", []):
+            if k == b"content-type":
+                ct = v.decode("utf-8", errors="ignore")
+                break
+
+        try:
+            if "application/json" in ct:
+                params = json.loads(raw or b"{}")
+            else:
+                params = self._parse_form(raw)
+        except Exception:
+            params = {}
+
+        redirect_uris = params.get("redirect_uris") or []
+        if isinstance(redirect_uris, str):
+            # Form-encoded: kommagetrennt oder einzeln
+            redirect_uris = [u.strip() for u in redirect_uris.split(",") if u.strip()]
+        if not isinstance(redirect_uris, list):
+            redirect_uris = []
+
+        # Whitelist erzwingen — sonst wuerde DCR ein Open-Redirect-Loch oeffnen.
+        bad = [u for u in redirect_uris if not _is_allowed_redirect_uri(u)]
+        if bad:
+            logger.warning("DCR: redirect_uris abgelehnt: %s", bad)
+            await self._json(send, 400, {
+                "error": "invalid_redirect_uri",
+                "error_description": "redirect_uris nicht in der Whitelist "
+                                     "(claude.ai, chatgpt.com, ...). Notfalls "
+                                     "OAUTH_ALLOWED_REDIRECT_HOSTS erweitern.",
+            })
+            return
+
+        # ChatGPT setzt token_endpoint_auth_method='none'. Wir akzeptieren
+        # auch 'client_secret_post' fuer kompatible non-public-Clients.
+        requested_method = (params.get("token_endpoint_auth_method") or "none").lower()
+        if requested_method not in ("none", "client_secret_post"):
+            requested_method = "none"
+
+        client_id = secrets.token_urlsafe(24)
+        client_secret = ""
+        if requested_method == "client_secret_post":
+            client_secret = secrets.token_urlsafe(32)
+
+        try:
+            from db import create_oauth_dcr_client
+            rec = create_oauth_dcr_client(
+                client_id=client_id,
+                client_secret=client_secret,
+                redirect_uris=redirect_uris,
+                client_name=(params.get("client_name") or "")[:200],
+                token_auth_method=requested_method,
+            )
+        except Exception as e:
+            logger.error("DCR: DB-Insert fehlgeschlagen: %s", e)
+            await self._json(send, 500, {"error": "server_error"})
+            return
+
+        if not rec:
+            # Kein Tenant existiert noch (Erstinstallation ohne Setup).
+            logger.warning("DCR: kein Tenant — Server nicht initialisiert?")
+            await self._json(send, 503, {
+                "error": "invalid_client_metadata",
+                "error_description": "Server hat keinen Tenant. Bitte "
+                                     "zuerst die Admin-Einrichtung abschliessen.",
+            })
+            return
+
+        logger.info("DCR: neuer Client registriert client_id=%s method=%s name=%r",
+                    client_id, requested_method, rec.get("client_name", ""))
+
+        response = {
+            "client_id":                  client_id,
+            "redirect_uris":              redirect_uris,
+            "grant_types":                ["authorization_code"],
+            "response_types":             ["code"],
+            "token_endpoint_auth_method": requested_method,
+        }
+        if client_secret:
+            response["client_secret"] = client_secret
+            response["client_secret_expires_at"] = 0  # 0 = no expiration
+        if rec.get("client_name"):
+            response["client_name"] = rec["client_name"]
+        await self._json(send, 201, response)
+
     # ── OAuth Endpunkte ────────────────────────────────────────────────────────
 
     async def _authorize_get(self, scope, send):
         """Zeigt die Bestätigungsseite für den Tenant."""
         params = self._parse_query(scope.get("query_string", b""))
-        client_id   = params.get("client_id", "")
+        client_id    = params.get("client_id", "")
         redirect_uri = params.get("redirect_uri", "")
-        state       = params.get("state", "")
+        state        = params.get("state", "")
+        code_challenge        = params.get("code_challenge", "")
+        code_challenge_method = (params.get("code_challenge_method") or "").upper()
 
         if not client_id or not redirect_uri:
             await self._json(send, 400, {"error": "invalid_request",
@@ -334,11 +468,21 @@ class OAuthMiddleware:
                                           "error_description": "redirect_uri nicht erlaubt"})
             return
 
+        # PKCE — wenn challenge mitgeschickt, nur S256 akzeptieren
+        # (RFC 7636 §4.2: plain ist nur fuer Embedded-Native-Apps gedacht
+        # und wird von keinem aktuellen MCP-Client verlangt).
+        if code_challenge and code_challenge_method not in ("", "S256"):
+            await self._json(send, 400, {"error": "invalid_request",
+                                          "error_description":
+                                          "code_challenge_method muss S256 sein"})
+            return
+
         # Tenant anhand client_id finden
         tenant = self._lookup_tenant_by_client(client_id)
         tenant_name = tenant.get("name", client_id) if tenant else client_id
 
-        logger.info("OAuth: Authorize-Anfrage von client_id=%s (Tenant: %s)", client_id, tenant_name)
+        logger.info("OAuth: Authorize-Anfrage client_id=%s tenant=%s pkce=%s",
+                    client_id, tenant_name, "S256" if code_challenge else "off")
         # WICHTIG: Alle Werte HTML-escapen, bevor sie ins Template gehen —
         # sonst reflected XSS in hidden-Input-Feldern (value="...").
         html_body = _AUTHORIZE_HTML.format(
@@ -346,6 +490,8 @@ class OAuthMiddleware:
             redirect_uri=_html.escape(redirect_uri, quote=True),
             state=_html.escape(state, quote=True),
             tenant_name=_html.escape(tenant_name, quote=True),
+            code_challenge=_html.escape(code_challenge, quote=True),
+            code_challenge_method=_html.escape(code_challenge_method or "S256", quote=True),
         )
         body = html_body.encode("utf-8")
         await send({"type": "http.response.start", "status": 200,
@@ -362,6 +508,8 @@ class OAuthMiddleware:
         redirect_uri = params.get("redirect_uri", "")
         state        = params.get("state", "")
         approved     = params.get("approved", "false") == "true"
+        code_challenge        = params.get("code_challenge", "")
+        code_challenge_method = (params.get("code_challenge_method") or "").upper()
 
         # redirect_uri VOR jedem Redirect gegen Whitelist prüfen (wie oben).
         if not _is_allowed_redirect_uri(redirect_uri):
@@ -390,10 +538,12 @@ class OAuthMiddleware:
         # Authorization Code generieren (gültig 10 Min.)
         code = secrets.token_urlsafe(32)
         _auth_codes[code] = {
-            "tenant_id":    tenant["id"],
-            "client_id":    client_id,
-            "redirect_uri": redirect_uri,
-            "expires_at":   time.time() + 600,
+            "tenant_id":             tenant["id"],
+            "client_id":             client_id,
+            "redirect_uri":          redirect_uri,
+            "expires_at":            time.time() + 600,
+            "code_challenge":        code_challenge,
+            "code_challenge_method": code_challenge_method or ("S256" if code_challenge else ""),
         }
         _cleanup_codes()
 
@@ -426,27 +576,41 @@ class OAuthMiddleware:
         code          = params.get("code", "")
         client_id     = params.get("client_id", "")
         client_secret = params.get("client_secret", "")
+        code_verifier = params.get("code_verifier", "")
 
-        # Client-Credentials + Tenant aus DB prüfen
-        tenant = self._lookup_tenant_by_client(client_id)
-        if not tenant:
+        # Auch Basic-Auth fuer client_secret akzeptieren (RFC 6749 §2.3.1).
+        if not client_id or not client_secret:
+            for k, v in scope.get("headers", []):
+                if k == b"authorization":
+                    val = v.decode("utf-8", errors="ignore")
+                    if val.lower().startswith("basic "):
+                        try:
+                            decoded = base64.b64decode(val[6:].strip()).decode("utf-8")
+                            cid, _, csec = decoded.partition(":")
+                            client_id     = client_id     or cid
+                            client_secret = client_secret or csec
+                        except Exception:
+                            pass
+                    break
+
+        # Client aufloesen — DCR-Tabelle hat Vorrang, dann Tenant.oauth_client_id.
+        try:
+            from db import resolve_oauth_client
+            resolved = resolve_oauth_client(client_id)
+        except Exception as e:
+            logger.error("OAuth Client-Lookup fehlgeschlagen: %s", e)
+            await self._json(send, 500, {"error": "server_error"})
+            return
+
+        if not resolved:
             logger.warning("OAuth: Token-Anfrage mit unbekannter client_id=%s", client_id)
             await self._json(send, 401, {"error": "invalid_client",
                                           "error_description": "Unbekannte client_id"})
             return
 
-        # client_secret validieren (stored in DB, plain — tenant hat eigenen OAuth-Secret)
-        try:
-            from db import verify_tenant_oauth_secret
-            if not verify_tenant_oauth_secret(tenant["id"], client_secret):
-                logger.warning("OAuth: Falsches client_secret für client_id=%s", client_id)
-                await self._json(send, 401, {"error": "invalid_client",
-                                              "error_description": "Falsches client_secret"})
-                return
-        except Exception as e:
-            logger.error("OAuth Secret-Prüfung fehlgeschlagen: %s", e)
-            await self._json(send, 500, {"error": "server_error"})
-            return
+        tenant      = resolved["tenant"]
+        is_public   = resolved["is_public"]
+        expected_secret = resolved["client_secret"]
 
         if grant_type != "authorization_code":
             await self._json(send, 400, {"error": "unsupported_grant_type",
@@ -467,18 +631,14 @@ class OAuthMiddleware:
                                           "error_description": "Code ungültig"})
             return
 
-        # RFC 6749 §4.1.3: "ensure that the authorization code was issued to the
-        # authenticated confidential client". Defense-in-depth zusätzlich zum
-        # Tenant-Check, falls die client_id→tenant Zuordnung jemals nicht-1:1 wird.
+        # RFC 6749 §4.1.3: Code muss zur authentifizierten client_id passen.
         if code_data.get("client_id") != client_id:
             logger.warning("OAuth: Code wurde für andere client_id ausgestellt")
             await self._json(send, 400, {"error": "invalid_grant",
                                           "error_description": "Code ungültig"})
             return
 
-        # RFC 6749 §4.1.3: redirect_uri im Token-Request MUSS identisch zu der
-        # im Authorization-Request sein. Sonst kann ein Angreifer einen fremden
-        # Code via anderer redirect_uri einlösen.
+        # RFC 6749 §4.1.3: redirect_uri MUSS identisch zu Authorize-Request.
         token_redirect_uri = params.get("redirect_uri", "")
         if token_redirect_uri != code_data.get("redirect_uri", ""):
             logger.warning(
@@ -489,7 +649,40 @@ class OAuthMiddleware:
                                           "error_description": "redirect_uri mismatch"})
             return
 
-        logger.info("OAuth: Access Token ausgestellt für Tenant '%s'", tenant.get("name", "?"))
+        # Client-Auth: entweder PKCE (Public Client) oder client_secret.
+        # Wurde der Code MIT code_challenge ausgestellt, MUSS PKCE verifiziert
+        # werden — selbst dann, wenn der Client auch ein Secret hat (RFC 7636).
+        challenge = code_data.get("code_challenge") or ""
+        if challenge:
+            if not code_verifier:
+                logger.warning("OAuth: PKCE-verifier fehlt (client_id=%s)", client_id)
+                await self._json(send, 400, {"error": "invalid_grant",
+                                              "error_description": "code_verifier fehlt"})
+                return
+            if not _verify_pkce(challenge, code_data.get("code_challenge_method") or "S256",
+                                 code_verifier):
+                logger.warning("OAuth: PKCE-verifier ungueltig (client_id=%s)", client_id)
+                await self._json(send, 400, {"error": "invalid_grant",
+                                              "error_description": "code_verifier ungueltig"})
+                return
+        elif not is_public:
+            # Klassischer confidential client — Secret erforderlich.
+            if not client_secret or client_secret != expected_secret:
+                logger.warning("OAuth: Falsches/fehlendes client_secret für client_id=%s",
+                               client_id)
+                await self._json(send, 401, {"error": "invalid_client",
+                                              "error_description": "Falsches client_secret"})
+                return
+        else:
+            # Public Client OHNE PKCE — verboten.
+            logger.warning("OAuth: Public Client ohne PKCE (client_id=%s)", client_id)
+            await self._json(send, 400, {"error": "invalid_request",
+                                          "error_description":
+                                          "PKCE Pflicht fuer Public Clients"})
+            return
+
+        logger.info("OAuth: Access Token ausgestellt fuer Tenant '%s' (client=%s, source=%s)",
+                    tenant.get("name", "?"), client_id, resolved.get("source"))
         await self._json(send, 200, {
             "access_token": tenant["bearer_token"],
             "token_type":   "bearer",

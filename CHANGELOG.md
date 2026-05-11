@@ -2,6 +2,64 @@
 
 This project follows [Semantic Versioning](https://semver.org/).
 
+## 7.7.2 — 2026-05-11
+
+ChatGPT-MCP-Connector funktioniert wieder. Vier Fixes, drei in der OAuth-
+Schicht und einer im Web-Proxy. Claude.ai bleibt unveraendert kompatibel.
+
+### Fixes
+
+- **Web-Proxy: `/messages/` und `/register` werden jetzt durchgereicht.**
+  Der FastMCP-SSE-Transport sendet als ersten Event nach `GET /sse` einen
+  relativen Endpoint-Pfad — standardmaessig `/messages/?session_id=...`. Der
+  Client schickt **alle** weiteren JSON-RPC-Calls dort hin. Auf dem alten HA-
+  Add-on war der MCP-Port direkt exponiert, der Pfad war erreichbar. Im neuen
+  Docker-Setup haengt der Cloudflare-Tunnel auf 8080 (Web-App), und der
+  Proxy hat `/messages/` nicht weitergereicht — jeder ChatGPT-POST landete auf
+  404, der Connector kippte direkt nach dem Handshake. Claude.ai war nicht
+  betroffen, weil Streamable HTTP nur `/mcp` braucht.
+
+### Added
+
+- **Dynamic Client Registration (RFC 7591).** Neuer Endpoint `POST /register`.
+  ChatGPT registriert sich selbst und bekommt eine zufaellige `client_id`
+  (Public Client, ohne Secret) zurueck. Registrierte Clients liegen in einer
+  neuen Tabelle `oauth_dcr_client` und sind an den Single-Tenant gebunden.
+  `client_secret_post`-Variante mit ausgestelltem Secret wird ebenfalls
+  unterstuetzt, falls ein Client das anfordert.
+- **PKCE (RFC 7636, S256).** `/oauth/authorize` nimmt jetzt `code_challenge`
+  + `code_challenge_method=S256` entgegen und speichert beides zum Code.
+  `/oauth/token` verifiziert beim Tausch den `code_verifier` per
+  SHA256+base64url. Wurde der Code mit Challenge ausgestellt, ersetzt PKCE
+  das `client_secret` (Public Client) — bei Codes ohne Challenge bleibt der
+  bisherige confidential-Flow als Fallback erhalten.
+- **Discovery-Metadata aktualisiert.** `/.well-known/oauth-authorization-
+  server` meldet jetzt
+  `code_challenge_methods_supported: ["S256"]`,
+  `registration_endpoint`, und
+  `token_endpoint_auth_methods_supported: ["client_secret_post", "none"]`.
+- **`WWW-Authenticate` mit `resource_metadata`** (RFC 9728). 401-Responses
+  ohne Bearer liefern jetzt
+  `Bearer realm="printix-mcp", resource_metadata="<base>/.well-known/oauth-
+  protected-resource"`, sodass MCP-Clients (ChatGPT) den Authorization-Server
+  per Discovery finden, statt ihn raten zu muessen.
+
+### Schema
+
+- Neue Tabelle `oauth_dcr_client` (client_id PK, tenant_id FK,
+  client_secret encrypted, redirect_uris JSON, token_auth_method,
+  created_at) — wird per `CREATE TABLE IF NOT EXISTS` beim ersten Start
+  angelegt. Keine Datenmigration noetig.
+
+### Compat
+
+- Bestehende manuelle OAuth-Clients (`tenants.oauth_client_id` +
+  `oauth_client_secret`) funktionieren weiterhin als confidential-Flow.
+  `resolve_oauth_client()` versucht zuerst DCR und faellt dann auf Tenants
+  zurueck.
+- `redirect_uris` aus DCR werden gegen dieselbe Whitelist gepruefte wie der
+  klassische Authorize-Flow (`OAUTH_ALLOWED_REDIRECT_HOSTS`).
+
 ## 7.7.1 (2026-05-01) — Group-Peer-Reports (anonymisiert, opt-in)
 
 End-User können sich jetzt mit Kolleg:innen aus den **eigenen

@@ -17,6 +17,7 @@ Erlaubt ohne Auth:
 
 import json
 import logging
+import os
 from contextvars import ContextVar
 from typing import Optional
 from app_version import APP_VERSION
@@ -57,6 +58,14 @@ class BearerAuthMiddleware:
             await self._health_response(send)
             return
         if path.startswith("/.well-known/"):
+            await self.app(scope, receive, send)
+            return
+        # v7.7.2: OAuth-Endpoints duerfen NICHT Bearer verlangen — der Client
+        # hat ja noch keinen Token. /oauth/* + /register werden von der
+        # OAuthMiddleware selber abgehandelt (liegt davor in der Stack-
+        # Reihenfolge, aber defensiv hier auch durchlassen, falls die
+        # Reihenfolge mal aendert).
+        if path == "/register" or path.startswith("/oauth/"):
             await self.app(scope, receive, send)
             return
         if path in ("/favicon.ico", "/robots.txt"):
@@ -128,9 +137,18 @@ class BearerAuthMiddleware:
         # json.dumps statt f-string: verhindert, dass Sonderzeichen im
         # Message-Text die JSON-Struktur zerlegen (defensiv für künftige Caller).
         body = json.dumps({"error": "unauthorized", "message": message}).encode()
+
+        # v7.7.2: WWW-Authenticate mit resource_metadata-Link (RFC 9728),
+        # damit MCP-Clients (ChatGPT) den OAuth-Server discoveren koennen.
+        base = (os.environ.get("MCP_PUBLIC_URL", "").rstrip("/")
+                or "http://localhost:8765")
+        challenge = (
+            f'Bearer realm="printix-mcp", '
+            f'resource_metadata="{base}/.well-known/oauth-protected-resource"'
+        )
         await send({"type": "http.response.start", "status": 401,
                     "headers": [[b"content-type", b"application/json"],
-                                 [b"www-authenticate", b"Bearer"],
+                                 [b"www-authenticate", challenge.encode("utf-8")],
                                  [b"content-length", str(len(body)).encode()]]})
         await send({"type": "http.response.body", "body": body})
 

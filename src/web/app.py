@@ -8316,9 +8316,27 @@ def create_app(session_secret: str) -> FastAPI:
     async def sse_proxy(request: Request, rest: str = ""):
         return await _proxy_to_mcp(request, "/sse" + (("/" + rest) if rest else ""))
 
+    # v7.7.2: ChatGPT-MCP-Fix. Der FastMCP-SSE-Transport sendet als ersten
+    # Event "endpoint" einen RELATIVEN Pfad zur POST-Seite des Channels —
+    # standardmaessig "/messages/?session_id=...". Ohne diese Proxy-Route
+    # landet jeder Client-->Server-Call nach dem Handshake auf 404 (8080
+    # kennt /messages nicht). Claude.ai braucht das nicht, weil Streamable
+    # HTTP (/mcp) nur einen einzigen Endpoint hat.
+    @app.api_route("/messages", methods=["GET", "POST"])
+    @app.api_route("/messages/", methods=["GET", "POST"])
+    @app.api_route("/messages/{rest:path}", methods=["GET", "POST"])
+    async def messages_proxy(request: Request, rest: str = ""):
+        return await _proxy_to_mcp(request, "/messages" + (("/" + rest) if rest else "/"))
+
     @app.api_route("/oauth/{rest:path}", methods=["GET", "POST"])
     async def oauth_proxy(request: Request, rest: str):
         return await _proxy_to_mcp(request, "/oauth/" + rest)
+
+    # v7.7.2: Dynamic Client Registration (RFC 7591). ChatGPT-MCP-Connector
+    # ruft das selbst auf, um sich eine client_id zu holen.
+    @app.api_route("/register", methods=["POST"])
+    async def register_proxy(request: Request):
+        return await _proxy_to_mcp(request, "/register")
 
     @app.api_route("/.well-known/{rest:path}", methods=["GET"])
     async def wellknown_proxy(request: Request, rest: str):
