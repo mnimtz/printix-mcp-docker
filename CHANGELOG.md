@@ -2,6 +2,52 @@
 
 This project follows [Semantic Versioning](https://semver.org/).
 
+## 7.7.6 — 2026-05-12 — Connect-Center: Bearer-Token für generische MCP-Clients
+
+Make.com, n8n, Zapier, eigene Python/Node-Scripts — all diese
+„generischen" MCP-Clients machen kein OAuth, sondern erwarten einen
+**statischen Bearer-Token im Authorization-Header**. Der Token
+existiert pro Tenant schon seit Tag 1 (`tenants.bearer_token`), war
+aber im Connect-Center nicht sichtbar — nur einmal auf der
+Registrierungs-Erfolgsseite.
+
+Jetzt im Connect-Center prominent:
+
+### Neu im Verbindungsprofil-Block
+
+Zusätzliche Zeile **Bearer Token** mit Reveal-Toggle (👁) und
+Copy-Button — gleiche Optik wie das OAuth-Client-Secret.
+
+### Neuer dedizierter Abschnitt „🔗 Make.com / n8n / Zapier / Custom"
+
+Direkt nach dem ChatGPT-Block, eigene Farbe (lila #8b5cf6). Zeigt:
+- Server-URL (`{{ mcp_url }}`)
+- Auth-Methode (Bearer Token)
+- Vollständiger Auth-Header mit Reveal-Toggle: `Authorization: Bearer <token>`
+- Aufklappbares curl-Beispiel: `tools/list`-Call als Smoke-Test
+- Sicherheits-Box: Token wie Passwort behandeln, bei Leak regenerieren
+
+### URL-Mapping-Tabelle erweitert
+
+4. Zeile in der „Welche URL für welchen Client?"-Tabelle:
+| 🔗 Make.com / n8n / Zapier / Custom | /mcp | Streamable HTTP + Bearer Token |
+
+### i18n
+
+`cc_field_bearer`, `cc_hint_bearer`, `cc_generic_*` für de/en/no,
+andere Sprachen über EN-Fallback (Standard-Pattern).
+
+### Sicherheits-Hinweis
+
+Token gibt Vollzugriff auf alle MCP-Tools des Tenants (gemäß RBAC).
+UI macht explizit klar: Token wie Passwort behandeln. Bei Leak:
+Admin regeneriert unter `/admin/settings`, alter Token sofort
+ungültig. Server-seitig keine Änderung — Token-Lookup über
+`get_tenant_by_bearer_token` bestand schon (RBAC-gegated, Audit-Log
+beim Use).
+
+---
+
 ## 7.7.5 — 2026-05-12 — Connect-Center: Diagnose + Claude.ai-Fix
 
 ### Bug-Fix: OAuth-Discovery liefert localhost wenn nur DB-Setting

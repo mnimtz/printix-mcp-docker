@@ -64,6 +64,11 @@
           <td style="padding:8px 10px;"><code>{{ sse_url }}</code></td>
           <td style="padding:8px 10px;">SSE (Server-Sent Events)</td>
         </tr>
+        <tr style="border-bottom:1px solid #f0f0f0;">
+          <td style="padding:8px 10px;">🔗 Make.com / n8n / Zapier / Custom</td>
+          <td style="padding:8px 10px;"><code>{{ mcp_url }}</code></td>
+          <td style="padding:8px 10px;">Streamable HTTP + Bearer Token</td>
+        </tr>
       </tbody>
     </table>
     <div style="margin-top:10px; padding:10px 12px; background:#fef3c7; border-left:3px solid #f59e0b; border-radius:4px; font-size:.86em; color:#78350f;">
@@ -126,6 +131,26 @@
           {% endif %}
         </td>
       </tr>
+      {# v7.7.6: Bearer-Token für generische MCP-Clients (Make.com,
+         n8n, Zapier, eigene Scripts). Ist pro Tenant unique, lebt
+         in tenants.bearer_token. Reveal-Toggle wie beim OAuth-Secret. #}
+      {% if tenant.bearer_token %}
+      <tr>
+        <td style="padding:10px 0; font-weight:600; color:#003366;">{{ _('cc_field_bearer') }}</td>
+        <td style="padding:10px 0;">
+          <div class="code-block" id="cc-btok" style="margin:0; display:flex; align-items:center; gap:8px;">
+            <button class="copy-btn" onclick="copyToClipboard('cc-btok-val', this)">⧉</button>
+            <span id="cc-btok-val" data-real="{{ tenant.bearer_token }}" data-revealed="0" style="flex:1;">••••••••••••••••••••••••••••</span>
+            <button type="button" onclick="toggleBearer()" class="btn btn-secondary btn-sm" style="font-size:.78em;">
+              👁 <span id="cc-btok-label">{{ _('cc_reveal') }}</span>
+            </button>
+          </div>
+          <div style="font-size:.8em; color:#888; margin-top:4px;">
+            {{ _('cc_hint_bearer') }}
+          </div>
+        </td>
+      </tr>
+      {% endif %}
       <tr>
         <td style="padding:10px 0; font-weight:600; color:#003366;">{{ _('cc_field_authorize') }}</td>
         <td style="padding:10px 0;">
@@ -196,6 +221,64 @@
     </ol>
   </div>
 
+  {# v7.7.6: Generischer Bearer-Token-Client (Make.com, n8n, Zapier,
+     eigene Skripte). Nutzt /mcp Endpunkt + Authorization-Header. #}
+  {% if tenant.bearer_token %}
+  <div class="card" style="margin-bottom:20px; border-left:4px solid #8b5cf6;">
+    <div style="display:flex; align-items:center; gap:10px; margin-bottom:8px;">
+      <div style="font-size:1.6em;">🔗</div>
+      <div>
+        <div class="section-title" style="margin:0;">{{ _('cc_generic_title') }}</div>
+        <div style="font-size:.85em; color:#888;">{{ _('cc_generic_sub') }}</div>
+      </div>
+    </div>
+    <div style="font-size:.92em; color:#444; line-height:1.7; margin-top:12px;">
+      {{ _('cc_generic_intro') | safe }}
+    </div>
+
+    <div style="margin-top:14px; display:grid; gap:10px; grid-template-columns:1fr; font-size:.9em;">
+      <div>
+        <div style="font-weight:600; color:#003366; margin-bottom:4px;">{{ _('cc_generic_field_url') }}</div>
+        <div class="code-block" style="margin:0;">
+          <button class="copy-btn" onclick="copyToClipboard('cc-gen-url-val', this)">⧉</button>
+          <span id="cc-gen-url-val">{{ mcp_url }}</span>
+        </div>
+      </div>
+      <div>
+        <div style="font-weight:600; color:#003366; margin-bottom:4px;">{{ _('cc_generic_field_authmode') }}</div>
+        <code style="background:#f3f4f6; padding:3px 8px; border-radius:4px;">Bearer Token</code>
+      </div>
+      <div>
+        <div style="font-weight:600; color:#003366; margin-bottom:4px;">{{ _('cc_generic_field_header') }}</div>
+        <div class="code-block" style="margin:0; display:flex; align-items:center; gap:8px;">
+          <button class="copy-btn" onclick="copyToClipboard('cc-gen-hdr-val', this)">⧉</button>
+          <span id="cc-gen-hdr-val" data-real="Authorization: Bearer {{ tenant.bearer_token }}" data-revealed="0" style="flex:1;">Authorization: Bearer ••••••••••••</span>
+          <button type="button" onclick="toggleGenHeader()" class="btn btn-secondary btn-sm" style="font-size:.78em;">
+            👁 <span id="cc-gen-hdr-label">{{ _('cc_reveal') }}</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <details style="margin-top:14px;">
+      <summary style="cursor:pointer; font-weight:600; color:#003366; font-size:.9em;">
+        🛠 {{ _('cc_generic_curl_example') }}
+      </summary>
+      <div class="code-block" style="margin-top:8px; white-space:pre-wrap;">
+        <button class="copy-btn" onclick="copyToClipboard('cc-gen-curl-val', this)">⧉</button>
+<span id="cc-gen-curl-val">curl -X POST {{ mcp_url }} \
+  -H "Authorization: Bearer &lt;dein-token&gt;" \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'</span>
+      </div>
+    </details>
+
+    <div style="margin-top:12px; padding:10px 14px; background:#fef3c7; border-left:3px solid #f59e0b; border-radius:4px; font-size:.86em; color:#78350f;">
+      ⚠ <strong>{{ _('cc_generic_security_title') }}</strong> {{ _('cc_generic_security_body') | safe }}
+    </div>
+  </div>
+  {% endif %}
+
   <!-- Claude Code -->
   <div class="card" style="margin-bottom:20px; border-left:4px solid #6366f1;">
     <div style="display:flex; align-items:center; gap:10px; margin-bottom:8px;">
@@ -262,6 +345,39 @@ function toggleSecret() {
     span.textContent = span.dataset.real || '';
     span.dataset.revealed = '1';
     if (lbl) lbl.textContent = "{{ _('cc_hide') }}";
+  }
+}
+
+/* v7.7.6: Bearer-Token-Reveal (gleiche Logik wie OAuth Secret). */
+function _ccReveal(spanId, lblId, maskLen) {
+  const span = document.getElementById(spanId);
+  const lbl  = document.getElementById(lblId);
+  if (!span) return;
+  const revealed = span.dataset.revealed === '1';
+  if (revealed) {
+    span.textContent = '•'.repeat(maskLen || 28);
+    span.dataset.revealed = '0';
+    if (lbl) lbl.textContent = "{{ _('cc_reveal') }}";
+  } else {
+    span.textContent = span.dataset.real || '';
+    span.dataset.revealed = '1';
+    if (lbl) lbl.textContent = "{{ _('cc_hide') }}";
+  }
+}
+function toggleBearer()    { _ccReveal('cc-btok-val',    'cc-btok-label',    28); }
+function toggleGenHeader() {
+  // Generic-Header maskt mehr Zeichen weil der Token-Teil länger ist
+  const span = document.getElementById('cc-gen-hdr-val');
+  if (!span) return;
+  const revealed = span.dataset.revealed === '1';
+  if (revealed) {
+    span.textContent = 'Authorization: Bearer ••••••••••••';
+    span.dataset.revealed = '0';
+    document.getElementById('cc-gen-hdr-label').textContent = "{{ _('cc_reveal') }}";
+  } else {
+    span.textContent = span.dataset.real || '';
+    span.dataset.revealed = '1';
+    document.getElementById('cc-gen-hdr-label').textContent = "{{ _('cc_hide') }}";
   }
 }
 
