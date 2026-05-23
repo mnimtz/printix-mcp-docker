@@ -55,12 +55,30 @@ Synology NAS / TrueNAS / Unraid / …).
 - `printix_personal_data_purge_request` (GDPR Art. 17) — non-destructive deletion request: records the request in the audit log, sends a structured email to the configured tenant admins with the data summary and the requester's reason, returns a request ID. The admin reviews and executes the deletion via `printix_offboard_user` / `printix_delete_user` within the GDPR Art. 12(3) one-month deadline
 - End users are restricted to their own data (self-check at the argument level); Helpdesk and Admin can act on any subject in support of formal access/deletion requests
 
-**Per-user Connect-Center (v7.2.21+)**
+**Per-user Connect-Center (v7.2.21+ · expanded v7.7.5+)**
 - One-page personal connection profile at `/my/connect`
-- All connection data (MCP URL, OAuth ID, Secret with reveal toggle, SSE endpoint, Authorize/Token URLs) in copy-buttoned cards
-- Step-by-step instructions per platform (Claude.ai, ChatGPT, Claude Code CLI)
+- All connection data (MCP URL, SSE URL, OAuth ID + Secret, **Bearer Token** with reveal toggle, Authorize/Token URLs) in copy-buttoned cards
+- Step-by-step instructions per platform (Claude.ai, ChatGPT, Claude Code CLI) **plus a dedicated „🔗 Make.com / n8n / Zapier / Custom"-section with bearer-token examples** (v7.7.6)
+- **🩺 Connection self-test button** (v7.7.5) — runs 7 server-side checks (public_url set, HTTPS active, OAuth discovery returns the right issuer, /mcp + /sse reachable, etc.) and shows ok/warn/error per item. First stop when a client says „connection failed" without explaining why.
+- **URL-mapping table** spells out which URL goes into which AI client + the warning that swapping `/mcp` and `/sse` is the most common mistake
 - Direct downloads for the localised user manuals (DE / EN / NO)
 - Localised in DE / EN / NO; non-DE locales default to English
+
+**MCP Reports Cookbook (v7.7.0+)**
+- New admin page `/admin/mcp-reports-cookbook` with four ready-to-paste example prompts: top-user report with schedule, cost report with custom rates, anomaly detection, end-user self-service
+- Plus a card-grid of all 12 supported query types and an RBAC explainer per role
+- Linked from `/reports` via a blue hint banner: *„💡 Reports can also be built via Claude/ChatGPT"*
+
+**End-user self-service reports via MCP (v7.7.0+)**
+- New `printix_my_print_history`, `printix_my_costs`, `printix_my_environment_impact` MCP tools — end-users ask their own AI assistant *"how much did I print this month?"* and get scoped data back, no admin needed
+- Optional `printix_my_group_print_history` (v7.7.1) — peer comparison with colleagues in the caller's own Printix group, **with anonymized colleague names** ("Colleague AB12CD") and stable hash. Default OFF — tenant admin must enable per setting, GDPR/works-council notes shipped in the UI
+- All scoped via `mcp:self` — no user-id parameter accepted, identity comes from the bearer token, SQL filter set server-side
+
+**Cache prefetch (v7.6.0+)**
+- Background prefetch of users/printers/workstations/sites/networks/groups/snmp on every login → first navigation to `/tenant/*` is instant
+- **Bulk card-count prefetch** parallel per user (asyncio.gather) → `/tenant/users` shows card numbers without n+1 API calls
+- Periodic 60-second refresher keeps the cache warm — no stale lookups during the session
+- Top-nav „⏳ loading data…" pill appears during the initial warm-up, switches to ✓ when done
 
 **Workflow tools (v6.8.x / v7.2.x — AI-driven workflows)**
 - `printix_print_self` — AI generates a PDF inline and queues it on the caller's own secure-print queue (auto-PDL conversion to PCL XL)
@@ -94,8 +112,16 @@ Synology NAS / TrueNAS / Unraid / …).
 
 **Reporting**
 - Report templates with design options (colour, logo, chart type)
+- **Report language + currency** picker in the builder (v7.6.9) — German admin can ship English reports without switching the UI
+- Demo-data notice on `/reports` when active demo sessions feed into results (v7.6.10)
 - Scheduled reports (daily / weekly / monthly) delivered by mail
 - Live queries: top users, top printers, cost per department, trends, anomalies
+
+**Backup & restore — production-grade (v7.6.5–7.6.7)**
+- Backup ZIP contains the complete persistent state — DB, demo DB, Fernet key, report templates, MCP secrets, web session signing key, plus the `tls/` and `letsencrypt/` directories so restores never lose the cert + ACME rate-limit headroom
+- **Optional AES-encrypted backup** (Fernet, PBKDF2-HMAC-SHA256 600 k iters, salt in manifest) — set a passphrase in the create form and the ZIP is cloud-storage-safe (without it, useless)
+- `verify_backup()` pre-flight before restore — manifest check, SQLite header check, size limit (200 MB default). No partial restores on broken archives
+- 13-step end-to-end test (`bin/test-backup-restore.py`) — runs both plain and encrypted round-trips; ships in the image and runnable in the live container
 
 **Cloud-print gateway** *(optional)*
 - IPP/IPPS listener on port 631 — PCs can treat the container as a network printer
@@ -586,13 +612,23 @@ For higher-throughput production deployments use the path-based routing recipes 
 
 After the first-time setup in the web UI:
 
-- **claude.ai** → *Settings → Integrations → Add MCP Server* → `<MCP_PUBLIC_URL>/mcp`
-- **ChatGPT** → MCP via SSE → `<MCP_PUBLIC_URL>/sse`
-- **Claude Code (CLI)** → `claude mcp add printix <MCP_PUBLIC_URL>/mcp`
+| Client | URL | Transport | Auth |
+|--------|-----|-----------|------|
+| **claude.ai** *(Settings → Integrations → Add MCP Server)* | `<MCP_PUBLIC_URL>/mcp` | Streamable HTTP | OAuth (auto) |
+| **Claude Desktop / Claude Code** | `<MCP_PUBLIC_URL>/mcp` | Streamable HTTP | OAuth (auto) |
+| **Claude Code (CLI)** | `claude mcp add printix <MCP_PUBLIC_URL>/mcp` | Streamable HTTP | OAuth (auto) |
+| **ChatGPT** *(Custom GPT → MCP)* | `<MCP_PUBLIC_URL>/sse` | SSE | OAuth (auto) |
+| **Make.com / n8n / Zapier / custom scripts** | `<MCP_PUBLIC_URL>/mcp` | Streamable HTTP | **Bearer Token** (paste from Connect-Center) |
 
-The OAuth endpoints (`/oauth/authorize`, `/oauth/token`) are used automatically by the AI clients — no manual token management needed.
+> ⚠️ **Don't swap `/mcp` ↔ `/sse`.** Claude.ai rejects `/sse` (different transport), ChatGPT rejects `/mcp`. The single most common „it doesn't connect" cause. The Connect-Center shows the right URL per client + a 🩺 self-test button (v7.7.5+).
 
-> ⚠️ **After every server upgrade**: refresh the AI assistant's tool list, otherwise it keeps using stale tool definitions. **claude.ai**: start a new conversation or *Settings → Connectors → disconnect / reconnect*. **ChatGPT custom connector**: *Disconnect / Connect* in the Custom GPT editor. **Claude Desktop**: full app restart (`Cmd+Q`). **Cursor / Continue**: toggle the connector or use `/mcp reload`. See [`docs/MCP_MANUAL_EN.md`](docs/MCP_MANUAL_EN.md) for details + the full 127-tool reference.
+**Authentication modes:**
+- **OAuth flow** (Claude.ai, ChatGPT, Claude Code) — handled automatically by the client. `/oauth/authorize` and `/oauth/token` are used end-to-end; no manual token management.
+- **Static Bearer Token** (Make.com, n8n, Zapier, custom Python/Node scripts) — paste `Authorization: Bearer <token>` per request. Token visible in `/my/connect` with a reveal toggle. RBAC scopes apply same as for OAuth callers.
+
+> ⚠️ **After every server upgrade**: refresh the AI assistant's tool list, otherwise it keeps using stale tool definitions. **claude.ai**: start a new conversation or *Settings → Connectors → disconnect / reconnect*. **ChatGPT custom connector**: *Disconnect / Connect* in the Custom GPT editor. **Claude Desktop**: full app restart (`Cmd+Q`). **Cursor / Continue**: toggle the connector or use `/mcp reload`. See [`docs/MCP_MANUAL_EN.md`](docs/MCP_MANUAL_EN.md) for details + the full 129-tool reference.
+
+> 🩺 **Connection won't establish?** Open `/my/connect` and click **🩺 Test connection**. It runs 7 server-side checks (public_url set, HTTPS, OAuth discovery, /mcp + /sse reachable, etc.) and tells you exactly what's wrong — typically a missing `MCP_PUBLIC_URL` env (v7.7.5 reads it from the Web-UI DB setting as a fallback, so existing setups that only configured it in the admin form now work too).
 
 ---
 
