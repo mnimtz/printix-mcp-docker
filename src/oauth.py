@@ -320,7 +320,24 @@ class OAuthMiddleware:
     # ── OAuth Discovery ────────────────────────────────────────────────────────
 
     async def _well_known(self, path: str, send):
-        base = os.environ.get("MCP_PUBLIC_URL", "").rstrip("/") or "http://localhost:8765"
+        # v7.7.5: Auflösung 3-stufig, sonst liefert Discovery
+        # "http://localhost:8765" wenn der User die public_url NUR in
+        # der Web-UI gesetzt hat (DB-Setting) und MCP_PUBLIC_URL env
+        # vergessen wurde — Claude.ai lehnt das ab und der Connect-
+        # Versuch scheitert kommentarlos.
+        #   1. DB-Setting `public_url` (Admin-UI)
+        #   2. Env `MCP_PUBLIC_URL`
+        #   3. Hardcoded localhost (Dev-Fallback)
+        base = ""
+        try:
+            import db as _db_local
+            base = (_db_local.get_setting("public_url", "") or "").strip().rstrip("/")
+        except Exception:
+            base = ""
+        if not base:
+            base = os.environ.get("MCP_PUBLIC_URL", "").strip().rstrip("/")
+        if not base:
+            base = "http://localhost:8765"
 
         if "oauth-authorization-server" in path or "openid-configuration" in path:
             # v7.7.2: PKCE + DCR werden jetzt unterstuetzt (ChatGPT-MCP).

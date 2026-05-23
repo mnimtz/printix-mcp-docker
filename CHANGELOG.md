@@ -2,6 +2,56 @@
 
 This project follows [Semantic Versioning](https://semver.org/).
 
+## 7.7.5 — 2026-05-12 — Connect-Center: Diagnose + Claude.ai-Fix
+
+### Bug-Fix: OAuth-Discovery liefert localhost wenn nur DB-Setting
+
+`oauth.py` (auf MCP-Port 8765) und `auth.py` (WWW-Authenticate-
+Challenge) lasen die public-base-URL ausschließlich aus
+`MCP_PUBLIC_URL` env. Wenn der Admin die URL nur im Web-UI gesetzt
+hatte (DB-Setting `public_url`), aber die env-Var vergessen wurde,
+lieferte das OAuth-Discovery-Document den issuer als
+`http://localhost:8765`. Claude.ai lehnt das wortlos ab und
+„Verbindung scheitert" — ohne erkennbaren Grund.
+
+Beide Module lesen jetzt 3-stufig: **DB-Setting → env → localhost-
+Fallback**. Damit reicht das Setzen in der Web-UI; env-Var bleibt für
+Deployment-Defaults verfügbar. **Das ist vermutlich der Grund warum
+Claude.ai nicht verbinden konnte** wenn ChatGPT funktionierte
+(ChatGPT-Connector ist toleranter gegen localhost-Issuer).
+
+### Neu: Connect-Center Selbsttest
+
+`/api/connect-diagnose` Endpoint + Button „🩺 Verbindung prüfen" oben
+auf `/my/connect`. Sieben Checks:
+
+1. `public_url` gesetzt? (Quelle DB-Setting vs env angezeigt)
+2. Diskrepanz zwischen DB und env? → Warnung
+3. HTTPS aktiv? (Pflicht für Claude.ai)
+4. `/.well-known/oauth-authorization-server` erreichbar + issuer
+   stimmt mit public_url überein?
+5. `/.well-known/oauth-protected-resource` erreichbar?
+6. `/mcp` Endpunkt antwortet (401/405 sind OK = erreichbar)?
+7. `/sse` Endpunkt antwortet?
+
+Jeder Check zeigt ok/warn/error mit konkretem Hinweis. Verdict-
+Banner oben „alles grün" / „Verbindung wird scheitern" mit Details.
+
+### Neu: URL-Mapping-Tabelle im Connect-Center
+
+Direkt unter dem Diagnose-Button: Tabelle die für jeden AI-Client
+klar zeigt welche URL + welcher Transport. Plus Warnung:
+„URLs nicht vertauschen — Claude.ai akzeptiert <code>/sse</code>
+nicht, ChatGPT akzeptiert <code>/mcp</code> nicht." War der zweite
+typische Stolperstein.
+
+### i18n
+
+`cc_diag_*` und `cc_which_*` Keys für de/en/no, andere Sprachen über
+EN-Fallback.
+
+---
+
 ## 7.7.4 — 2026-05-11
 
 Dezenter Update-Hinweis im Dashboard.

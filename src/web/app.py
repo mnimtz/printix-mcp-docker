@@ -2339,6 +2339,160 @@ def create_app(session_secret: str) -> FastAPI:
         # transparent dorthin weitergeleitet.
         return RedirectResponse("/my/connect", status_code=302)
 
+    @app.get("/api/connect-diagnose", response_class=JSONResponse)
+    async def api_connect_diagnose(request: Request):
+        """v7.7.5: Selbsttest der MCP-Endpunkte aus User-Sicht.
+
+        Liefert für jeden Check ok/warn/error + Erklärung. Wird vom
+        Connect-Center per fetch() aufgerufen — User klickt „Verbindung
+        prüfen", sieht sofort was klemmt.
+        """
+        user = require_login(request)
+        if not user:
+            return JSONResponse({"error": "unauthorized"}, status_code=401)
+        import urllib.request as _ur
+        import urllib.error as _ue
+        from urllib.parse import urlparse as _up
+        from db import get_setting
+
+        checks: list[dict] = []
+        base_db   = (get_setting("public_url", "") or "").strip().rstrip("/")
+        base_env  = os.environ.get("MCP_PUBLIC_URL", "").strip().rstrip("/")
+        base      = base_db or base_env
+
+        # 1) public_url überhaupt gesetzt?
+        if not base:
+            checks.append({
+                "id": "public_url", "status": "error",
+                "msg": "Keine public_url gesetzt — weder Web-UI-Setting noch MCP_PUBLIC_URL env. AI-Clients können den Server nicht erreichen.",
+            })
+        else:
+            checks.append({
+                "id": "public_url", "status": "ok",
+                "msg": f"public_url = {base} (Quelle: {'DB-Setting' if base_db else 'env'})",
+            })
+
+        # 2) DB vs env Diskrepanz?
+        if base_db and base_env and base_db != base_env:
+            checks.append({
+                "id": "url_consistency", "status": "warn",
+                "msg": f"DB-Setting ({base_db}) und env ({base_env}) sind unterschiedlich. DB hat Vorrang ab v7.7.5 — sicherheitshalber gleich setzen.",
+            })
+
+        # 3) HTTPS Pflicht für Claude.ai
+        if base:
+            scheme = _up(base).scheme
+            if scheme != "https":
+                checks.append({
+                    "id": "https", "status": "error",
+                    "msg": f"Schema ist {scheme!r}. Claude.ai akzeptiert nur HTTPS. ChatGPT-MCP-Connector ebenfalls. Cloudflare Tunnel oder Auto-TLS einrichten.",
+                })
+            else:
+                checks.append({
+                    "id": "https", "status": "ok",
+                    "msg": "HTTPS ist aktiv.",
+                })
+
+        # 4) OAuth-Discovery erreichbar + korrekte URLs drin?
+        if base:
+            try:
+                with _ur.urlopen(f"{base}/.well-known/oauth-authorization-server", timeout=5) as resp:
+                    data = json.loads(resp.read().decode())
+                issuer = data.get("issuer", "")
+                if issuer.startswith("http://localhost") or issuer.startswith("http://127."):
+                    checks.append({
+                        "id": "oauth_discovery", "status": "error",
+                        "msg": f"OAuth-Discovery liefert localhost-Issuer ({issuer!r}). Claude.ai lehnt das ab. MCP_PUBLIC_URL env muss gesetzt sein ODER Server neu starten nach v7.7.5+ Update (liest jetzt auch DB-Setting).",
+                    })
+                elif issuer != base:
+                    checks.append({
+                        "id": "oauth_discovery", "status": "warn",
+                        "msg": f"Discovery-Issuer ({issuer}) ≠ public_url ({base}). Konsistent halten.",
+                    })
+                else:
+                    checks.append({
+                        "id": "oauth_discovery", "status": "ok",
+                        "msg": f"OAuth-Discovery OK — issuer={issuer}, DCR + PKCE supported.",
+                    })
+            except _ue.HTTPError as he:
+                checks.append({
+                    "id": "oauth_discovery", "status": "error",
+                    "msg": f"OAuth-Discovery HTTP {he.code} — Endpunkt nicht erreichbar.",
+                })
+            except Exception as e:
+                checks.append({
+                    "id": "oauth_discovery", "status": "error",
+                    "msg": f"OAuth-Discovery fehlgeschlagen: {str(e)[:120]}",
+                })
+
+        # 5) protected-resource Metadata (RFC 9728 — claude.ai prüft das)
+        if base:
+            try:
+                with _ur.urlopen(f"{base}/.well-known/oauth-protected-resource", timeout=5) as resp:
+                    data = json.loads(resp.read().decode())
+                checks.append({
+                    "id": "protected_resource", "status": "ok",
+                    "msg": f"Protected-Resource-Metadata OK — resource={data.get('resource','?')}",
+                })
+            except Exception as e:
+                checks.append({
+                    "id": "protected_resource", "status": "warn",
+                    "msg": f"oauth-protected-resource nicht erreichbar: {str(e)[:120]}",
+                })
+
+        # 6) /mcp Endpunkt reagiert (HEAD ist OK — 401 oder 405 als „erreichbar")
+        if base:
+            try:
+                req = _ur.Request(f"{base}/mcp", method="HEAD")
+                with _ur.urlopen(req, timeout=5) as resp:
+                    code = resp.getcode()
+                checks.append({"id": "mcp_endpoint", "status": "ok",
+                                "msg": f"/mcp erreichbar (HTTP {code}) — Claude.ai Endpunkt"})
+            except _ue.HTTPError as he:
+                # 401/405 sind OK = Endpoint vorhanden, nur Auth/Method
+                ok_codes = (401, 405, 400)
+                checks.append({
+                    "id": "mcp_endpoint",
+                    "status": "ok" if he.code in ok_codes else "warn",
+                    "msg": f"/mcp HTTP {he.code} ({'erwartet ohne Token' if he.code in ok_codes else 'unerwartet'})",
+                })
+            except Exception as e:
+                checks.append({
+                    "id": "mcp_endpoint", "status": "error",
+                    "msg": f"/mcp nicht erreichbar: {str(e)[:120]}",
+                })
+
+        # 7) /sse Endpunkt reagiert
+        if base:
+            try:
+                req = _ur.Request(f"{base}/sse", method="HEAD")
+                with _ur.urlopen(req, timeout=5) as resp:
+                    code = resp.getcode()
+                checks.append({"id": "sse_endpoint", "status": "ok",
+                                "msg": f"/sse erreichbar (HTTP {code}) — ChatGPT Endpunkt"})
+            except _ue.HTTPError as he:
+                ok_codes = (401, 405, 400)
+                checks.append({
+                    "id": "sse_endpoint",
+                    "status": "ok" if he.code in ok_codes else "warn",
+                    "msg": f"/sse HTTP {he.code}",
+                })
+            except Exception as e:
+                checks.append({
+                    "id": "sse_endpoint", "status": "error",
+                    "msg": f"/sse nicht erreichbar: {str(e)[:120]}",
+                })
+
+        # Recommendation
+        has_error = any(c["status"] == "error" for c in checks)
+        has_warn  = any(c["status"] == "warn" for c in checks)
+        verdict = "error" if has_error else ("warn" if has_warn else "ok")
+        return JSONResponse({
+            "verdict": verdict,
+            "base_url": base,
+            "checks": checks,
+        })
+
     @app.get("/manuals/permission-matrix.pdf")
     async def download_permission_matrix(request: Request):
         """v7.2.26: Download the Permission Matrix PDF.

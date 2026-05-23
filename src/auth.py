@@ -139,9 +139,21 @@ class BearerAuthMiddleware:
         body = json.dumps({"error": "unauthorized", "message": message}).encode()
 
         # v7.7.2: WWW-Authenticate mit resource_metadata-Link (RFC 9728),
-        # damit MCP-Clients (ChatGPT) den OAuth-Server discoveren koennen.
-        base = (os.environ.get("MCP_PUBLIC_URL", "").rstrip("/")
-                or "http://localhost:8765")
+        # damit MCP-Clients (ChatGPT/Claude.ai) den OAuth-Server
+        # discoveren koennen.
+        # v7.7.5: DB-Setting `public_url` hat Vorrang vor env — sonst
+        # zeigt der Link auf localhost wenn der Admin die URL nur im
+        # Web-UI gesetzt hat.
+        base = ""
+        try:
+            import db as _db_local
+            base = (_db_local.get_setting("public_url", "") or "").strip().rstrip("/")
+        except Exception:
+            pass
+        if not base:
+            base = os.environ.get("MCP_PUBLIC_URL", "").strip().rstrip("/")
+        if not base:
+            base = "http://localhost:8765"
         challenge = (
             f'Bearer realm="printix-mcp", '
             f'resource_metadata="{base}/.well-known/oauth-protected-resource"'

@@ -19,6 +19,58 @@
   </div>
   {% else %}
 
+  {# v7.7.5: Verbindungs-Selbsttest — User klickt, fetch() ruft
+     /api/connect-diagnose, Resultate gerendert per JS. #}
+  <div class="card" style="margin-bottom:20px; background:#f0f9ff; border-left:4px solid #0284c7;">
+    <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
+      <div style="flex:1; min-width:240px;">
+        <div style="font-weight:700; color:#0c4a6e; margin-bottom:4px;">
+          🩺 {{ _('cc_diag_title') }}
+        </div>
+        <div style="font-size:.88em; color:#0c4a6e;">{{ _('cc_diag_body') }}</div>
+      </div>
+      <button id="cc-diag-btn" class="btn btn-primary" onclick="ccRunDiag(this)" style="background:#0284c7;">
+        🩺 {{ _('cc_diag_btn') }}
+      </button>
+    </div>
+    <div id="cc-diag-result" style="display:none; margin-top:14px;"></div>
+  </div>
+
+  {# v7.7.5: Welche URL für welchen Client? Kurze Erklärung damit
+     niemand mehr verzweifelt warum Claude die SSE-URL ablehnt. #}
+  <div class="card" style="margin-bottom:20px;">
+    <div class="section-title" style="margin-bottom:8px;">🧭 {{ _('cc_which_url_title') }}</div>
+    <table style="width:100%; border-collapse:collapse; font-size:.92em;">
+      <thead>
+        <tr style="background:#f3f4f6;">
+          <th style="padding:8px 10px; text-align:left;">{{ _('cc_which_client') }}</th>
+          <th style="padding:8px 10px; text-align:left;">{{ _('cc_which_url') }}</th>
+          <th style="padding:8px 10px; text-align:left;">{{ _('cc_which_transport') }}</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr style="border-bottom:1px solid #f0f0f0;">
+          <td style="padding:8px 10px;">🤖 Claude.ai</td>
+          <td style="padding:8px 10px;"><code>{{ mcp_url }}</code></td>
+          <td style="padding:8px 10px;">Streamable HTTP</td>
+        </tr>
+        <tr style="border-bottom:1px solid #f0f0f0;">
+          <td style="padding:8px 10px;">💻 Claude Desktop / Claude Code</td>
+          <td style="padding:8px 10px;"><code>{{ mcp_url }}</code></td>
+          <td style="padding:8px 10px;">Streamable HTTP</td>
+        </tr>
+        <tr style="border-bottom:1px solid #f0f0f0;">
+          <td style="padding:8px 10px;">💬 ChatGPT</td>
+          <td style="padding:8px 10px;"><code>{{ sse_url }}</code></td>
+          <td style="padding:8px 10px;">SSE (Server-Sent Events)</td>
+        </tr>
+      </tbody>
+    </table>
+    <div style="margin-top:10px; padding:10px 12px; background:#fef3c7; border-left:3px solid #f59e0b; border-radius:4px; font-size:.86em; color:#78350f;">
+      ⚠ <strong>{{ _('cc_which_warning_title') }}</strong> {{ _('cc_which_warning_body') | safe }}
+    </div>
+  </div>
+
   <!-- Verbindungsprofil -->
   <div class="card" style="margin-bottom:20px;">
     <div class="section-title" style="margin-bottom:6px;">🪪 {{ _('cc_profile') }}</div>
@@ -211,6 +263,52 @@ function toggleSecret() {
     span.dataset.revealed = '1';
     if (lbl) lbl.textContent = "{{ _('cc_hide') }}";
   }
+}
+
+/* v7.7.5: Verbindungs-Selbsttest. */
+async function ccRunDiag(btn) {
+  const out = document.getElementById('cc-diag-result');
+  const orig = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '⏳ ' + ({{ _('cc_diag_running') | tojson }});
+  out.style.display = 'block';
+  out.innerHTML = '⏳ ' + ({{ _('cc_diag_running') | tojson }});
+  try {
+    const r = await fetch('/api/connect-diagnose', { credentials: 'same-origin' });
+    if (!r.ok) {
+      out.innerHTML = '<div style="color:#dc2626;">✗ HTTP ' + r.status + '</div>';
+      return;
+    }
+    const j = await r.json();
+    const verdictColor = { ok: '#16a34a', warn: '#f59e0b', error: '#dc2626' };
+    const verdictIcon  = { ok: '✓', warn: '⚠', error: '✗' };
+    const lines = [];
+    lines.push('<div style="font-weight:600; margin-bottom:8px; color:' + verdictColor[j.verdict] + ';">' +
+               verdictIcon[j.verdict] + ' ' +
+               ({ ok:    {{ _('cc_diag_ok_summary')    | tojson }},
+                  warn:  {{ _('cc_diag_warn_summary')  | tojson }},
+                  error: {{ _('cc_diag_error_summary') | tojson }} })[j.verdict] +
+               '</div>');
+    for (const c of (j.checks || [])) {
+      const col = verdictColor[c.status] || '#6b7280';
+      const ic  = verdictIcon[c.status]  || '·';
+      lines.push('<div style="padding:6px 10px; border-left:3px solid ' + col +
+                 '; background:#fff; margin-bottom:6px; font-size:.88em;">' +
+                 '<strong style="color:' + col + ';">' + ic + ' ' +
+                 escapeHtml(c.id) + '</strong> — ' + escapeHtml(c.msg) + '</div>');
+    }
+    out.innerHTML = lines.join('');
+  } catch (e) {
+    out.innerHTML = '<div style="color:#dc2626;">✗ ' + escapeHtml(String(e)) + '</div>';
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = orig;
+  }
+}
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({
+    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+  }[c]));
 }
 </script>
 {% endblock %}
