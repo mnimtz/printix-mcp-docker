@@ -321,6 +321,8 @@ def create_app(session_secret: str) -> FastAPI:
             ctx["feedback_new_count"] = counts.get("new", 0)
         except Exception:
             ctx["feedback_new_count"] = 0
+        # v7.7.8: App-Version in allen Templates verfügbar (Login-Seite etc.)
+        ctx["app_version"] = current_app_version()
         return ctx
 
     # ── Helpers ────────────────────────────────────────────────────────────────

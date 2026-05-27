@@ -86,6 +86,11 @@
         </div>
       </div>
 
+      <!-- Version -->
+      <div style="margin-top:10px; text-align:center; font-size:.7em; color:#b0b5bc;">
+        v{{ app_version | default('?') }}
+      </div>
+
       <!-- Sprach-Switcher auf Login-Seite -->
       <div style="margin-top:24px; text-align:center; font-size:.82em;">
         {% if supported_langs and lang_names %}

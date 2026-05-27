@@ -3,6 +3,14 @@
 This project follows [Semantic Versioning](https://semver.org/).
 
 
+## 7.7.8 — 2026-05-27 — Versionsnummer auf der Login-Seite
+
+### Added
+- App-Version wird jetzt klein unter dem Disclaimer auf der Login-Seite
+  angezeigt (z.B. „v7.7.8"). Erleichtert die Prüfung ob ein Update
+  erfolgreich war — ohne sich einloggen zu müssen.
+- `app_version` ist jetzt in allen Templates über `t_ctx()` verfügbar.
+
 ## 7.7.7 — 2026-05-27 — Global OAuth Token Cache
 
 ### Fixed
