@@ -13,6 +13,7 @@ API Base: https://api.printix.net/cloudprint
 
 import logging
 import time
+import threading
 import base64
 import requests
 from typing import Optional, Any
@@ -37,9 +38,41 @@ def _is_base64(s: str) -> bool:
 
 
 class _TokenManager:
-    """OAuth2 Client Credentials token cache for one credential pair."""
+    """OAuth2 Client Credentials token cache for one credential pair.
+
+    Uses a class-level cache so that tokens survive across PrintixClient
+    instances.  Without this, every call to client() in server.py would
+    create a fresh _TokenManager and immediately request a new OAuth
+    token — even if a perfectly valid token already exists for the same
+    credential pair.
+    """
 
     AUTH_URL = "https://auth.printix.net/oauth/token"
+
+    # ── Global token cache (shared across all PrintixClient instances) ──
+    _cache: dict[tuple[str, str], "_TokenManager"] = {}
+    _cache_lock = threading.Lock()
+
+    @classmethod
+    def get_or_create(
+        cls, client_id: str, client_secret: str, label: str = ""
+    ) -> "_TokenManager":
+        """Return a cached _TokenManager or create and cache a new one.
+
+        Key is (client_id, client_secret) — same credentials always
+        reuse the same token, no matter how many PrintixClient instances
+        are created.
+        """
+        key = (client_id, client_secret)
+        with cls._cache_lock:
+            tm = cls._cache.get(key)
+            if tm is not None:
+                if label and not tm.label:
+                    tm.label = label
+                return tm
+            tm = cls(client_id, client_secret, label)
+            cls._cache[key] = tm
+            return tm
 
     def __init__(self, client_id: str, client_secret: str, label: str = ""):
         self.client_id = client_id
@@ -112,7 +145,7 @@ class PrintixClient:
             effective_sec = csec or shared_client_secret
             if not effective_id or not effective_sec:
                 return None
-            return _TokenManager(effective_id, effective_sec, label)
+            return _TokenManager.get_or_create(effective_id, effective_sec, label)
 
         self._print_tm = _tm(print_client_id, print_client_secret, "Print API")
         self._card_tm = _tm(card_client_id, card_client_secret, "Card Management")

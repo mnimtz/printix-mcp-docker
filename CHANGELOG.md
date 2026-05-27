@@ -2,6 +2,19 @@
 
 This project follows [Semantic Versioning](https://semver.org/).
 
+
+## 7.7.7 — 2026-05-27 — Global OAuth Token Cache
+
+### Fixed
+- OAuth tokens are now cached globally per credential pair instead of per
+  PrintixClient instance. Previously, every MCP tool call and every Web-UI
+  request created a fresh PrintixClient, discarding the cached token and
+  immediately requesting a new one from `auth.printix.net`. With 3-4 API
+  areas and frequent dashboard refreshes this caused hundreds of redundant
+  token requests per hour — visible as constant DNS queries to
+  `auth.printix.net` even in idle state.
+- Added `_TokenManager.get_or_create()` class method with a thread-safe
+  `threading.Lock` so concurrent requests safely share tokens.
 ## 7.7.6 — 2026-05-12 — Connect-Center: Bearer-Token für generische MCP-Clients
 
 Make.com, n8n, Zapier, eigene Python/Node-Scripts — all diese
