@@ -3,6 +3,22 @@
 This project follows [Semantic Versioning](https://semver.org/).
 
 
+## 7.8.0 — 2026-06-12 — Tungsten Automation Corporate Branding
+
+### Changed
+- Complete UI rebranding to Tungsten Automation Print & Workplace Automation
+  design system (Brand Book March 2025).
+- Typography: Red Hat Display (Google Fonts) as primary font, fallback Arial.
+- Color palette: Navy #002854, Cyan #00A0FB, Green #00EB86, Gold CTA #FFC600.
+- Navigation: Blue Domain gradient (Navy Dark → Navy).
+- Primary buttons: Gold CTA (#FFC600) with Navy text.
+- CSS custom properties for all brand colors (--ta-navy, --ta-cyan, etc.).
+- Focus states, badges, alerts, sidebar and step indicators use brand colors.
+- Background: subtle cyan/green radial gradients on Light Domain base.
+- All hardcoded blue accents (#2563eb, #1d4ed8, #1e3a5f) replaced globally
+  across 44 template files.
+
+
 ## 7.7.8 — 2026-05-27 — Versionsnummer auf der Login-Seite
 
 ### Added

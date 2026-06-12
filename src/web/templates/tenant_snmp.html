@@ -26,7 +26,7 @@
             <tbody>
               {% for item in snmp_configs %}
               <tr>
-                <td><a href="/tenant/snmp/{{ item.get('snmp_id') }}" style="color:#1d4ed8;text-decoration:none;font-weight:600;">{{ item.get('name') or item.get('snmp_id') }}</a></td>
+                <td><a href="/tenant/snmp/{{ item.get('snmp_id') }}" style="color:#004766;text-decoration:none;font-weight:600;">{{ item.get('name') or item.get('snmp_id') }}</a></td>
                 <td>{{ item.get('version') or '–' }}</td>
                 <td>{{ item.get('securityLevel') or '–' }}</td>
                 <td>{{ _('common_yes') if item.get('tenantDefault') else _('common_no') }}</td>

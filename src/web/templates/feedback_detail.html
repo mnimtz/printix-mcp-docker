@@ -3,7 +3,7 @@
 {% block content %}
 <div class="container">
   <div class="card">
-    <p><a href="/feedback" style="color:#2563eb;">← {{ _('feedback_back') }}</a></p>
+    <p><a href="/feedback" style="color:#00A0FB;">← {{ _('feedback_back') }}</a></p>
 
     <h2 class="section-title">
       <code>{{ ticket.ticket_no }}</code> · {{ ticket.title }}
@@ -35,7 +35,7 @@
     {% endif %}
 
     {% if user.is_admin %}
-    <h3 style="font-size:1em;color:#2563eb;">⚙️ {{ _('feedback_admin_actions') }}</h3>
+    <h3 style="font-size:1em;color:#00A0FB;">⚙️ {{ _('feedback_admin_actions') }}</h3>
     <form method="post" action="/feedback/{{ ticket.id }}/update" style="margin-top:12px;">
       <div class="form-row">
         <label for="status">{{ _('feedback_col_status') }}</label>

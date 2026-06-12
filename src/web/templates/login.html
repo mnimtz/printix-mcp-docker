@@ -8,7 +8,7 @@
       <div style="width:96px; margin:0 auto 12px; color:#002854;">
         {% include "_brand_logo.svg" %}
       </div>
-      <h1 style="font-size:1.3em; color:#1e3a5f;">{{ _('brand_console_name') }}</h1>
+      <h1 style="font-size:1.3em; color:#002854;">{{ _('brand_console_name') }}</h1>
     </div>
 
     <div class="card">
@@ -60,7 +60,7 @@
 
       <div style="margin-top:20px; text-align:center; font-size:.85em; color:#6b7280;">
         {{ _('login_no_account') }}
-        <a href="/register" style="color:#2563eb;">{{ _('login_register_link') }}</a>
+        <a href="/register" style="color:#00A0FB;">{{ _('login_register_link') }}</a>
       </div>
 
       <!-- Rechtlicher Hinweis / Legal disclaimer -->
@@ -96,7 +96,7 @@
         {% if supported_langs and lang_names %}
           {% for code in supported_langs %}
             <a href="/lang/{{ code }}"
-               style="color:{% if code == lang %}#2563eb{% else %}#9ca3af{% endif %};
+               style="color:{% if code == lang %}#00A0FB{% else %}#9ca3af{% endif %};
                       text-decoration:none; margin:0 4px;
                       font-weight:{% if code == lang %}700{% else %}400{% endif %};">
               {{ lang_names[code] }}

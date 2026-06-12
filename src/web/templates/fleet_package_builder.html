@@ -20,13 +20,13 @@
   }
   .step-item:last-child { border-right: none; }
   .step-item.done { color: #16a34a; }
-  .step-item.active { background: #eff6ff; color: #2563eb; }
+  .step-item.active { background: #eff6ff; color: #00A0FB; }
   .step-bubble {
     width: 24px; height: 24px; border-radius: 50%; font-size: .78em;
     display: inline-flex; align-items: center; justify-content: center;
     background: #e5e7eb; color: #6b7280; font-weight: 700; flex-shrink: 0;
   }
-  .step-item.active .step-bubble { background: #2563eb; color: #fff; }
+  .step-item.active .step-bubble { background: #00A0FB; color: #fff; }
   .step-item.done  .step-bubble { background: #16a34a; color: #fff; }
 
   /* ── Step Panels ─────────────────────────────────────────────────────── */
@@ -41,9 +41,9 @@
     background: #fff;
   }
   .vendor-card:hover { border-color: #93c5fd; background: #eff6ff; }
-  .vendor-card.selected { border-color: #2563eb; background: #eff6ff; }
+  .vendor-card.selected { border-color: #00A0FB; background: #eff6ff; }
   .vendor-icon { font-size: 2.2em; margin-bottom: 8px; }
-  .vendor-name { font-weight: 700; font-size: 1em; color: #1e3a5f; }
+  .vendor-name { font-weight: 700; font-size: 1em; color: #002854; }
   .vendor-desc { font-size: .78em; color: #6b7280; margin-top: 4px; }
 
   /* ── Upload Area ─────────────────────────────────────────────────────── */
@@ -52,7 +52,7 @@
     text-align: center; cursor: pointer; transition: border-color .15s, background .15s;
     background: #fafafa;
   }
-  .upload-zone:hover, .upload-zone.dragover { border-color: #2563eb; background: #eff6ff; }
+  .upload-zone:hover, .upload-zone.dragover { border-color: #00A0FB; background: #eff6ff; }
   .upload-zone.has-file { border-color: #16a34a; background: #f0fdf4; }
   .upload-icon { font-size: 2.5em; margin-bottom: 10px; }
   .upload-filename { font-weight: 600; color: #16a34a; margin-top: 8px; font-size: .9em; }
@@ -73,7 +73,7 @@
     width: 100%; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 8px;
     font-size: .9em; box-sizing: border-box; transition: border-color .15s;
   }
-  .field-row input:focus { outline: none; border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,.12); }
+  .field-row input:focus { outline: none; border-color: #00A0FB; box-shadow: 0 0 0 3px rgba(37,99,235,.12); }
   .field-row input.prefilled { border-color: #86efac; background: #f0fdf4; }
   .field-help { font-size: .76em; color: #9ca3af; margin-top: 3px; }
 
@@ -101,20 +101,20 @@
   .chip.skip { background: #fef3c7; color: #92400e; }
   .install-notes { margin-top: 20px; text-align: left; }
   .install-note {
-    background: #eff6ff; border-left: 3px solid #2563eb;
+    background: #eff6ff; border-left: 3px solid #00A0FB;
     padding: 10px 14px; border-radius: 0 6px 6px 0; margin-bottom: 8px;
-    font-size: .85em; color: #1e3a5f;
+    font-size: .85em; color: #002854;
   }
 
   /* ── Status / Spinner ────────────────────────────────────────────────── */
   .status-bar {
     display: none; align-items: center; gap: 10px;
     background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px;
-    padding: 12px 16px; margin-bottom: 16px; font-size: .88em; color: #1e3a5f;
+    padding: 12px 16px; margin-bottom: 16px; font-size: .88em; color: #002854;
   }
   .status-bar.visible { display: flex; }
   .spinner {
-    width: 18px; height: 18px; border: 2px solid #bfdbfe; border-top-color: #2563eb;
+    width: 18px; height: 18px; border: 2px solid #bfdbfe; border-top-color: #00A0FB;
     border-radius: 50%; animation: spin .7s linear infinite; flex-shrink: 0;
   }
   .error-bar {
@@ -132,8 +132,8 @@
     font-size: .9em; font-weight: 600; cursor: pointer; transition: opacity .15s;
   }
   .btn-wizard:disabled { opacity: .45; cursor: not-allowed; }
-  .btn-primary { background: #2563eb; color: #fff; }
-  .btn-primary:hover:not(:disabled) { background: #1d4ed8; }
+  .btn-primary { background: #00A0FB; color: #fff; }
+  .btn-primary:hover:not(:disabled) { background: #004766; }
   .btn-secondary-w { background: #f1f5f9; color: #374151; border: 1px solid #d1d5db; }
   .btn-secondary-w:hover { background: #e2e8f0; }
   .btn-success { background: #16a34a; color: #fff; }

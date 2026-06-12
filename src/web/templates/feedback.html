@@ -14,7 +14,7 @@
 
     {# ─── Neues Ticket anlegen ────────────────────────────────── #}
     <details open style="margin-bottom:24px;">
-      <summary style="cursor:pointer;font-weight:700;color:#2563eb;font-size:1em;padding:8px 0;">
+      <summary style="cursor:pointer;font-weight:700;color:#00A0FB;font-size:1em;padding:8px 0;">
         ➕ {{ _('feedback_new') }}
       </summary>
       <form method="post" action="/feedback/new" style="margin-top:12px;">
@@ -47,7 +47,7 @@
     </details>
 
     {# ─── Liste der Tickets ───────────────────────────────────── #}
-    <h3 style="font-size:1em;font-weight:700;color:#2563eb;margin:24px 0 12px;">
+    <h3 style="font-size:1em;font-weight:700;color:#00A0FB;margin:24px 0 12px;">
       {% if user.is_admin %}
         📋 {{ _('feedback_all_tickets') }} ({{ tickets | length }})
       {% else %}

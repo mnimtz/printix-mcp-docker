@@ -8,8 +8,8 @@
     padding:10px 16px; cursor:pointer; border:none; background:transparent;
     font-weight:600; color:#6b7280; border-bottom:2px solid transparent;
   }
-  .gp-tab:hover { color:#1e3a5f; }
-  .gp-tab.active { color:#2563eb; border-bottom-color:#2563eb; }
+  .gp-tab:hover { color:#002854; }
+  .gp-tab.active { color:#00A0FB; border-bottom-color:#00A0FB; }
   .gp-panel { display:none; }
   .gp-panel.active { display:block; }
   .gp-form-grid {
@@ -27,7 +27,7 @@
   .guest-row-edit { display:none; background:#f9fafb; }
   .guest-row-edit.active { display:table-row; }
   .gp-breadcrumb { font-size:.88em; color:#6b7280; margin-bottom:12px; }
-  .gp-breadcrumb a { color:#2563eb; }
+  .gp-breadcrumb a { color:#00A0FB; }
 </style>
 {% endblock %}
 
@@ -46,7 +46,7 @@
     </div>
 
     <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; margin-bottom:8px;">
-      <h2 style="margin:0; font-size:1.3em; font-weight:700; color:#1e3a5f;">
+      <h2 style="margin:0; font-size:1.3em; font-weight:700; color:#002854;">
         📮 {{ mailbox.name or mailbox.upn }}
       </h2>
       <div>
@@ -216,7 +216,7 @@
 
       <div class="divider" style="margin:24px 0;"></div>
 
-      <div style="font-weight:700; font-size:1em; color:#1e3a5f; margin-bottom:8px;">
+      <div style="font-weight:700; font-size:1em; color:#002854; margin-bottom:8px;">
         ➕ Neuen Gast hinzufügen
       </div>
       <form method="post" action="/guestprint/mailboxes/{{ mailbox.id }}/guests">

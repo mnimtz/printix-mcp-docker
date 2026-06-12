@@ -4,9 +4,9 @@
 <style>
   .search-bar { display:flex; gap:8px; margin-bottom:16px; }
   .search-bar input { flex:1; padding:8px 12px; border:1px solid #d1d5db; border-radius:8px; font-size:.9em; }
-  .search-bar button { padding:8px 16px; background:#2563eb; color:#fff; border:none; border-radius:8px; cursor:pointer; font-size:.9em; font-weight:600; }
+  .search-bar button { padding:8px 16px; background:#00A0FB; color:#fff; border:none; border-radius:8px; cursor:pointer; font-size:.9em; font-weight:600; }
   .avatar {
-    width:32px; height:32px; border-radius:50%; background:#dbeafe; color:#1d4ed8;
+    width:32px; height:32px; border-radius:50%; background:#dbeafe; color:#004766;
     font-weight:700; font-size:.85em; display:inline-flex; align-items:center;
     justify-content:center; text-transform:uppercase; flex-shrink:0;
   }
@@ -38,8 +38,8 @@
     font-size:.82em; color:#374151; background:#fff;
     text-decoration:none; transition:.12s;
   }
-  .filter-chip:hover { border-color:#2563eb; color:#1d4ed8; }
-  .filter-chip.active { background:#2563eb; color:#fff; border-color:#2563eb; font-weight:700; }
+  .filter-chip:hover { border-color:#00A0FB; color:#004766; }
+  .filter-chip.active { background:#00A0FB; color:#fff; border-color:#00A0FB; font-weight:700; }
   .filter-chip .badge {
     background:rgba(255,255,255,.25); color:inherit;
     font-size:.74em; padding:0 6px; border-radius:8px; font-weight:700;
@@ -141,7 +141,7 @@
                 <td>
                   <div style="display:flex;align-items:center;gap:10px;">
                     <div class="avatar">{{ display[:1] }}</div>
-                    <span style="font-weight:600;color:#2563eb;text-decoration:underline;">{{ display }}</span>
+                    <span style="font-weight:600;color:#00A0FB;text-decoration:underline;">{{ display }}</span>
                     {% if card_match %}<span class="card-match" title="{{ _('tenant_card_match_tooltip') }}">🃏 {{ _('tenant_card_match_badge') }}</span>{% endif %}
                   </div>
                 </td>
@@ -171,9 +171,9 @@
           {% endif %}
           {% for p in range(total_pages) %}
             {% if p == page %}
-              <span style="display:inline-block;padding:6px 12px;font-size:.85em;font-weight:700;background:#2563eb;color:#fff;border-radius:6px;">{{ p + 1 }}</span>
+              <span style="display:inline-block;padding:6px 12px;font-size:.85em;font-weight:700;background:#00A0FB;color:#fff;border-radius:6px;">{{ p + 1 }}</span>
             {% elif (p - page)|abs <= 2 or p == 0 or p == total_pages - 1 %}
-              <a href="/tenant/users?page={{ p }}{% if search %}&search={{ search }}{% endif %}{% if role_param and role_param != 'all' %}&role={{ role_param }}{% endif %}" style="display:inline-block;padding:6px 12px;font-size:.85em;color:#2563eb;text-decoration:none;border:1px solid #d1d5db;border-radius:6px;">{{ p + 1 }}</a>
+              <a href="/tenant/users?page={{ p }}{% if search %}&search={{ search }}{% endif %}{% if role_param and role_param != 'all' %}&role={{ role_param }}{% endif %}" style="display:inline-block;padding:6px 12px;font-size:.85em;color:#00A0FB;text-decoration:none;border:1px solid #d1d5db;border-radius:6px;">{{ p + 1 }}</a>
             {% elif (p - page)|abs == 3 %}
               <span style="color:#9ca3af;font-size:.85em;">…</span>
             {% endif %}

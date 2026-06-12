@@ -36,7 +36,7 @@
             <tbody>
               {% for network in networks %}
               <tr>
-                <td><a href="/tenant/networks/{{ network.get('network_id') }}" style="color:#1d4ed8;text-decoration:none;font-weight:600;">{{ network.get('name') or network.get('network_id') }}</a></td>
+                <td><a href="/tenant/networks/{{ network.get('network_id') }}" style="color:#004766;text-decoration:none;font-weight:600;">{{ network.get('name') or network.get('network_id') }}</a></td>
                 <td>{{ _('common_yes') if network.get('homeOffice') else _('common_no') }}</td>
                 <td>{{ _('common_yes') if network.get('airPrint') else _('common_no') }}</td>
                 <td>{{ (network.get('gateways') or []) | length }}</td>

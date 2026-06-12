@@ -11,14 +11,14 @@
     padding:10px 14px; text-align:center;
   }
   .job-stat .num {
-    font-size:1.6em; font-weight:700; color:#1e3a5f; line-height:1;
+    font-size:1.6em; font-weight:700; color:#002854; line-height:1;
   }
   .job-stat .lbl {
     font-size:.72em; color:#64748b; text-transform:uppercase;
     letter-spacing:.04em; margin-top:4px;
   }
   .job-stat.forwarded .num { color:#16a34a; }
-  .job-stat.received .num  { color:#2563eb; }
+  .job-stat.received .num  { color:#00A0FB; }
   .job-stat.error .num     { color:#dc2626; }
 
   .cp-job {
@@ -32,7 +32,7 @@
   .cp-job:hover { border-color:#c7d2fe; box-shadow:0 2px 6px rgba(0,0,0,.04); }
   .cp-job.error { border-left:3px solid #dc2626; }
   .cp-job.forwarded { border-left:3px solid #16a34a; }
-  .cp-job.received { border-left:3px solid #2563eb; }
+  .cp-job.received { border-left:3px solid #00A0FB; }
   .cp-job.forwarding { border-left:3px solid #d97706; }
   .cp-icon {
     width:38px; height:38px; border-radius:8px;
@@ -42,7 +42,7 @@
   }
   .cp-main { min-width:0; }
   .cp-title {
-    font-weight:600; font-size:.95em; color:#1e3a5f;
+    font-weight:600; font-size:.95em; color:#002854;
     white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
   }
   .cp-meta {
@@ -58,7 +58,7 @@
     display:inline-block; padding:3px 10px; border-radius:999px;
     font-size:.75em; font-weight:700; white-space:nowrap;
   }
-  .cp-status-pill.received   { background:#dbeafe; color:#1d4ed8; }
+  .cp-status-pill.received   { background:#dbeafe; color:#004766; }
   .cp-status-pill.forwarding { background:#fef3c7; color:#92400e; }
   .cp-status-pill.forwarded  { background:#d1fae5; color:#065f46; }
   .cp-status-pill.error      { background:#fee2e2; color:#991b1b; }
@@ -256,7 +256,7 @@
               {% if st == 'Pending' %}
                 <span style="color:#d97706;">{{ _('emp_pending') }}</span>
               {% elif st == 'Processing' %}
-                <span style="color:#2563eb;">{{ _('emp_processing') }}</span>
+                <span style="color:#00A0FB;">{{ _('emp_processing') }}</span>
               {% elif st == 'Completed' %}
                 <span style="color:#16a34a;">{{ _('emp_completed') }}</span>
               {% else %}

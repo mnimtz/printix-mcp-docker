@@ -4,14 +4,14 @@
 <style>
   .search-bar { display:flex; gap:8px; margin-bottom:16px; }
   .search-bar input { flex:1; padding:8px 12px; border:1px solid #d1d5db; border-radius:8px; font-size:.9em; }
-  .search-bar button { padding:8px 16px; background:#2563eb; color:#fff; border:none; border-radius:8px; cursor:pointer; font-size:.9em; font-weight:600; }
+  .search-bar button { padding:8px 16px; background:#00A0FB; color:#fff; border:none; border-radius:8px; cursor:pointer; font-size:.9em; font-weight:600; }
   .status-dot { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:6px; }
   .dot-green { background:#16a34a; }
   .dot-orange { background:#f59e0b; }
   .dot-red { background:#ef4444; }
   .dot-gray { background:#9ca3af; }
   .queue-chip {
-    display:inline-block; background:#dbeafe; color:#1d4ed8;
+    display:inline-block; background:#dbeafe; color:#004766;
     font-size:.74em; padding:1px 7px; border-radius:10px; margin:1px 2px 1px 0;
   }
   .sign-badge {
@@ -63,7 +63,7 @@
               {% set status = p.get('status', '') | string | upper %}
               <tr>
                 <td>
-                  <a href="/tenant/printers/{{ p.get('printer_id') }}" style="font-weight:600;color:#1d4ed8;text-decoration:none;">{{ p.get('name', '–') }}</a>
+                  <a href="/tenant/printers/{{ p.get('printer_id') }}" style="font-weight:600;color:#004766;text-decoration:none;">{{ p.get('name', '–') }}</a>
                   {% if p.get('vendor') %}<br><span style="font-size:.8em;color:#9ca3af;">{{ p.get('vendor') }}</span>{% endif %}
                 </td>
                 <td>

@@ -7,18 +7,18 @@
     border:1px solid #cfe1ff; background:#f5f9ff; border-radius:8px;
     padding:16px 18px; margin-bottom:24px;
   }
-  .gp-setup-box h3 { margin:0 0 6px; font-size:1.05em; color:#1e3a5f; }
+  .gp-setup-box h3 { margin:0 0 6px; font-size:1.05em; color:#002854; }
   .gp-setup-box .desc { color:#4b5563; font-size:.9em; margin-bottom:12px; }
   .gp-code-box {
-    display:inline-block; background:white; border:2px dashed #2563eb;
+    display:inline-block; background:white; border:2px dashed #00A0FB;
     border-radius:6px; padding:10px 16px; font-family:monospace;
-    font-size:1.4em; font-weight:700; letter-spacing:4px; color:#1e3a5f;
+    font-size:1.4em; font-weight:700; letter-spacing:4px; color:#002854;
     margin:6px 0;
   }
   .gp-wizard-step { margin:10px 0; }
   .gp-spinner {
     display:inline-block; width:14px; height:14px; border:2px solid #d1d5db;
-    border-top-color:#2563eb; border-radius:50%; animation:gp-spin .8s linear infinite;
+    border-top-color:#00A0FB; border-radius:50%; animation:gp-spin .8s linear infinite;
     vertical-align:middle; margin-right:6px;
   }
   @keyframes gp-spin { to { transform:rotate(360deg); } }
@@ -36,7 +36,7 @@
     {% endif %}
 
     <div style="display:flex; align-items:center; gap:12px; margin-bottom:4px;">
-      <h2 style="margin:0; font-size:1.3em; font-weight:700; color:#1e3a5f;">
+      <h2 style="margin:0; font-size:1.3em; font-weight:700; color:#002854;">
         📮 Guest-Print Entra-App
       </h2>
       {% if is_configured %}
@@ -82,7 +82,7 @@
           <div style="font-size:.85em; color:#6b7280;">
             2&nbsp;→&nbsp;auf dieser Seite:
             <a id="gp-dc-link" href="https://microsoft.com/devicelogin" target="_blank"
-               style="color:#2563eb; font-weight:600;">
+               style="color:#00A0FB; font-weight:600;">
               <span id="gp-dc-link-text">https://microsoft.com/devicelogin</span> ↗
             </a>
           </div>
@@ -143,7 +143,7 @@
       <div style="flex:1; border-top:1px solid #e5e7eb;"></div>
     </div>
 
-    <div style="margin-bottom:20px; font-size:.88em; padding:10px 14px; background:#f3f4f6; border-left:3px solid #2563eb; border-radius:4px;">
+    <div style="margin-bottom:20px; font-size:.88em; padding:10px 14px; background:#f3f4f6; border-left:3px solid #00A0FB; border-radius:4px;">
       <strong>Hinweis:</strong> Diese App ist bewusst getrennt von der SSO-App
       (<code>/admin/entra-app</code>), damit du für Guest-Print eine
       Minimal-Scope-App registrieren kannst (nur Mail.ReadWrite, kein User.Read.All).

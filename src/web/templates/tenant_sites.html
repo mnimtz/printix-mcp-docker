@@ -33,7 +33,7 @@
             <tbody>
               {% for site in sites %}
               <tr>
-                <td><a href="/tenant/sites/{{ site.get('site_id') }}" style="color:#1d4ed8;text-decoration:none;font-weight:600;">{{ site.get('name') or site.get('site_id') }}</a></td>
+                <td><a href="/tenant/sites/{{ site.get('site_id') }}" style="color:#004766;text-decoration:none;font-weight:600;">{{ site.get('name') or site.get('site_id') }}</a></td>
                 <td>{{ site.get('path') or '–' }}</td>
                 <td>{{ site.get('network_count') }}</td>
                 <td>{{ site.get('admin_group_count') }}</td>

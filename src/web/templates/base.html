@@ -3,20 +3,38 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Red+Hat+Display:wght@300;400;500;700;900&display=swap" rel="stylesheet">
   <title>{% block title %}{{ _('brand_console_name') }}{% endblock %}</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
       --workspace-max-width: 1460px;
       --workspace-gutter: 16px;
+      /* Tungsten Automation — Print & Workplace Automation Brand Colors */
+      --ta-navy: #002854;
+      --ta-navy-dark: #00123B;
+      --ta-cyan: #00A0FB;
+      --ta-cyan-light: #9DDDF9;
+      --ta-cyan-dark: #004766;
+      --ta-green: #00EB86;
+      --ta-gold: #FFC600;
+      --ta-gold-hover: #e6b200;
+      --ta-gray-100: #FAFAFA;
+      --ta-gray-200: #F0F0F0;
+      --ta-gray-300: #E4E4E4;
+      --ta-gray-400: #D9DFE6;
+      --ta-gray-500: #8094AA;
+      --ta-black: #231F20;
     }
     body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      font-family: 'Red Hat Display', Arial, sans-serif;
       background:
-        radial-gradient(circle at top left, rgba(56, 189, 248, .10), transparent 24%),
-        radial-gradient(circle at right 20%, rgba(16, 185, 129, .08), transparent 22%),
-        linear-gradient(180deg, #f8fbff 0%, #eef4f8 100%);
-      color: #1a1a2e;
+        radial-gradient(circle at top left, rgba(0, 160, 251, .08), transparent 24%),
+        radial-gradient(circle at right 20%, rgba(0, 235, 134, .06), transparent 22%),
+        linear-gradient(180deg, var(--ta-gray-100) 0%, var(--ta-gray-200) 100%);
+      color: var(--ta-black);
       min-height: 100vh;
     }
     img, svg, video, canvas {
@@ -26,8 +44,8 @@
 
     /* ── Navigation ──────────────────────────────────────────────────────── */
     nav {
-      background: linear-gradient(90deg, #173a63 0%, #1d4f7a 100%); color: #fff;
-      min-height: 56px; box-shadow: 0 8px 24px rgba(15, 23, 42, .16);
+      background: linear-gradient(90deg, var(--ta-navy-dark) 0%, var(--ta-navy) 100%); color: #fff;
+      min-height: 56px; box-shadow: 0 8px 24px rgba(0, 18, 59, .20);
       position: sticky; top: 0; z-index: 100;
       backdrop-filter: blur(10px);
     }
@@ -92,7 +110,7 @@
     /* Mobile drawer — rendered below sticky nav */
     .mobile-menu {
       display: none; position: fixed; top: 56px; left: 0; right: 0;
-      background: #1a3454; box-shadow: 0 6px 24px rgba(0,0,0,.35);
+      background: var(--ta-navy); box-shadow: 0 6px 24px rgba(0,0,0,.35);
       z-index: 99; padding-bottom: 12px;
       max-height: calc(100vh - 56px); overflow-y: auto;
     }
@@ -120,7 +138,7 @@
       border-bottom: none !important; transition: background .15s;
     }
     .mobile-lang-grid a.active {
-      background: #2563eb; color: #fff !important; font-weight: 700;
+      background: var(--ta-cyan); color: #fff !important; font-weight: 700;
     }
     .mobile-lang-grid a:hover { background: rgba(255,255,255,.2); }
 
@@ -147,8 +165,8 @@
       display: block; padding: 8px 14px; color: #374151 !important;
       font-size: .88em; text-decoration: none; transition: background .1s;
     }
-    .lang-dropdown a:hover { background: #f1f5f9; color: #1e3a5f !important; }
-    .lang-dropdown a.active { font-weight: 700; color: #2563eb !important; }
+    .lang-dropdown a:hover { background: #f1f5f9; color: var(--ta-navy) !important; }
+    .lang-dropdown a.active { font-weight: 700; color: var(--ta-cyan) !important; }
 
     /* ── Layout ──────────────────────────────────────────────────────────── */
     .container {
@@ -177,7 +195,7 @@
       background: #fff;
     }
     input:focus, select:focus, textarea:focus {
-      outline: none; border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,.15);
+      outline: none; border-color: var(--ta-cyan); box-shadow: 0 0 0 3px rgba(0,160,251,.15);
     }
     small.hint { display: block; margin-top: 4px; color: #6b7280; font-size: .82em; }
 
@@ -190,8 +208,8 @@
       text-decoration: none; white-space: nowrap; gap: 6px;
       -webkit-tap-highlight-color: transparent;
     }
-    .btn-primary { background: #2563eb; color: #fff; }
-    .btn-primary:hover { background: #1d4ed8; box-shadow: 0 2px 8px rgba(37,99,235,.3); }
+    .btn-primary { background: var(--ta-gold); color: var(--ta-navy); font-weight: 700; }
+    .btn-primary:hover { background: var(--ta-gold-hover); box-shadow: 0 2px 8px rgba(255,198,0,.35); }
     .btn-secondary { background: #f1f5f9; color: #374151; }
     .btn-secondary:hover { background: #e2e8f0; }
     .btn-danger { background: #ef4444; color: #fff; }
@@ -204,7 +222,7 @@
     .alert { padding: 12px 16px; border-radius: 8px; margin-bottom: 20px; font-size: .9em; }
     .alert-error   { background: #fee2e2; border: 1px solid #fca5a5; color: #991b1b; }
     .alert-success { background: #dcfce7; border: 1px solid #86efac; color: #166534; }
-    .alert-info    { background: #dbeafe; border: 1px solid #93c5fd; color: #1e40af; }
+    .alert-info    { background: rgba(0,160,251,.10); border: 1px solid var(--ta-cyan-light); color: var(--ta-navy); }
     .alert-warning { background: #fef9c3; border: 1px solid #fde047; color: #854d0e; }
 
     /* ── Tables ──────────────────────────────────────────────────────────── */
@@ -237,7 +255,7 @@
     .badge-green  { background: #dcfce7; color: #166534; }
     .badge-yellow { background: #fef9c3; color: #854d0e; }
     .badge-red    { background: #fee2e2; color: #991b1b; }
-    .badge-blue   { background: #dbeafe; color: #1e40af; }
+    .badge-blue   { background: rgba(0,160,251,.12); color: var(--ta-navy); }
 
     /* ── Code Block ──────────────────────────────────────────────────────── */
     .code-block {
@@ -264,7 +282,7 @@
       display: flex; align-items: center; justify-content: center;
       font-weight: 700; font-size: .85em;
     }
-    .step-circle.active  { background: #2563eb; color: #fff; }
+    .step-circle.active  { background: var(--ta-cyan); color: #fff; }
     .step-circle.done    { background: #16a34a; color: #fff; }
     .step-circle.pending { background: #e5e7eb; color: #9ca3af; }
     .step-label { margin-left: 8px; font-size: .82em; font-weight: 500; color: #6b7280; white-space: nowrap; }
@@ -272,7 +290,7 @@
     .step-connector { flex: 1; height: 2px; background: #e5e7eb; margin: 0 8px; min-width: 8px; }
 
     /* ── Section header ──────────────────────────────────────────────────── */
-    .section-title { font-size: 1.05em; font-weight: 700; color: #1e3a5f; margin-bottom: 6px; }
+    .section-title { font-size: 1.05em; font-weight: 700; color: var(--ta-navy); margin-bottom: 6px; }
     .section-sub   { color: #6b7280; font-size: .88em; margin-bottom: 20px; }
 
     /* ── Checkbox row ────────────────────────────────────────────────────── */
@@ -307,8 +325,8 @@
       font-weight: 800;
       letter-spacing: .08em;
       text-transform: uppercase;
-      color: #1d4ed8;
-      background: #dbeafe;
+      color: var(--ta-cyan);
+      background: rgba(0,160,251,.12);
       border-radius: 999px;
       padding: 6px 10px;
     }
@@ -384,8 +402,8 @@
       height: 18px;
       padding: 0 6px;
       border-radius: 999px;
-      background: #eff6ff;
-      color: #2563eb;
+      background: rgba(0,160,251,.08);
+      color: var(--ta-cyan);
       font-size: .68em;
       font-weight: 800;
       flex-shrink: 0;
@@ -399,10 +417,10 @@
       transform: translateX(2px);
     }
     .tenant-sidebar-link.active {
-      background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
-      border-color: #2563eb;
+      background: linear-gradient(135deg, var(--ta-navy) 0%, var(--ta-navy-dark) 100%);
+      border-color: var(--ta-navy);
       color: #fff;
-      box-shadow: 0 12px 24px rgba(37, 99, 235, .18);
+      box-shadow: 0 12px 24px rgba(0, 40, 84, .22);
     }
     .tenant-sidebar-icon {
       width: 30px;
@@ -411,7 +429,7 @@
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      background: #eff6ff;
+      background: rgba(0,160,251,.08);
       flex-shrink: 0;
       font-size: .92em;
     }

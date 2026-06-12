@@ -50,7 +50,7 @@
       {{ entries|length }} {{ _('logs_entries') }}
       · {{ _('logs_filter_active') }}: <strong>{{ min_level }}+</strong>
       {% if category %}· <strong>{{ category }}</strong>{% endif %}
-      <span id="refresh-indicator" style="display:none;margin-left:12px;color:#2563eb;">
+      <span id="refresh-indicator" style="display:none;margin-left:12px;color:#00A0FB;">
         ⟳ {{ _('logs_auto_refresh') }}…
       </span>
     </div>
@@ -77,7 +77,7 @@
                 display:inline-block;padding:1px 7px;border-radius:10px;font-size:.78em;font-weight:700;
                 {% if e.level == 'ERROR' or e.level == 'CRITICAL' %}background:#fee2e2;color:#b91c1c;
                 {% elif e.level == 'WARNING' %}background:#fef3c7;color:#92400e;
-                {% elif e.level == 'INFO' %}background:#dbeafe;color:#1d4ed8;
+                {% elif e.level == 'INFO' %}background:#dbeafe;color:#004766;
                 {% else %}background:#f3f4f6;color:#6b7280;{% endif %}
               ">{{ e.level }}</span>
             </td>
@@ -120,7 +120,7 @@ function toggleAutoRefresh() {
     ind.style.display = 'none';
   } else {
     _refreshTimer = setInterval(() => { location.reload(); }, 10000);
-    btn.style.background = '#2563eb';
+    btn.style.background = '#00A0FB';
     btn.style.color = '#fff';
     ind.style.display = 'inline';
   }

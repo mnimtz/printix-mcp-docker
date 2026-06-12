@@ -85,7 +85,7 @@
       </div>
 
       {% if target_queue_name %}
-      <div style="margin-top:14px;padding:10px 14px;background:#eff6ff;border-left:3px solid #2563eb;border-radius:6px;font-size:.88em;color:#1e40af;">
+      <div style="margin-top:14px;padding:10px 14px;background:#eff6ff;border-left:3px solid #00A0FB;border-radius:6px;font-size:.88em;color:#1e40af;">
         📮 {{ _('emp_upload_target') }}: <strong>{{ target_queue_name }}</strong>
       </div>
       {% endif %}
@@ -125,7 +125,7 @@
     dropZone.addEventListener(ev, function(e){
       e.preventDefault(); e.stopPropagation();
       dropZone.style.background = '#eff6ff';
-      dropZone.style.borderColor = '#2563eb';
+      dropZone.style.borderColor = '#00A0FB';
     });
   });
   ['dragleave','drop'].forEach(function(ev){
