@@ -463,22 +463,20 @@
             <div class="feature-sub">{{ _('dash_tile_builder_sub') }}</div>
           </a>
           {# v7.5.1: Pro-Lock-Badge auf Tiles wenn Feature nicht aktiviert. #}
-          <a class="feature-card{% if not pro_capture_enabled %} feature-card-locked{% endif %}"
+          {% if pro_capture_enabled %}<a class="feature-card"
              data-tone="orange" href="/capture"
-             {% if not pro_capture_enabled %}title="{{ _('lic_locked_badge') }}"{% endif %}>
-            {% if not pro_capture_enabled %}<span class="feature-lock" aria-hidden="true">🔒</span>{% endif %}
+             >
             <div class="feature-icon">📥</div>
             <div class="feature-title">{{ _('dash_tile_capture') }}</div>
             <div class="feature-sub">{{ _('dash_tile_capture_sub') }}</div>
-          </a>
-          <a class="feature-card{% if not pro_print_job_mgmt_enabled %} feature-card-locked{% endif %}"
+          </a>{% endif %}
+          {% if pro_print_job_mgmt_enabled %}<a class="feature-card"
              data-tone="emerald" href="/my"
-             {% if not pro_print_job_mgmt_enabled %}title="{{ _('lic_locked_badge') }}"{% endif %}>
-            {% if not pro_print_job_mgmt_enabled %}<span class="feature-lock" aria-hidden="true">🔒</span>{% endif %}
+             >
             <div class="feature-icon">🧑‍💼</div>
             <div class="feature-title">{{ _('dash_tile_delegate_print') }}</div>
             <div class="feature-sub">{{ _('dash_tile_delegate_print_sub') }}</div>
-          </a>
+          </a>{% endif %}
           <a class="feature-card" data-tone="violet" href="/logs">
             <div class="feature-icon">📋</div>
             <div class="feature-title">{{ _('dash_tile_logs') }}</div>

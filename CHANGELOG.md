@@ -1,3 +1,11 @@
+## 7.8.1 — 2026-06-12 — Hide locked Pro-Features from navigation
+
+### Changed
+- Locked Pro-Features (Capture, Guest Print, My Portal) are now completely
+  hidden from navigation and dashboard instead of showing with 🔒 icon.
+- Users only see features that are actually activated via license code.
+- Admin license page still shows lock status for activation management.
+
 # Changelog
 
 This project follows [Semantic Versioning](https://semver.org/).
