@@ -323,6 +323,70 @@ def create_app(session_secret: str) -> FastAPI:
             ctx["feedback_new_count"] = 0
         # v7.7.8: App-Version in allen Templates verfügbar (Login-Seite etc.)
         ctx["app_version"] = current_app_version()
+        # v7.9.0: Sidebar — active_page aus URL-Pfad ableiten
+        _path = str(request.url.path).rstrip("/") or "/"
+        _page_map = {
+            "/dashboard": "dashboard",
+            "/tenant": "tenant_overview",
+            "/tenant/users": "tenant_users",
+            "/tenant/printers": "tenant_printers",
+            "/tenant/queues": "tenant_queues",
+            "/tenant/workstations": "tenant_workstations",
+            "/tenant/sites": "tenant_sites",
+            "/tenant/networks": "tenant_networks",
+            "/tenant/snmp": "tenant_snmp",
+            "/tenant/demo": "tenant_demo",
+            "/cards": "cards",
+            "/fleet": "fleet",
+            "/fleet/package-builder": "fleet_packages",
+            "/reports": "reports",
+            "/admin/mcp-reports-cookbook": "reports_cookbook",
+            "/reports/sustainability": "sustainability",
+            "/logs": "logs",
+            "/admin/audit": "audit",
+            "/my": "my_portal",
+            "/capture": "capture",
+            "/guestprint": "guestprint",
+            "/admin": "admin_dashboard",
+            "/admin/users": "admin_users",
+            "/admin/users/invite": "admin_invite",
+            "/admin/users/bulk-import": "admin_bulk",
+            "/admin/users/import-printix": "admin_import_printix",
+            "/admin/users/create": "admin_create_user",
+            "/admin/ssl": "admin_ssl",
+            "/admin/ssl/diagnose": "admin_ssl_diagnose",
+            "/admin/tls": "admin_tls",
+            "/admin/auto-tls": "admin_auto_tls",
+            "/admin/tunnel": "admin_tunnel",
+            "/admin/settings": "admin_settings",
+            "/admin/mcp-permissions": "admin_rbac",
+            "/settings": "settings",
+            "/settings/password": "password",
+            "/my/connect": "connect",
+            "/feedback": "feedback",
+            "/help": "help",
+        }
+        _active = _page_map.get(_path, "")
+        if not _active:
+            # Prefix-Matching fuer Detail-Seiten mit dynamischen IDs
+            for _prefix, _val in [
+                ("/tenant/users/", "tenant_users"),
+                ("/tenant/printers/", "tenant_printers"),
+                ("/tenant/queues/", "tenant_queues"),
+                ("/tenant/sites/", "tenant_sites"),
+                ("/tenant/networks/", "tenant_networks"),
+                ("/tenant/snmp/", "tenant_snmp"),
+                ("/admin/users/", "admin_users"),
+                ("/my/", "my_portal"),
+                ("/capture/", "capture"),
+                ("/guestprint/", "guestprint"),
+                ("/reports/", "reports"),
+                ("/feedback/", "feedback"),
+            ]:
+                if _path.startswith(_prefix):
+                    _active = _val
+                    break
+        ctx["active_page"] = _active
         return ctx
 
     # ── Helpers ────────────────────────────────────────────────────────────────
@@ -353,7 +417,7 @@ def create_app(session_secret: str) -> FastAPI:
         if not user:
             return "/login"
         if user.get("is_admin"):
-            return "/admin"
+            return "/dashboard"  # v7.9.0: Admin landet auf Dashboard statt /admin
         if user.get("role_type") == "employee":
             return "/my"
         if user.get("status") == "pending":

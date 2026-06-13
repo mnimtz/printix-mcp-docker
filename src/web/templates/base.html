@@ -168,6 +168,130 @@
     .lang-dropdown a:hover { background: #f1f5f9; color: var(--ta-navy) !important; }
     .lang-dropdown a.active { font-weight: 700; color: var(--ta-cyan) !important; }
 
+
+    /* ── Sidebar Navigation (v7.9.0) ─────────────────────────────────── */
+    .sidebar {
+      position: fixed; top: 56px; left: 0; bottom: 0;
+      width: 260px; background: #fff;
+      border-right: 1px solid var(--ta-gray-300);
+      overflow-y: auto; overflow-x: hidden;
+      z-index: 90; padding: 10px 0 80px;
+      transition: transform .3s cubic-bezier(.4,0,.2,1);
+      scrollbar-width: thin;
+      scrollbar-color: var(--ta-gray-300) transparent;
+    }
+    .sidebar::-webkit-scrollbar { width: 5px; }
+    .sidebar::-webkit-scrollbar-thumb { background: var(--ta-gray-300); border-radius: 3px; }
+
+    .sidebar-section { padding: 4px 10px; }
+
+    /* Dashboard top link */
+    .sidebar-top-link {
+      display: flex; align-items: center; gap: 10px;
+      padding: 10px 16px; margin: 0 10px 4px;
+      border-radius: 10px; text-decoration: none;
+      color: var(--ta-black); font-weight: 600; font-size: .9em;
+      transition: all .15s;
+    }
+    .sidebar-top-link:hover { background: var(--ta-gray-200); }
+    .sidebar-top-link.active {
+      background: linear-gradient(135deg, var(--ta-navy) 0%, var(--ta-navy-dark) 100%);
+      color: #fff; box-shadow: 0 4px 12px rgba(0,40,84,.18);
+    }
+    .sidebar-top-link .sb-icon {
+      width: 28px; height: 28px; border-radius: 8px;
+      display: inline-flex; align-items: center; justify-content: center;
+      background: rgba(0,160,251,.08); font-size: .85em; flex-shrink: 0;
+    }
+    .sidebar-top-link.active .sb-icon { background: rgba(255,255,255,.18); }
+
+    /* Category header (collapsible toggle) */
+    .sb-cat-toggle {
+      display: flex; align-items: center; gap: 8px; width: 100%;
+      padding: 8px 16px; margin: 2px 10px; width: calc(100% - 20px);
+      border: none; background: none; cursor: pointer;
+      font-family: inherit; font-size: .78em; font-weight: 700;
+      color: var(--ta-gray-500); text-transform: uppercase;
+      letter-spacing: .06em; border-radius: 8px;
+      transition: color .15s, background .15s;
+    }
+    .sb-cat-toggle:hover { color: var(--ta-navy); background: var(--ta-gray-100); }
+    .sb-cat-chevron {
+      margin-left: auto; font-size: .7em;
+      transition: transform .25s; display: inline-block;
+    }
+    .sb-cat-toggle.open .sb-cat-chevron { transform: rotate(90deg); }
+
+    /* Category items container */
+    .sb-cat-items {
+      max-height: 0; overflow: hidden;
+      transition: max-height .3s cubic-bezier(.4,0,.2,1);
+    }
+    .sb-cat-items.open { max-height: 800px; }
+
+    /* Sub-link */
+    .sb-sublink {
+      display: flex; align-items: center; gap: 10px;
+      padding: 7px 16px 7px 26px; margin: 1px 10px;
+      border-radius: 8px; text-decoration: none;
+      color: #475569; font-size: .87em; font-weight: 500;
+      transition: all .15s; white-space: nowrap;
+      overflow: hidden; text-overflow: ellipsis;
+    }
+    .sb-sublink:hover { background: var(--ta-gray-100); color: var(--ta-navy); }
+    .sb-sublink.active {
+      background: rgba(0,160,251,.08); color: var(--ta-navy);
+      font-weight: 700;
+    }
+    .sb-sublink .sb-dot {
+      width: 5px; height: 5px; border-radius: 50%;
+      background: var(--ta-gray-400); flex-shrink: 0;
+    }
+    .sb-sublink.active .sb-dot { background: var(--ta-cyan); }
+
+    /* Sub-group label inside Administration */
+    .sb-subgroup-label {
+      font-size: .74em; font-weight: 700; color: var(--ta-gray-500);
+      padding: 10px 16px 3px 32px; text-transform: uppercase;
+      letter-spacing: .05em;
+    }
+
+    /* Sidebar divider */
+    .sb-divider { height: 1px; background: var(--ta-gray-300); margin: 8px 16px; }
+
+    /* Bottom section (profile, logout etc) */
+    .sidebar-bottom {
+      padding: 4px 0; margin-top: 4px;
+      border-top: 1px solid var(--ta-gray-200);
+    }
+    .sb-bottom-link {
+      display: flex; align-items: center; gap: 10px;
+      padding: 8px 16px; margin: 1px 10px;
+      border-radius: 8px; text-decoration: none;
+      color: #475569; font-size: .85em; font-weight: 500;
+      transition: all .15s;
+    }
+    .sb-bottom-link:hover { background: var(--ta-gray-100); color: var(--ta-navy); }
+    .sb-bottom-link.active { background: rgba(0,160,251,.08); color: var(--ta-navy); font-weight: 700; }
+    .sb-bottom-link .sb-icon {
+      width: 22px; text-align: center; flex-shrink: 0; font-size: .85em;
+    }
+
+    /* Main area offset for sidebar */
+    .main-area {
+      margin-left: 260px;
+      min-height: calc(100vh - 56px);
+      transition: margin-left .3s cubic-bezier(.4,0,.2,1);
+    }
+
+    /* Sidebar overlay for mobile */
+    .sidebar-overlay {
+      display: none; position: fixed; inset: 0; top: 56px;
+      background: rgba(0,0,0,.4); z-index: 89;
+      opacity: 0; transition: opacity .3s;
+    }
+    .sidebar-overlay.visible { display: block; opacity: 1; }
+
     /* ── Layout ──────────────────────────────────────────────────────────── */
     .container {
       width: min(100%, var(--workspace-max-width));
@@ -450,6 +574,11 @@
 
     /* ── Responsive ──────────────────────────────────────────────────────── */
     @media (max-width: 768px) {
+
+      /* Sidebar → off-screen on mobile */
+      .sidebar { transform: translateX(-100%); }
+      .sidebar.open { transform: translateX(0); }
+      .main-area { margin-left: 0 !important; }
       /* Show hamburger, hide desktop links & lang switcher */
       .hamburger         { display: flex; }
       .nav-links         { display: none; }
@@ -626,33 +755,9 @@
       </a>
 
       <div class="nav-right">
-        <!-- Desktop links -->
+        <!-- Desktop links (v7.9.0: nur Login/Register wenn nicht eingeloggt) -->
         <div class="nav-links">
-          {% if user %}
-            {% if user.role_type == 'employee' %}
-              {# v6.4.2: Employees sehen nur ihren eigenen Self-Service-Bereich #}
-              {% if pro_print_job_mgmt_enabled %}<a href="/my">{{ _('nav_my_portal') }}</a>{% endif %}
-              <a href="/my/connect">🔌 {{ _('cc_nav_label') }}</a>
-              <a href="/logout">{{ _('nav_logout') }}</a>
-            {% else %}
-              {# v7.2.50: Top-Level "Einstellungen" entfernt — als
-                 "Tenant-Einstellungen"-Kachel unter Administration. #}
-              {% if user.is_admin %}<a href="/admin">{{ _('nav_admin') }}</a>{% endif %}
-              <a href="/dashboard">{{ _('nav_dashboard') }}</a>
-              <a href="/tenant">{{ _('nav_tenant') }}</a>
-              {# v7.2.50: Reports vor Printjob-Management; "Karten & Codes"
-                 als Tab in /tenant umgezogen. #}
-              <a href="/reports">{{ _('nav_reports') }}</a>
-              {% if pro_print_job_mgmt_enabled %}<a href="/my">{{ _('nav_my_portal') }}</a>{% endif %}
-              {% if pro_capture_enabled %}<a href="/capture">{{ _('nav_capture') }}</a>{% endif %}
-              {% if user.is_admin %}{% if pro_guestprint_enabled %}<a href="/guestprint">{{ _('nav_guestprint') }}</a>{% endif %}{% endif %}
-              <a href="/logs">{{ _('nav_logs') }}</a>
-              <a href="/my/connect">🔌 {{ _('cc_nav_label') }}</a>
-              {# v7.0.0: Roadmap-Nav-Link ausgeblendet. Routen /roadmap bleiben
-                 für Bestandsdaten via direkt-URL erreichbar. #}
-              <a href="/logout">{{ _('nav_logout') }}</a>
-            {% endif %}
-          {% else %}
+          {% if not user %}
             <a href="/login">{{ _('nav_login') }}</a>
             <a href="/register">{{ _('nav_register') }}</a>
           {% endif %}
@@ -694,38 +799,136 @@
     </div>
   </nav>
 
-  <!-- Mobile drawer -->
-  <div class="mobile-menu" id="mobileMenu" aria-hidden="true">
-    {% if user %}
-      {% if user.role_type == 'employee' %}
-        {# v6.4.2: Employees sehen nur ihren eigenen Self-Service-Bereich #}
-        {% if pro_print_job_mgmt_enabled %}<a href="/my" onclick="closeMobileMenu()">🧑‍💼 {{ _('nav_my_portal') }}</a>{% endif %}
-        <a href="/my/connect" onclick="closeMobileMenu()">🔌 {{ _('cc_nav_label') }}</a>
-        <a href="/logout"    onclick="closeMobileMenu()">🚪 {{ _('nav_logout') }}</a>
-      {% else %}
-        {# v7.2.50: Top-Level "Einstellungen" entfernt (jetzt unter Administration). #}
-        {% if user.is_admin %}
-          <a href="/admin" onclick="closeMobileMenu()">⚙️ {{ _('nav_admin') }}</a>
-        {% endif %}
-        <a href="/dashboard" onclick="closeMobileMenu()">🏠 {{ _('nav_dashboard') }}</a>
-        <a href="/tenant" onclick="closeMobileMenu()">🖨️ {{ _('nav_tenant') }}</a>
-        {# v7.2.50: Reports vor Printjob; Cards als Tenant-Tab umgezogen. #}
-        <a href="/reports"   onclick="closeMobileMenu()">📊 {{ _('nav_reports') }}</a>
-        <a href="/my"        onclick="closeMobileMenu()">📄 {{ _('nav_my_portal') }}</a>
-        {% if pro_capture_enabled %}<a href="/capture" onclick="closeMobileMenu()">📥 {{ _('nav_capture') }}</a>{% endif %}
-        {% if user.is_admin %}{% if pro_guestprint_enabled %}<a href="/guestprint" onclick="closeMobileMenu()">📮 {{ _('nav_guestprint') }}</a>{% endif %}{% endif %}
-        <a href="/logs"      onclick="closeMobileMenu()">📋 {{ _('nav_logs') }}</a>
-        <a href="/my/connect" onclick="closeMobileMenu()">🔌 {{ _('cc_nav_label') }}</a>
-        {# v7.0.0: Roadmap-Nav-Link ausgeblendet (Mobile). #}
-        <a href="/logout"    onclick="closeMobileMenu()">🚪 {{ _('nav_logout') }}</a>
-      {% endif %}
-    {% else %}
-      <a href="/login"    onclick="closeMobileMenu()">🔑 {{ _('nav_login') }}</a>
-      <a href="/register" onclick="closeMobileMenu()">📝 {{ _('nav_register') }}</a>
+  <!-- Sidebar Navigation (v7.9.0) -->
+  {% if user %}
+  <div class="sidebar-overlay" id="sidebarOverlay" onclick="closeSidebar()"></div>
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-section">
+      {# Dashboard — immer sichtbar #}
+      <a href="/dashboard" class="sidebar-top-link {% if active_page == 'dashboard' %}active{% endif %}">
+        <span class="sb-icon">🏠</span> {{ _('nav_dashboard') }}
+      </a>
+    </div>
+
+    {% if user.role_type != 'employee' %}
+    {# ── Printix Management ─────────────────────────────────────────── #}
+    <button class="sb-cat-toggle open" onclick="toggleSbCat(this)">
+      <span>🖨️</span> {{ _('nav_cat_printix_mgmt') }}
+      <span class="sb-cat-chevron">▸</span>
+    </button>
+    <div class="sb-cat-items open">
+      <a href="/tenant"             class="sb-sublink {% if active_page == 'tenant_overview' %}active{% endif %}"><span class="sb-dot"></span>{{ _('nav_overview') }}</a>
+      <a href="/tenant/users"       class="sb-sublink {% if active_page == 'tenant_users' %}active{% endif %}"><span class="sb-dot"></span>{{ _('nav_users') }}</a>
+      <a href="/tenant/printers"    class="sb-sublink {% if active_page == 'tenant_printers' %}active{% endif %}"><span class="sb-dot"></span>{{ _('nav_printers') }}</a>
+      <a href="/tenant/queues"      class="sb-sublink {% if active_page == 'tenant_queues' %}active{% endif %}"><span class="sb-dot"></span>{{ _('nav_queues') }}</a>
+      <a href="/tenant/workstations" class="sb-sublink {% if active_page == 'tenant_workstations' %}active{% endif %}"><span class="sb-dot"></span>{{ _('nav_workstations') }}</a>
+      <a href="/tenant/sites"       class="sb-sublink {% if active_page == 'tenant_sites' %}active{% endif %}"><span class="sb-dot"></span>{{ _('nav_sites') }}</a>
+      <a href="/tenant/networks"    class="sb-sublink {% if active_page == 'tenant_networks' %}active{% endif %}"><span class="sb-dot"></span>{{ _('nav_networks') }}</a>
+      <a href="/tenant/snmp"        class="sb-sublink {% if active_page == 'tenant_snmp' %}active{% endif %}"><span class="sb-dot"></span>{{ _('nav_snmp') }}</a>
+      <a href="/tenant/demo"        class="sb-sublink {% if active_page == 'tenant_demo' %}active{% endif %}"><span class="sb-dot"></span>{{ _('nav_demo') }}</a>
+    </div>
+
+    {# ── Karten & Codes ─────────────────────────────────────────────── #}
+    <button class="sb-cat-toggle" onclick="toggleSbCat(this)">
+      <span>💳</span> {{ _('nav_cat_cards') }}
+      <span class="sb-cat-chevron">▸</span>
+    </button>
+    <div class="sb-cat-items">
+      <a href="/cards" class="sb-sublink {% if active_page == 'cards' %}active{% endif %}"><span class="sb-dot"></span>{{ _('nav_cards_mapping') }}</a>
+    </div>
+
+    {# ── Fleet Management ────────────────────────────────────────────── #}
+    <button class="sb-cat-toggle" onclick="toggleSbCat(this)">
+      <span>📦</span> {{ _('nav_cat_fleet') }}
+      <span class="sb-cat-chevron">▸</span>
+    </button>
+    <div class="sb-cat-items">
+      <a href="/fleet"                 class="sb-sublink {% if active_page == 'fleet' %}active{% endif %}"><span class="sb-dot"></span>{{ _('nav_fleet') }}</a>
+      <a href="/fleet/package-builder" class="sb-sublink {% if active_page == 'fleet_packages' %}active{% endif %}"><span class="sb-dot"></span>Package Builder</a>
+    </div>
+
+    {# ── Berichte & Logs ─────────────────────────────────────────────── #}
+    <button class="sb-cat-toggle" onclick="toggleSbCat(this)">
+      <span>📊</span> {{ _('nav_cat_reports') }}
+      <span class="sb-cat-chevron">▸</span>
+    </button>
+    <div class="sb-cat-items">
+      <a href="/reports"                class="sb-sublink {% if active_page == 'reports' %}active{% endif %}"><span class="sb-dot"></span>{{ _('nav_reports') }}</a>
+      {% if user.is_admin %}<a href="/admin/mcp-reports-cookbook" class="sb-sublink {% if active_page == 'reports_cookbook' %}active{% endif %}"><span class="sb-dot"></span>{{ _('nav_report_templates') }}</a>{% endif %}
+      <a href="/reports/sustainability" class="sb-sublink {% if active_page == 'sustainability' %}active{% endif %}"><span class="sb-dot"></span>{{ _('nav_sustainability') }}</a>
+      <a href="/logs"                   class="sb-sublink {% if active_page == 'logs' %}active{% endif %}"><span class="sb-dot"></span>{{ _('nav_logs') }}</a>
+      {% if user.is_admin %}<a href="/admin/audit" class="sb-sublink {% if active_page == 'audit' %}active{% endif %}"><span class="sb-dot"></span>{{ _('nav_audit') }}</a>{% endif %}
+    </div>
+
+    {# ── Pro Features (nur wenn mind. 1 Feature aktiv) ───────────────── #}
+    {% if pro_capture_enabled or pro_guestprint_enabled or pro_print_job_mgmt_enabled %}
+    <button class="sb-cat-toggle" onclick="toggleSbCat(this)">
+      <span>⭐</span> {{ _('nav_cat_pro') }}
+      <span class="sb-cat-chevron">▸</span>
+    </button>
+    <div class="sb-cat-items">
+      {% if pro_print_job_mgmt_enabled %}<a href="/my" class="sb-sublink {% if active_page == 'my_portal' %}active{% endif %}"><span class="sb-dot"></span>{{ _('nav_my_portal') }}</a>{% endif %}
+      {% if pro_capture_enabled %}<a href="/capture" class="sb-sublink {% if active_page == 'capture' %}active{% endif %}"><span class="sb-dot"></span>{{ _('nav_capture') }}</a>{% endif %}
+      {% if user.is_admin and pro_guestprint_enabled %}<a href="/guestprint" class="sb-sublink {% if active_page == 'guestprint' %}active{% endif %}"><span class="sb-dot"></span>{{ _('nav_guestprint') }}</a>{% endif %}
+    </div>
     {% endif %}
 
-    <div class="drawer-divider"></div>
+    {# ── Administration (nur Admin) ──────────────────────────────────── #}
+    {% if user.is_admin %}
+    <button class="sb-cat-toggle" onclick="toggleSbCat(this)">
+      <span>⚙️</span> {{ _('nav_cat_admin') }}
+      <span class="sb-cat-chevron">▸</span>
+    </button>
+    <div class="sb-cat-items">
+      <div class="sb-subgroup-label">{{ _('nav_user_mgmt') }}</div>
+      <a href="/admin/users"               class="sb-sublink {% if active_page == 'admin_users' %}active{% endif %}"><span class="sb-dot"></span>{{ _('nav_overview') }}</a>
+      <a href="/admin/users/invite"        class="sb-sublink {% if active_page == 'admin_invite' %}active{% endif %}"><span class="sb-dot"></span>{{ _('common_invite') }}</a>
+      <a href="/admin/users/bulk-import"   class="sb-sublink {% if active_page == 'admin_bulk' %}active{% endif %}"><span class="sb-dot"></span>Bulk-Import</a>
+      <a href="/admin/users/import-printix" class="sb-sublink {% if active_page == 'admin_import_printix' %}active{% endif %}"><span class="sb-dot"></span>Printix-Import</a>
+      <a href="/admin/users/create"        class="sb-sublink {% if active_page == 'admin_create_user' %}active{% endif %}"><span class="sb-dot"></span>{{ _('common_create') }}</a>
+      <div class="sb-subgroup-label">{{ _('nav_security') }}</div>
+      <a href="/admin/ssl"          class="sb-sublink {% if active_page == 'admin_ssl' %}active{% endif %}"><span class="sb-dot"></span>SSL</a>
+      <a href="/admin/ssl/diagnose" class="sb-sublink {% if active_page == 'admin_ssl_diagnose' %}active{% endif %}"><span class="sb-dot"></span>SSL-Diagnose</a>
+      <a href="/admin/tls"          class="sb-sublink {% if active_page == 'admin_tls' %}active{% endif %}"><span class="sb-dot"></span>TLS</a>
+      <a href="/admin/auto-tls"     class="sb-sublink {% if active_page == 'admin_auto_tls' %}active{% endif %}"><span class="sb-dot"></span>Auto-TLS</a>
+      <a href="/admin/tunnel"       class="sb-sublink {% if active_page == 'admin_tunnel' %}active{% endif %}"><span class="sb-dot"></span>Tunnel</a>
+      <div class="sb-subgroup-label">{{ _('nav_system') }}</div>
+      <a href="/admin/settings"        class="sb-sublink {% if active_page == 'admin_settings' %}active{% endif %}"><span class="sb-dot"></span>{{ _('nav_settings') }}</a>
+      <a href="/admin/mcp-permissions" class="sb-sublink {% if active_page == 'admin_rbac' %}active{% endif %}"><span class="sb-dot"></span>RBAC</a>
+    </div>
+    {% endif %}
+    {% endif %}
 
+    {# ── Employees sehen nur Pro-Features ────────────────────────────── #}
+    {% if user.role_type == 'employee' %}
+      {% if pro_print_job_mgmt_enabled %}
+      <div class="sidebar-section">
+        <a href="/my" class="sidebar-top-link {% if active_page == 'my_portal' %}active{% endif %}">
+          <span class="sb-icon">📄</span> {{ _('nav_my_portal') }}
+        </a>
+      </div>
+      {% endif %}
+    {% endif %}
+
+    {# ── Bottom: Profil, Connect, Hilfe, Logout ──────────────────────── #}
+    <div class="sidebar-bottom">
+      <a href="/my/connect"       class="sb-bottom-link {% if active_page == 'connect' %}active{% endif %}"><span class="sb-icon">🔌</span>{{ _('cc_nav_label') }}</a>
+      <a href="/settings"         class="sb-bottom-link {% if active_page == 'settings' %}active{% endif %}"><span class="sb-icon">👤</span>{{ _('nav_profile') }}</a>
+      <a href="/settings/password" class="sb-bottom-link {% if active_page == 'password' %}active{% endif %}"><span class="sb-icon">🔑</span>{{ _('nav_password') }}</a>
+      <a href="/feedback"         class="sb-bottom-link {% if active_page == 'feedback' %}active{% endif %}"><span class="sb-icon">💬</span>{{ _('nav_feedback') }}</a>
+      <a href="/help"             class="sb-bottom-link {% if active_page == 'help' %}active{% endif %}"><span class="sb-icon">❓</span>{{ _('nav_help') }}</a>
+      <div class="sb-divider"></div>
+      <a href="/logout" class="sb-bottom-link"><span class="sb-icon">🚪</span>{{ _('nav_logout') }}</a>
+    </div>
+  </aside>
+  {% endif %}
+
+  {# Mobile-Drawer für nicht-eingeloggte Benutzer #}
+  {% if not user %}
+  <div class="mobile-menu" id="mobileMenu" aria-hidden="true">
+    <a href="/login"    onclick="closeMobileMenu()">🔑 {{ _('nav_login') }}</a>
+    <a href="/register" onclick="closeMobileMenu()">📝 {{ _('nav_register') }}</a>
+    <div class="drawer-divider"></div>
     <div class="mobile-lang-section">
       <small>🌐 {{ _('common_language') }}</small>
       <div class="mobile-lang-grid">
@@ -740,32 +943,66 @@
     </div>
   </div>
   {% endif %}
+  {% endif %}
 
+  <main class="{% if user %}main-area{% endif %}" id="mainArea">
   {% block content %}{% endblock %}
+  </main>
 
   <script>
-    // ── Mobile Menu ───────────────────────────────────────────────────────
+    // ── Sidebar Navigation (v7.9.0) ─────────────────────────────────────
+    function toggleSbCat(btn) {
+      btn.classList.toggle('open');
+      const items = btn.nextElementSibling;
+      if (items) items.classList.toggle('open');
+    }
+
+    // Mobile: hamburger toggles sidebar (if logged in) or mobile-menu (if not)
     function toggleMobileMenu() {
-      const menu = document.getElementById('mobileMenu');
-      const btn  = document.getElementById('hamburger');
-      const open = menu.classList.toggle('open');
-      btn.classList.toggle('open', open);
-      btn.setAttribute('aria-expanded', String(open));
-      menu.setAttribute('aria-hidden', String(!open));
+      const sidebar = document.getElementById('sidebar');
+      const overlay = document.getElementById('sidebarOverlay');
+      const menu    = document.getElementById('mobileMenu');
+      const btn     = document.getElementById('hamburger');
+
+      if (sidebar) {
+        // Logged in → toggle sidebar
+        const isOpen = sidebar.classList.toggle('open');
+        btn.classList.toggle('open', isOpen);
+        btn.setAttribute('aria-expanded', String(isOpen));
+        if (overlay) overlay.classList.toggle('visible', isOpen);
+      } else if (menu) {
+        // Not logged in → toggle old mobile menu
+        const isOpen = menu.classList.toggle('open');
+        btn.classList.toggle('open', isOpen);
+        btn.setAttribute('aria-expanded', String(isOpen));
+        menu.setAttribute('aria-hidden', String(!isOpen));
+      }
+    }
+    function closeSidebar() {
+      const sidebar = document.getElementById('sidebar');
+      const overlay = document.getElementById('sidebarOverlay');
+      const btn     = document.getElementById('hamburger');
+      if (sidebar) sidebar.classList.remove('open');
+      if (overlay) overlay.classList.remove('visible');
+      if (btn) { btn.classList.remove('open'); btn.setAttribute('aria-expanded','false'); }
     }
     function closeMobileMenu() {
+      closeSidebar();
       const menu = document.getElementById('mobileMenu');
       const btn  = document.getElementById('hamburger');
-      if (!menu) return;
-      menu.classList.remove('open');
-      btn.classList.remove('open');
-      btn.setAttribute('aria-expanded', 'false');
-      menu.setAttribute('aria-hidden', 'true');
+      if (menu) { menu.classList.remove('open'); menu.setAttribute('aria-hidden','true'); }
+      if (btn)  { btn.classList.remove('open'); btn.setAttribute('aria-expanded','false'); }
     }
     // Close on outside click
     document.addEventListener('click', function(e) {
+      const sidebar = document.getElementById('sidebar');
+      const btn     = document.getElementById('hamburger');
+      // Only close on mobile (when sidebar uses transform)
+      if (sidebar && sidebar.classList.contains('open') &&
+          !sidebar.contains(e.target) && btn && !btn.contains(e.target)) {
+        closeSidebar();
+      }
       const menu = document.getElementById('mobileMenu');
-      const btn  = document.getElementById('hamburger');
       if (menu && menu.classList.contains('open') &&
           !menu.contains(e.target) && btn && !btn.contains(e.target)) {
         closeMobileMenu();
@@ -773,7 +1010,21 @@
     });
     // Close on Escape
     document.addEventListener('keydown', function(e) {
-      if (e.key === 'Escape') closeMobileMenu();
+      if (e.key === 'Escape') { closeSidebar(); closeMobileMenu(); }
+    });
+
+    // Auto-open categories that contain the active link
+    document.addEventListener('DOMContentLoaded', function() {
+      document.querySelectorAll('.sb-sublink.active').forEach(function(link) {
+        const items = link.closest('.sb-cat-items');
+        if (items) {
+          items.classList.add('open');
+          const toggle = items.previousElementSibling;
+          if (toggle && toggle.classList.contains('sb-cat-toggle')) {
+            toggle.classList.add('open');
+          }
+        }
+      });
     });
 
     // ── Language Dropdown (desktop) ───────────────────────────────────────

@@ -1,3 +1,25 @@
+## 7.9.0 — 2026-06-13 — Sidebar Navigation & UI Redesign
+
+### Added
+- Collapsible sidebar navigation replaces flat top-nav for logged-in users.
+- Sidebar categories: Printix Management, Karten & Codes, Fleet Management,
+  Berichte & Logs, Pro Features, Administration.
+- Categories are collapsible (click to expand/collapse) with smooth animation.
+- Active page highlighting with auto-expand of parent category.
+- 26 new i18n keys for sidebar navigation in all 14 languages
+  (de, en, fr, it, es, nl, no, sv, bar, hessisch, oesterreichisch,
+  schwiizerdütsch, cockney, us_south).
+- Mobile: sidebar slides in from left on hamburger tap with overlay.
+- Administration sub-sections: Benutzerverwaltung, Sicherheit & Netzwerk, System.
+- Bottom sidebar: MCP Connect, Profil, Passwort, Feedback, Hilfe, Abmelden.
+
+### Changed
+- Dashboard is now the landing page for ALL roles (including admins).
+- Top nav bar is now slim: brand + language switcher only (when logged in).
+- Login/Register links remain in top nav for non-authenticated users.
+- Desktop nav links removed (replaced by sidebar).
+- Mobile drawer replaced by sidebar for logged-in users.
+
 ## 7.8.1 — 2026-06-12 — Hide locked Pro-Features from navigation
 
 ### Changed
