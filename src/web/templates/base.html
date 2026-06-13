@@ -292,6 +292,112 @@
     }
     .sidebar-overlay.visible { display: block; opacity: 1; }
 
+
+    /* v7.9.1: Mobile hamburger (logged-in users — no top bar) */
+    .mobile-hamburger {
+      display: none;
+      position: fixed;
+      top: 12px;
+      right: 14px;
+      z-index: 1100;
+      background: var(--ta-navy);
+      border: none;
+      border-radius: 10px;
+      padding: 10px;
+      cursor: pointer;
+      flex-direction: column;
+      gap: 4px;
+      box-shadow: 0 4px 12px rgba(0,40,84,.25);
+    }
+    .mobile-hamburger span {
+      display: block;
+      width: 22px;
+      height: 2px;
+      background: #fff;
+      border-radius: 2px;
+    }
+
+    /* v7.9.1: Sidebar branding */
+    .sidebar-brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 16px 16px 12px;
+      border-bottom: 1px solid #e8ecf0;
+      margin-bottom: 4px;
+    }
+    .sidebar-brand-logo {
+      width: 28px;
+      height: 28px;
+      flex-shrink: 0;
+    }
+    .sidebar-brand-logo svg {
+      width: 100%;
+      height: 100%;
+    }
+    .sidebar-brand-text {
+      font-size: .82em;
+      font-weight: 800;
+      color: var(--ta-navy);
+      letter-spacing: .01em;
+    }
+
+    /* v7.9.1: Language switcher in sidebar */
+    .sb-lang-switcher { padding: 0 4px; }
+    .sb-lang-btn {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      width: 100%;
+      padding: 7px 8px;
+      border: none;
+      background: transparent;
+      color: #64748b;
+      font-size: .82em;
+      font-weight: 600;
+      cursor: pointer;
+      border-radius: 6px;
+      font-family: inherit;
+      transition: background .15s;
+    }
+    .sb-lang-btn:hover { background: #f1f5f9; }
+    .sb-lang-chevron {
+      margin-left: auto;
+      font-size: .7em;
+      transition: transform .2s;
+    }
+    .sb-lang-btn.open .sb-lang-chevron { transform: rotate(90deg); }
+    .sb-lang-grid {
+      display: none;
+      grid-template-columns: 1fr 1fr;
+      gap: 2px;
+      padding: 4px 8px 8px;
+    }
+    .sb-lang-grid.open { display: grid; }
+    .sb-lang-option {
+      padding: 5px 8px;
+      border-radius: 6px;
+      font-size: .78em;
+      color: #334155;
+      text-decoration: none;
+      text-align: center;
+      font-weight: 500;
+      transition: background .15s;
+    }
+    .sb-lang-option:hover { background: #f1f5f9; }
+    .sb-lang-option.active {
+      background: var(--ta-navy);
+      color: #fff;
+      font-weight: 700;
+    }
+
+    /* v7.9.1: Prefetch pill floating (no top bar for logged-in users) */
+    .prefetch-pill-float {
+      position: fixed;
+      top: 12px;
+      right: 14px;
+      z-index: 1050;
+    }
     /* ── Layout ──────────────────────────────────────────────────────────── */
     .container {
       width: min(100%, var(--workspace-max-width));
@@ -423,146 +529,7 @@
 
     /* ── Printix section shell ───────────────────────────────────────────── */
     .tenant-shell {
-      display: grid;
-      grid-template-columns: minmax(252px, 308px) minmax(0, 1fr);
-      gap: 18px;
-      align-items: start;
-    }
-    .tenant-sidebar {
-      position: sticky;
-      top: 84px;
-    }
-    .tenant-sidebar-card {
-      background:
-        radial-gradient(circle at top left, rgba(59, 130, 246, .12), transparent 42%),
-        linear-gradient(180deg, #f8fbff 0%, #ffffff 100%);
-      border: 1px solid #dbe4ef;
-      border-radius: 24px;
-      box-shadow: 0 14px 32px rgba(15, 23, 42, .05);
-      padding: 18px 16px 16px;
-    }
-    .tenant-sidebar-kicker {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      font-size: .76em;
-      font-weight: 800;
-      letter-spacing: .08em;
-      text-transform: uppercase;
-      color: var(--ta-cyan);
-      background: rgba(0,160,251,.12);
-      border-radius: 999px;
-      padding: 6px 10px;
-    }
-    .tenant-sidebar-title {
-      margin: 14px 0 4px;
-      font-size: 1em;
-      font-weight: 800;
-      color: #0f172a;
-    }
-    .tenant-sidebar-sub {
-      margin: 0;
-      color: #64748b;
-      font-size: .8em;
-      line-height: 1.45;
-    }
-    .tenant-sidebar-nav {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-      margin-top: 14px;
-      padding: 8px;
-      border-radius: 18px;
-      background: rgba(255, 255, 255, .82);
-      border: 1px solid rgba(219, 228, 239, .95);
-      backdrop-filter: blur(10px);
-    }
-    .tenant-sidebar-link {
-      display: flex;
-      justify-content: space-between;
-      text-decoration: none;
-      align-items: center;
-      border: 1px solid transparent;
-      border-radius: 12px;
-      padding: 9px 12px;
-      color: #1e293b;
-      background: #fff;
-      font-weight: 700;
-      transition: all .18s ease;
-      width: 100%;
-      gap: 12px;
-      box-sizing: border-box;
-    }
-    .tenant-sidebar-main {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      justify-content: flex-start;
-      min-width: 0;
-      flex: 1 1 auto;
-      max-width: 100%;
-    }
-    .tenant-sidebar-copy {
-      display: flex;
-      flex-direction: column;
-      gap: 0;
-      min-width: 0;
-      flex: 1;
-    }
-    .tenant-sidebar-copy strong {
-      font-size: .87em;
-      color: inherit;
-      white-space: normal;
-      overflow: visible;
-      text-overflow: unset;
-      text-align: left;
-      line-height: 1.2;
-    }
-    .tenant-sidebar-pill {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      min-width: 24px;
-      height: 18px;
-      padding: 0 6px;
-      border-radius: 999px;
-      background: rgba(0,160,251,.08);
-      color: var(--ta-cyan);
-      font-size: .68em;
-      font-weight: 800;
-      flex-shrink: 0;
-      margin-left: auto;
-      text-align: right;
-    }
-    .tenant-sidebar-link:hover {
-      background: #f8fbff;
-      border-color: #93c5fd;
-      color: #0f172a;
-      transform: translateX(2px);
-    }
-    .tenant-sidebar-link.active {
-      background: linear-gradient(135deg, var(--ta-navy) 0%, var(--ta-navy-dark) 100%);
-      border-color: var(--ta-navy);
-      color: #fff;
-      box-shadow: 0 12px 24px rgba(0, 40, 84, .22);
-    }
-    .tenant-sidebar-icon {
-      width: 30px;
-      height: 30px;
-      border-radius: 9px;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      background: rgba(0,160,251,.08);
-      flex-shrink: 0;
-      font-size: .92em;
-    }
-    .tenant-sidebar-link.active .tenant-sidebar-icon {
-      background: rgba(255, 255, 255, .18);
-    }
-    .tenant-sidebar-link.active .tenant-sidebar-pill {
-      background: rgba(255, 255, 255, .16);
-      color: #dbeafe;
+      display: block;
     }
     .tenant-main {
       min-width: 0;
@@ -576,6 +543,7 @@
     @media (max-width: 768px) {
 
       /* Sidebar → off-screen on mobile */
+      .mobile-hamburger { display: flex; }
       .sidebar { transform: translateX(-100%); }
       .sidebar.open { transform: translateX(0); }
       .main-area { margin-left: 0 !important; }
@@ -629,8 +597,7 @@
       .demo-grid { grid-template-columns: 1fr !important; }
 
       .tenant-shell { grid-template-columns: 1fr; gap: 12px; }
-      .tenant-sidebar { position: static; top: auto; }
-      .tenant-sidebar-card { padding: 14px; }
+        .tenant-sidebar-card { padding: 14px; }
       .tenant-sidebar-nav {
         display: grid;
         grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -705,7 +672,6 @@
       .preset-cards { flex-direction: row !important; }
       .preset-cards { flex-direction: column !important; }
 
-      .tenant-sidebar-nav { grid-template-columns: 1fr; }
 
       /* Full-width buttons — but not small action buttons in tables */
       .btn:not(.btn-sm) { width: 100%; text-align: center; }
@@ -747,34 +713,34 @@
 </head>
 <body>
   {% if show_nav | default(true) %}
+  {# v7.9.1: Logged-in users — no top bar, sidebar handles everything.
+     Only a minimal mobile hamburger floats top-right. #}
+  {% if user %}
+  <button class="mobile-hamburger" id="hamburger" aria-label="{{ _('common_open_menu') }}"
+          aria-expanded="false" onclick="toggleMobileMenu()">
+    <span></span><span></span><span></span>
+  </button>
+  {# Prefetch pill — floats top-right on desktop #}
+  {% if user.role_type != 'employee' %}
+  <div id="prefetchPill" class="prefetch-pill prefetch-pill-float" style="display:none;"
+       title="{{ _('prefetch_pill_tip') }}">
+    <span class="prefetch-pill-spin">⏳</span>
+    <span class="prefetch-pill-label">{{ _('prefetch_pill_running') }}</span>
+  </div>
+  {% endif %}
+  {% else %}
+  {# Not logged in — full top nav with branding, login, register, language #}
   <nav>
     <div class="nav-shell">
       <a class="nav-brand" href="/">
         <span class="nav-brand-mark">{% include "_brand_logo.svg" %}</span>
         <span>{{ _('brand_console_name') }}</span>
       </a>
-
       <div class="nav-right">
-        <!-- Desktop links (v7.9.0: nur Login/Register wenn nicht eingeloggt) -->
         <div class="nav-links">
-          {% if not user %}
-            <a href="/login">{{ _('nav_login') }}</a>
-            <a href="/register">{{ _('nav_register') }}</a>
-          {% endif %}
+          <a href="/login">{{ _('nav_login') }}</a>
+          <a href="/register">{{ _('nav_register') }}</a>
         </div>
-
-        {# v7.6.0: Prefetch-Status-Pille — zeigt während des
-           Hintergrund-Ladens dass Tenant-Daten gerade gewärmt werden.
-           Verschwindet wenn alle Topics frisch im Cache liegen. #}
-        {% if user and user.role_type != 'employee' %}
-        <div id="prefetchPill" class="prefetch-pill" style="display:none;"
-             title="{{ _('prefetch_pill_tip') }}">
-          <span class="prefetch-pill-spin">⏳</span>
-          <span class="prefetch-pill-label">{{ _('prefetch_pill_running') }}</span>
-        </div>
-        {% endif %}
-
-        <!-- Language Switcher (desktop) -->
         <div class="lang-switcher" id="langSwitcher">
           <button class="lang-btn" onclick="toggleLangDropdown(event)">🌐 {{ lang | upper }}</button>
           <div class="lang-dropdown" id="langDropdown">
@@ -789,8 +755,6 @@
             </div>
           </div>
         </div>
-
-        <!-- Hamburger button (mobile) -->
         <button class="hamburger" id="hamburger" aria-label="{{ _('common_open_menu') }}"
                 aria-expanded="false" onclick="toggleMobileMenu()">
           <span></span><span></span><span></span>
@@ -798,11 +762,17 @@
       </div>
     </div>
   </nav>
+  {% endif %}
 
   <!-- Sidebar Navigation (v7.9.0) -->
   {% if user %}
   <div class="sidebar-overlay" id="sidebarOverlay" onclick="closeSidebar()"></div>
   <aside class="sidebar" id="sidebar">
+    {# v7.9.1: Branding in Sidebar #}
+    <div class="sidebar-brand">
+      <span class="sidebar-brand-logo">{% include "_brand_logo.svg" %}</span>
+      <span class="sidebar-brand-text">{{ _('brand_console_name') }}</span>
+    </div>
     <div class="sidebar-section">
       {# Dashboard — immer sichtbar #}
       <a href="/dashboard" class="sidebar-top-link {% if active_page == 'dashboard' %}active{% endif %}">
@@ -882,19 +852,20 @@
     <div class="sb-cat-items">
       <div class="sb-subgroup-label">{{ _('nav_user_mgmt') }}</div>
       <a href="/admin/users"               class="sb-sublink {% if active_page == 'admin_users' %}active{% endif %}"><span class="sb-dot"></span>{{ _('nav_overview') }}</a>
-      <a href="/admin/users/invite"        class="sb-sublink {% if active_page == 'admin_invite' %}active{% endif %}"><span class="sb-dot"></span>{{ _('common_invite') }}</a>
-      <a href="/admin/users/bulk-import"   class="sb-sublink {% if active_page == 'admin_bulk' %}active{% endif %}"><span class="sb-dot"></span>Bulk-Import</a>
-      <a href="/admin/users/import-printix" class="sb-sublink {% if active_page == 'admin_import_printix' %}active{% endif %}"><span class="sb-dot"></span>Printix-Import</a>
-      <a href="/admin/users/create"        class="sb-sublink {% if active_page == 'admin_create_user' %}active{% endif %}"><span class="sb-dot"></span>{{ _('common_create') }}</a>
+      <a href="/admin/users/invite"        class="sb-sublink {% if active_page == 'admin_invite' %}active{% endif %}"><span class="sb-dot"></span>{{ _('nav_invite') }}</a>
+      <a href="/admin/users/bulk-import"   class="sb-sublink {% if active_page == 'admin_bulk' %}active{% endif %}"><span class="sb-dot"></span>{{ _('nav_bulk_import') }}</a>
+      <a href="/admin/users/import-printix" class="sb-sublink {% if active_page == 'admin_import_printix' %}active{% endif %}"><span class="sb-dot"></span>{{ _('nav_printix_import') }}</a>
+      <a href="/admin/users/create"        class="sb-sublink {% if active_page == 'admin_create_user' %}active{% endif %}"><span class="sb-dot"></span>{{ _('nav_create_user') }}</a>
       <div class="sb-subgroup-label">{{ _('nav_security') }}</div>
-      <a href="/admin/ssl"          class="sb-sublink {% if active_page == 'admin_ssl' %}active{% endif %}"><span class="sb-dot"></span>SSL</a>
-      <a href="/admin/ssl/diagnose" class="sb-sublink {% if active_page == 'admin_ssl_diagnose' %}active{% endif %}"><span class="sb-dot"></span>SSL-Diagnose</a>
-      <a href="/admin/tls"          class="sb-sublink {% if active_page == 'admin_tls' %}active{% endif %}"><span class="sb-dot"></span>TLS</a>
-      <a href="/admin/auto-tls"     class="sb-sublink {% if active_page == 'admin_auto_tls' %}active{% endif %}"><span class="sb-dot"></span>Auto-TLS</a>
-      <a href="/admin/tunnel"       class="sb-sublink {% if active_page == 'admin_tunnel' %}active{% endif %}"><span class="sb-dot"></span>Tunnel</a>
+      <a href="/admin/ssl"          class="sb-sublink {% if active_page == 'admin_ssl' %}active{% endif %}"><span class="sb-dot"></span>{{ _('nav_ssl') }}</a>
+      <a href="/admin/ssl/diagnose" class="sb-sublink {% if active_page == 'admin_ssl_diagnose' %}active{% endif %}"><span class="sb-dot"></span>{{ _('nav_ssl_diagnose') }}</a>
+      <a href="/admin/tls"          class="sb-sublink {% if active_page == 'admin_tls' %}active{% endif %}"><span class="sb-dot"></span>{{ _('nav_tls') }}</a>
+      <a href="/admin/auto-tls"     class="sb-sublink {% if active_page == 'admin_auto_tls' %}active{% endif %}"><span class="sb-dot"></span>{{ _('nav_auto_tls') }}</a>
+      <a href="/admin/tunnel"       class="sb-sublink {% if active_page == 'admin_tunnel' %}active{% endif %}"><span class="sb-dot"></span>{{ _('nav_tunnel') }}</a>
       <div class="sb-subgroup-label">{{ _('nav_system') }}</div>
       <a href="/admin/settings"        class="sb-sublink {% if active_page == 'admin_settings' %}active{% endif %}"><span class="sb-dot"></span>{{ _('nav_settings') }}</a>
-      <a href="/admin/mcp-permissions" class="sb-sublink {% if active_page == 'admin_rbac' %}active{% endif %}"><span class="sb-dot"></span>RBAC</a>
+      <a href="/settings"              class="sb-sublink {% if active_page == 'settings' %}active{% endif %}"><span class="sb-dot"></span>{{ _('nav_api_config') }}</a>
+      <a href="/admin/mcp-permissions" class="sb-sublink {% if active_page == 'admin_rbac' %}active{% endif %}"><span class="sb-dot"></span>{{ _('nav_rbac') }}</a>
     </div>
     {% endif %}
     {% endif %}
@@ -910,13 +881,30 @@
       {% endif %}
     {% endif %}
 
-    {# ── Bottom: Profil, Connect, Hilfe, Logout ──────────────────────── #}
+    {# ── Bottom: Connect, Profil, Hilfe, Sprache, Logout ───────────── #}
     <div class="sidebar-bottom">
       <a href="/my/connect"       class="sb-bottom-link {% if active_page == 'connect' %}active{% endif %}"><span class="sb-icon">🔌</span>{{ _('cc_nav_label') }}</a>
       <a href="/settings"         class="sb-bottom-link {% if active_page == 'settings' %}active{% endif %}"><span class="sb-icon">👤</span>{{ _('nav_profile') }}</a>
       <a href="/settings/password" class="sb-bottom-link {% if active_page == 'password' %}active{% endif %}"><span class="sb-icon">🔑</span>{{ _('nav_password') }}</a>
       <a href="/feedback"         class="sb-bottom-link {% if active_page == 'feedback' %}active{% endif %}"><span class="sb-icon">💬</span>{{ _('nav_feedback') }}</a>
       <a href="/help"             class="sb-bottom-link {% if active_page == 'help' %}active{% endif %}"><span class="sb-icon">❓</span>{{ _('nav_help') }}</a>
+      <div class="sb-divider"></div>
+      {# v7.9.1: Language switcher in sidebar bottom #}
+      <div class="sb-lang-switcher">
+        <button class="sb-lang-btn" onclick="toggleSbLang(this)">
+          <span class="sb-icon">🌐</span>{{ _('common_language') }}: {{ lang | upper }}
+          <span class="sb-lang-chevron">▸</span>
+        </button>
+        <div class="sb-lang-grid">
+          {% if lang_names and supported_langs %}
+            {% for code in supported_langs %}
+              <a href="/lang/{{ code }}" class="sb-lang-option {% if code == lang %}active{% endif %}">
+                {{ lang_names[code] }}
+              </a>
+            {% endfor %}
+          {% endif %}
+        </div>
+      </div>
       <div class="sb-divider"></div>
       <a href="/logout" class="sb-bottom-link"><span class="sb-icon">🚪</span>{{ _('nav_logout') }}</a>
     </div>
@@ -951,6 +939,11 @@
 
   <script>
     // ── Sidebar Navigation (v7.9.0) ─────────────────────────────────────
+    function toggleSbLang(btn) {
+      btn.classList.toggle('open');
+      const grid = btn.nextElementSibling;
+      if (grid) grid.classList.toggle('open');
+    }
     function toggleSbCat(btn) {
       btn.classList.toggle('open');
       const items = btn.nextElementSibling;
