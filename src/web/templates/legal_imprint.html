@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% block title %}{{ _('legal_page_title_imprint') }} — {{ _('brand_console_name') }}{% endblock %}
+{% block content %}
+<div class="container" style="max-width: 920px;">
+  <div class="card" style="margin: 30px auto; line-height: 1.65;">
+    <h1 class="section-title" style="font-size: 1.7em;">🏛 {{ _('legal_page_title_imprint') }}</h1>
+
+    {% if not legal_configured %}
+    <div class="alert alert-warning" style="margin: 18px 0;">
+      <div>{{ _('legal_unconfigured_banner') | safe }}</div>
+    </div>
+    {% endif %}
+
+    <p style="margin: 16px 0 24px; color: #475569; font-style: italic;">
+      {% if is_germany %}{{ _('legal_imp_intro') }}{% else %}{{ _('legal_imp_intro_generic') }}{% endif %}
+    </p>
+
+    <div style="display: grid; grid-template-columns: 1fr; gap: 14px;">
+
+      <div style="background: #f8fafc; padding: 16px 20px; border-radius: 10px; border-left: 4px solid var(--ta-navy);">
+        <div style="font-size: .78em; color: var(--ta-gray-500); text-transform: uppercase; font-weight: 700; letter-spacing: .05em;">{{ _('legal_imp_operator') }}</div>
+        <div style="font-weight: 700; color: var(--ta-navy); font-size: 1.05em; margin-top: 4px;">{{ legal.operator_name or _('legal_not_configured') }}</div>
+      </div>
+
+      {% if legal.operator_address %}
+      <div style="background: #f8fafc; padding: 16px 20px; border-radius: 10px;">
+        <div style="font-size: .78em; color: var(--ta-gray-500); text-transform: uppercase; font-weight: 700; letter-spacing: .05em;">{{ _('legal_imp_address') }}</div>
+        <div style="white-space: pre-line; color: #334155; margin-top: 4px;">{{ legal.operator_address }}</div>
+      </div>
+      {% endif %}
+
+      {% if legal.operator_email %}
+      <div style="background: #f8fafc; padding: 16px 20px; border-radius: 10px;">
+        <div style="font-size: .78em; color: var(--ta-gray-500); text-transform: uppercase; font-weight: 700; letter-spacing: .05em;">{{ _('legal_imp_email') }}</div>
+        <div style="color: #334155; margin-top: 4px;"><a href="mailto:{{ legal.operator_email }}">{{ legal.operator_email }}</a></div>
+      </div>
+      {% endif %}
+
+      {% if legal.operator_phone %}
+      <div style="background: #f8fafc; padding: 16px 20px; border-radius: 10px;">
+        <div style="font-size: .78em; color: var(--ta-gray-500); text-transform: uppercase; font-weight: 700; letter-spacing: .05em;">{{ _('legal_imp_phone') }}</div>
+        <div style="color: #334155; margin-top: 4px;">{{ legal.operator_phone }}</div>
+      </div>
+      {% endif %}
+
+      {% if legal.operator_country %}
+      <div style="background: #f8fafc; padding: 16px 20px; border-radius: 10px;">
+        <div style="font-size: .78em; color: var(--ta-gray-500); text-transform: uppercase; font-weight: 700; letter-spacing: .05em;">{{ _('legal_imp_country') }}</div>
+        <div style="color: #334155; margin-top: 4px;">{{ legal.operator_country }}</div>
+      </div>
+      {% endif %}
+
+      {% if legal.vat_id %}
+      <div style="background: #f8fafc; padding: 16px 20px; border-radius: 10px;">
+        <div style="font-size: .78em; color: var(--ta-gray-500); text-transform: uppercase; font-weight: 700; letter-spacing: .05em;">{{ _('legal_imp_vat') }}</div>
+        <div style="color: #334155; margin-top: 4px; font-family: monospace;">{{ legal.vat_id }}</div>
+      </div>
+      {% endif %}
+
+      {% if legal.data_protection_officer %}
+      <div style="background: #f8fafc; padding: 16px 20px; border-radius: 10px;">
+        <div style="font-size: .78em; color: var(--ta-gray-500); text-transform: uppercase; font-weight: 700; letter-spacing: .05em;">{{ _('legal_imp_dpo') }}</div>
+        <div style="color: #334155; margin-top: 4px; white-space: pre-line;">{{ legal.data_protection_officer }}</div>
+      </div>
+      {% endif %}
+
+      {% if legal.hosting_provider %}
+      <div style="background: #f8fafc; padding: 16px 20px; border-radius: 10px;">
+        <div style="font-size: .78em; color: var(--ta-gray-500); text-transform: uppercase; font-weight: 700; letter-spacing: .05em;">{{ _('legal_imp_hosting') }}</div>
+        <div style="color: #334155; margin-top: 4px;">{{ legal.hosting_provider }}</div>
+      </div>
+      {% endif %}
+
+      {% if legal.supervisory_authority %}
+      <div style="background: #f8fafc; padding: 16px 20px; border-radius: 10px;">
+        <div style="font-size: .78em; color: var(--ta-gray-500); text-transform: uppercase; font-weight: 700; letter-spacing: .05em;">{{ _('legal_imp_authority') }}</div>
+        <div style="color: #334155; margin-top: 4px; white-space: pre-line;">{{ legal.supervisory_authority }}</div>
+      </div>
+      {% endif %}
+
+    </div>
+
+    <h2 style="color: var(--ta-navy); margin-top: 30px; font-size: 1.1em;">{{ _('legal_imp_disclaimer_title') }}</h2>
+    <p style="color: #334155;">{{ _('legal_imp_disclaimer_body') | safe }}</p>
+
+    <h2 style="color: var(--ta-navy); margin-top: 22px; font-size: 1.1em;">{{ _('legal_imp_copyright_title') }}</h2>
+    <p style="color: #334155;">{{ _('legal_imp_copyright_body') | safe }}</p>
+
+    <div class="divider"></div>
+    <p style="color: #6b7280; font-size: .85em; text-align: right;">
+      {{ _('legal_last_updated') }}: <strong>{{ legal_last_updated }}</strong> · v{{ app_version }}
+    </p>
+  </div>
+</div>
+{% endblock %}

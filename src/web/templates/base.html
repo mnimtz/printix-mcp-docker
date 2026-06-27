@@ -1118,6 +1118,25 @@
 
   <main class="{% if user %}main-area{% endif %}" id="mainArea">
   {% block content %}{% endblock %}
+
+  {# v7.9.4: Global footer — privacy + imprint links, visible on every page
+     (logged-in and logged-out). Required for App-Review of MySecurePrint
+     iOS app and for German § 5 TMG / § 18 MStV imprint duty. #}
+  <footer style="text-align:center; padding:24px 16px 32px; font-size:.85em;
+                 color:#6b7280; border-top:1px solid rgba(0,0,0,.05);
+                 margin-top:32px;">
+    <a href="/privacy" style="color:#475569; text-decoration:none; font-weight:600;">{{ _('legal_nav_privacy') }}</a>
+    &nbsp;·&nbsp;
+    <a href="/imprint" style="color:#475569; text-decoration:none; font-weight:600;">{{ _('legal_nav_imprint') }}</a>
+    &nbsp;·&nbsp;
+    <a href="/legal" style="color:#475569; text-decoration:none; font-weight:600;">{{ _('legal_nav_legal') }}</a>
+    {% if user and user.is_admin %}
+      &nbsp;·&nbsp;
+      <a href="/admin/mcp-reports-cookbook" style="color:#475569; text-decoration:none; font-weight:600;">{{ _('legal_nav_documentation') }}</a>
+    {% endif %}
+    &nbsp;·&nbsp;
+    <span style="color:#9ca3af;">{{ _('legal_footer_version') }} v{{ app_version }}</span>
+  </footer>
   </main>
 
   <script>

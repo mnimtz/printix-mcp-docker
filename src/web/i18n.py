@@ -1379,6 +1379,181 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "admin_si_oauth_secret": "OAuth Client Secret",
         "admin_si_oauth_secret_hint": "Verdeckt anzeigen / per Klick aufdecken. Bei Verlust regenerieren unter",
         "admin_si_no_secret":    "kein Secret hinterlegt",
+
+        # ── Legal / Privacy / Imprint (v7.9.4) ──────────────────────────
+        "legal_nav_privacy":         "Datenschutz",
+        "legal_nav_imprint":         "Impressum",
+        "legal_nav_documentation":   "Doku",
+        "legal_nav_legal":           "Rechtliches",
+        "legal_footer_version":      "Printix MCP Server",
+
+        "legal_index_title":         "Rechtliche Informationen",
+        "legal_index_sub":           "Datenschutz, Impressum und weitere rechtliche Hinweise zu diesem selbst-gehosteten Printix-MCP-Server.",
+        "legal_index_privacy_card":  "Datenschutzerklärung",
+        "legal_index_privacy_desc":  "Welche Daten der Server verarbeitet, wie sie gespeichert werden und welche Rechte Sie nach DSGVO haben.",
+        "legal_index_imprint_card":  "Impressum",
+        "legal_index_imprint_desc":  "Betreiberangaben gemäß § 5 TMG / § 18 MStV.",
+        "legal_index_docs_card":     "Dokumentation",
+        "legal_index_docs_desc":     "Bedienungsanleitungen, GDPR-Leitfaden und MCP-Tool-Übersicht.",
+        "legal_index_open":          "Öffnen →",
+
+        "legal_unconfigured_banner":
+            "<strong>⚠ Hinweis an den Betreiber:</strong> Die rechtlichen Angaben sind noch nicht vollständig konfiguriert. "
+            "Bitte unter <a href=\"/admin/settings#legal\">/admin/settings → Rechtliche Angaben</a> ausfüllen, "
+            "bevor diese Seite öffentlich verlinkt oder für die App-Store-Einreichung von MySecurePrint verwendet wird.",
+        "legal_not_configured":      "(noch nicht konfiguriert)",
+        "legal_last_updated":        "Letzte Aktualisierung",
+
+        # Privacy Policy
+        "legal_page_title_privacy":  "Datenschutzerklärung",
+        "legal_priv_intro":
+            "Diese Datenschutzerklärung beschreibt, welche personenbezogenen Daten diese selbst-gehostete "
+            "Instanz von <em>Printix MCP Server</em> verarbeitet. Die Software ist eine Brücke zwischen "
+            "Microsoft-Entra-Benutzern, KI-Assistenten (Claude, ChatGPT, Make.com) und der Druck-Cloud "
+            "von Printix (Tungsten Automation).",
+        "legal_priv_section_who":    "1. Verantwortlicher",
+        "legal_priv_who_body":
+            "Verantwortlich für die Datenverarbeitung im Sinne von Art. 4 Nr. 7 DSGVO ist der Betreiber "
+            "dieser Server-Instanz. Die Kontaktdaten finden Sie im <a href=\"/impressum\">Impressum</a> "
+            "und unter Punkt 8 unten.",
+        "legal_priv_section_what":   "2. Welche Daten wir erheben",
+        "legal_priv_what_body":
+            "<p>Beim Betrieb der Software fallen folgende personenbezogene Daten an:</p>"
+            "<ul>"
+            "<li><strong>Kontodaten</strong>: Benutzername, vollständiger Name, E-Mail-Adresse, "
+            "Passwort-Hash (Argon2/PBKDF2), bei SSO zusätzlich die Microsoft-Entra-Objekt-ID.</li>"
+            "<li><strong>Aus der iOS-App MySecurePrint</strong>: pro Tenant ausgestellter Bearer-Token, "
+            "Gerätename, NFC-Karten-UIDs (nur wenn Sie Karten registrieren), "
+            "Metadaten zu Druckaufträgen (Dateiname, Seitenzahl, Zieldrucker).</li>"
+            "<li><strong>Audit-Log</strong>: alle administrativen Aktionen, MCP-Tool-Aufrufe "
+            "(mit aufrufender User-ID, Tool-Name, Zeitstempel), abgelehnte Berechtigungs-Versuche.</li>"
+            "<li><strong>Konfiguration (pro Tenant)</strong>: Printix-API-Credentials, "
+            "Microsoft-Entra-App-Credentials und SMTP-Credentials werden Fernet-verschlüsselt in der "
+            "Datenbank abgelegt.</li>"
+            "</ul>",
+        "legal_priv_section_use":    "3. Wozu die Daten verwendet werden",
+        "legal_priv_use_body":
+            "Die Daten werden ausschließlich für den Betriebszweck verarbeitet — also für die "
+            "Vermittlung zwischen Benutzer, Printix-Cloud und Microsoft Entra. "
+            "<strong>Es findet keine Analyse, kein Tracking und keine Einbindung von Dritt-Anbieter-SDKs "
+            "statt.</strong> Diese Software lädt keinerlei externe Skripte oder Schriften zur "
+            "Benutzer-Identifikation.",
+        "legal_priv_section_storage": "4. Wo die Daten gespeichert werden",
+        "legal_priv_storage_body":
+            "Die Datenbank ist eine lokale SQLite-Datei im Docker-Volume <code>/data</code> des "
+            "Servers. Sensible Daten (API-Keys, OAuth-Secrets, SMTP-Passwörter) werden vor dem "
+            "Schreiben Fernet-symmetrisch verschlüsselt. Backups können optional zusätzlich mit "
+            "AES-Passphrase verschlüsselt werden.",
+        "legal_priv_section_sharing": "5. Datenweitergabe an Dritte",
+        "legal_priv_sharing_body":
+            "<p>Bestimmte Datenflüsse sind technisch notwendig:</p>"
+            "<ul>"
+            "<li><strong>Printix-Cloud (Tungsten Automation Corp.)</strong> — API-Aufrufe leiten "
+            "Druckauftrags- und Benutzerdaten gemäß Ihrem Printix-Abonnement weiter "
+            "(siehe Printix-AGB / -Datenschutzerklärung).</li>"
+            "<li><strong>Microsoft Graph / Microsoft Entra</strong> — wenn SSO aktiviert ist, "
+            "werden Authentifizierungs-Tokens mit Microsoft ausgetauscht.</li>"
+            "<li><strong>Ausgehender SMTP-Server</strong> (vom Betreiber konfiguriert) — für "
+            "Einladungs- und Berichts-E-Mails.</li>"
+            "<li><strong>KI-Assistenten</strong> (Claude / ChatGPT / Make.com) — wenn Sie Ihren "
+            "MCP-Endpoint dort verbinden, sieht der Assistent die Ergebnisse von MCP-Tool-Aufrufen "
+            "im Kontext der Unterhaltung. Dies geschieht immer auf Ihre Initiative.</li>"
+            "</ul>",
+        "legal_priv_section_retention": "6. Aufbewahrungsdauer",
+        "legal_priv_retention_body":
+            "Daten werden so lange aufbewahrt, bis der Betreiber sie löscht. Das Audit-Log wird "
+            "nicht automatisch gekürzt. Benutzer können Löschung über das MCP-Tool "
+            "<code>printix_personal_data_purge_request</code> oder per Kontakt zum Betreiber "
+            "beantragen.",
+        "legal_priv_section_rights": "7. Ihre Rechte nach DSGVO",
+        "legal_priv_rights_body":
+            "<p>Sie haben gegenüber dem Verantwortlichen folgende Rechte:</p>"
+            "<ul>"
+            "<li><strong>Art. 15 — Auskunft</strong>: nutzen Sie das MCP-Tool "
+            "<code>printix_personal_data_export</code>.</li>"
+            "<li><strong>Art. 16 — Berichtigung</strong>: aktualisieren Sie Ihr Profil unter "
+            "<code>/my/connect</code> oder kontaktieren Sie den Betreiber.</li>"
+            "<li><strong>Art. 17 — Löschung</strong>: "
+            "<code>printix_personal_data_purge_request</code>.</li>"
+            "<li><strong>Art. 18, 20, 21, 22 — Einschränkung, Übertragbarkeit, Widerspruch, "
+            "automatisierte Entscheidung</strong>: bitte direkt an den Betreiber.</li>"
+            "</ul>",
+        "legal_priv_section_contact": "8. Kontakt für Betroffenenrechte",
+        "legal_priv_contact_body":
+            "Für alle Anfragen zu Ihren Daten wenden Sie sich bitte an die unten genannte Kontakt-"
+            "Adresse des Betreibers.",
+        "legal_priv_section_authority": "9. Aufsichtsbehörde",
+        "legal_priv_authority_body":
+            "Sie haben das Recht, sich bei einer Datenschutz-Aufsichtsbehörde zu beschweren — "
+            "üblicherweise bei der zuständigen Behörde Ihres Wohnsitzes oder am Sitz des Betreibers.",
+        "legal_priv_authority_default":
+            "Da der Betreiber keine spezifische Aufsichtsbehörde angegeben hat, wenden Sie sich "
+            "bitte an die für Ihren Wohnsitz zuständige Landesdatenschutzbehörde "
+            "(<a href=\"https://www.bfdi.bund.de/DE/Service/Anschriften/Laender/Laender-node.html\" "
+            "target=\"_blank\" rel=\"noopener\">Übersicht des BfDI</a>).",
+        "legal_priv_section_changes": "10. Änderungen dieser Erklärung",
+        "legal_priv_changes_body":
+            "Diese Erklärung wird angepasst, wenn sich die zugrundeliegende Software ändert. "
+            "Das Datum der letzten Änderung steht am Ende der Seite.",
+        "legal_priv_section_ios":    "11. Hinweise zur iOS-App MySecurePrint",
+        "legal_priv_ios_body":
+            "<p>Die optionale iOS-Begleit-App <em>MySecurePrint</em> verarbeitet zusätzlich:</p>"
+            "<ul>"
+            "<li><strong>NFC-Karten-UIDs</strong> — wenn Sie eine Mitarbeiter-Karte anlernen.</li>"
+            "<li><strong>Dokumenten-Inhalte</strong> — die hochgeladenen Druckdateien werden an "
+            "diesen Server übertragen und nach erfolgter Übermittlung an Printix gelöscht.</li>"
+            "<li><strong>OAuth-Token</strong> — sicher in der iOS-Keychain abgelegt, niemals an "
+            "Dritte ausgeleitet.</li>"
+            "</ul>"
+            "<p>Die App enthält keine Analyse-, Werbe- oder Tracking-SDKs. Das App-Privacy-Manifest "
+            "ist im App-Store-Eintrag hinterlegt.</p>",
+
+        # Imprint
+        "legal_page_title_imprint":  "Impressum",
+        "legal_imp_intro":           "Angaben gemäß § 5 TMG / § 18 MStV",
+        "legal_imp_intro_generic":   "Angaben zum Betreiber dieser Server-Instanz",
+        "legal_imp_operator":        "Betreiber",
+        "legal_imp_address":         "Postanschrift",
+        "legal_imp_email":           "E-Mail",
+        "legal_imp_phone":           "Telefon",
+        "legal_imp_vat":             "Umsatzsteuer-ID",
+        "legal_imp_dpo":             "Datenschutzbeauftragte/r",
+        "legal_imp_hosting":         "Hosting",
+        "legal_imp_authority":       "Aufsichtsbehörde",
+        "legal_imp_country":         "Land / Jurisdiktion",
+        "legal_imp_disclaimer_title": "Haftungsausschluss für externe Links",
+        "legal_imp_disclaimer_body":
+            "Diese Software bzw. die generierten Berichte können Verlinkungen auf externe Seiten "
+            "enthalten (z. B. zur Printix-Cloud oder zu Microsoft). Für die Inhalte dieser fremden "
+            "Seiten ist ausschließlich der jeweilige Anbieter verantwortlich. Eine ständige Kontrolle "
+            "der verlinkten Inhalte ist ohne konkreten Anlass nicht zumutbar.",
+        "legal_imp_copyright_title": "Urheberrecht",
+        "legal_imp_copyright_body":
+            "Diese Web-UI und die zugehörige Server-Software sind eigenständige Open-Source-Komponenten. "
+            "Das Markenzeichen 'Printix' gehört Tungsten Automation Corp. und wird hier nur zur "
+            "Kennzeichnung der Schnittstelle verwendet — diese Instanz ist <strong>kein</strong> "
+            "offizielles Produkt der Tungsten Automation Corp.",
+
+        # Admin Settings — Legal section
+        "legal_admin_card_title":    "Rechtliche Angaben",
+        "legal_admin_card_sub":      "Erforderlich für die öffentlichen Seiten /privacy und /imprint. Muss vor der App-Store-Einreichung von MySecurePrint ausgefüllt sein.",
+        "legal_admin_warn_required": "Pflichtfelder fehlen: Name, Postanschrift und E-Mail des Betreibers müssen ausgefüllt sein.",
+        "legal_admin_field_name":         "Vollständiger Name des Betreibers",
+        "legal_admin_field_name_hint":    "z. B. 'Max Mustermann' oder 'Acme GmbH'",
+        "legal_admin_field_address":      "Postanschrift",
+        "legal_admin_field_address_hint": "Straße, PLZ, Ort, Land — mehrzeilig erlaubt. Postfach reicht für § 5 TMG nicht.",
+        "legal_admin_field_email":        "Kontakt-E-Mail",
+        "legal_admin_field_phone":        "Telefon (optional)",
+        "legal_admin_field_country":      "Land / Jurisdiktion",
+        "legal_admin_field_country_hint": "Bei 'Germany', 'DE' oder 'Deutschland' wird ein TMG-konformes Impressum gerendert, sonst eine generische Variante.",
+        "legal_admin_field_vat":          "Umsatzsteuer-ID (optional)",
+        "legal_admin_field_dpo":          "Datenschutzbeauftragte/r (optional)",
+        "legal_admin_field_hosting":      "Hosting-Anbieter (optional)",
+        "legal_admin_field_hosting_hint": "z. B. 'selbst-gehostet auf Privatserver' oder 'Hetzner Online GmbH'",
+        "legal_admin_field_authority":    "Datenschutz-Aufsichtsbehörde (optional)",
+        "legal_admin_field_authority_hint": "z. B. 'Landesbeauftragte für Datenschutz und Informationsfreiheit Niedersachsen'",
+        "legal_admin_save":               "Rechtliche Angaben speichern",
+        "legal_admin_saved":              "Rechtliche Angaben gespeichert.",
     },
 
     # ──────────────────────────────────────────────────────────────────────
@@ -2720,6 +2895,180 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "admin_si_oauth_secret": "OAuth Client Secret",
         "admin_si_oauth_secret_hint": "Hidden by default / click to reveal. Regenerate if lost under",
         "admin_si_no_secret":    "no secret stored",
+
+        # ── Legal / Privacy / Imprint (v7.9.4) ──────────────────────────
+        "legal_nav_privacy":         "Privacy",
+        "legal_nav_imprint":         "Imprint",
+        "legal_nav_documentation":   "Docs",
+        "legal_nav_legal":           "Legal",
+        "legal_footer_version":      "Printix MCP Server",
+
+        "legal_index_title":         "Legal Information",
+        "legal_index_sub":           "Privacy policy, imprint and other legal notices for this self-hosted Printix MCP server.",
+        "legal_index_privacy_card":  "Privacy Policy",
+        "legal_index_privacy_desc":  "What data the server processes, how it is stored and which rights you have under the GDPR.",
+        "legal_index_imprint_card":  "Imprint",
+        "legal_index_imprint_desc":  "Operator details, in Germany according to § 5 TMG / § 18 MStV.",
+        "legal_index_docs_card":     "Documentation",
+        "legal_index_docs_desc":     "User guides, GDPR compliance guide, MCP tool reference.",
+        "legal_index_open":          "Open →",
+
+        "legal_unconfigured_banner":
+            "<strong>⚠ Note to the operator:</strong> Legal information has not been fully configured yet. "
+            "Please fill in <a href=\"/admin/settings#legal\">/admin/settings → Legal Information</a> "
+            "before linking this page publicly or submitting the MySecurePrint iOS app to the App Store.",
+        "legal_not_configured":      "(not configured)",
+        "legal_last_updated":        "Last updated",
+
+        # Privacy Policy
+        "legal_page_title_privacy":  "Privacy Policy",
+        "legal_priv_intro":
+            "This privacy policy describes which personal data this self-hosted instance of "
+            "<em>Printix MCP Server</em> processes. The software is a bridge between Microsoft Entra "
+            "users, AI assistants (Claude, ChatGPT, Make.com) and the Printix print cloud "
+            "(Tungsten Automation).",
+        "legal_priv_section_who":    "1. Controller",
+        "legal_priv_who_body":
+            "The data controller in the meaning of Art. 4(7) GDPR is the operator of this server "
+            "instance. Contact details are listed in the <a href=\"/imprint\">imprint</a> and under "
+            "section 8 below.",
+        "legal_priv_section_what":   "2. What data we collect",
+        "legal_priv_what_body":
+            "<p>The following personal data is processed when the software is in use:</p>"
+            "<ul>"
+            "<li><strong>Account data</strong>: username, full name, email address, password hash "
+            "(Argon2 / PBKDF2). With SSO additionally the Microsoft Entra object id.</li>"
+            "<li><strong>From the MySecurePrint iOS app</strong>: bearer token (per tenant), "
+            "device name, NFC card UIDs (only when you enrol cards), print job metadata "
+            "(file name, page count, target printer).</li>"
+            "<li><strong>Audit log</strong>: all administrative actions, MCP tool calls "
+            "(caller user id, tool name, timestamp), denied permission attempts.</li>"
+            "<li><strong>Settings (per tenant)</strong>: Printix API credentials, "
+            "Microsoft Entra app credentials and SMTP credentials are stored Fernet-encrypted "
+            "in the database.</li>"
+            "</ul>",
+        "legal_priv_section_use":    "3. How the data is used",
+        "legal_priv_use_body":
+            "Data is processed only for the operational purpose — i.e. brokering the user to the "
+            "Printix cloud and Microsoft Entra. <strong>No analytics, no tracking, no third-party "
+            "SDKs are used.</strong> This software does not load any external scripts or fonts "
+            "for user-identification purposes.",
+        "legal_priv_section_storage": "4. Where the data is stored",
+        "legal_priv_storage_body":
+            "The database is a local SQLite file in the server's <code>/data</code> Docker volume. "
+            "Sensitive material (API keys, OAuth secrets, SMTP passwords) is Fernet-encrypted "
+            "before being written. Backups can additionally be AES-encrypted with an operator "
+            "passphrase.",
+        "legal_priv_section_sharing": "5. Sharing with third parties",
+        "legal_priv_sharing_body":
+            "<p>Certain data flows are technically necessary:</p>"
+            "<ul>"
+            "<li><strong>Printix Cloud (Tungsten Automation Corp.)</strong> — API calls forward "
+            "print-job and user data according to your Printix subscription "
+            "(see Printix's own Terms of Service and privacy notice).</li>"
+            "<li><strong>Microsoft Graph / Microsoft Entra</strong> — if SSO is enabled, "
+            "authentication tokens are exchanged with Microsoft.</li>"
+            "<li><strong>Outbound SMTP server</strong> (operator-configured) — used for "
+            "invitation and scheduled-report emails.</li>"
+            "<li><strong>AI assistants</strong> (Claude / ChatGPT / Make.com) — if you connect your "
+            "MCP endpoint there, the assistant sees MCP tool results in the conversation context. "
+            "This always happens at your initiative.</li>"
+            "</ul>",
+        "legal_priv_section_retention": "6. Retention",
+        "legal_priv_retention_body":
+            "Data is kept until the operator deletes it. The audit log is not auto-pruned. "
+            "Users can request deletion via the <code>printix_personal_data_purge_request</code> "
+            "MCP tool or by contacting the operator.",
+        "legal_priv_section_rights": "7. Your rights under the GDPR",
+        "legal_priv_rights_body":
+            "<p>You have the following rights with respect to the controller:</p>"
+            "<ul>"
+            "<li><strong>Art. 15 — Access</strong>: use the MCP tool "
+            "<code>printix_personal_data_export</code>.</li>"
+            "<li><strong>Art. 16 — Rectification</strong>: update your profile at "
+            "<code>/my/connect</code> or contact the operator.</li>"
+            "<li><strong>Art. 17 — Erasure</strong>: "
+            "<code>printix_personal_data_purge_request</code>.</li>"
+            "<li><strong>Art. 18, 20, 21, 22 — Restriction, portability, objection, automated "
+            "decision-making</strong>: please contact the operator directly.</li>"
+            "</ul>",
+        "legal_priv_section_contact": "8. Data subject contact",
+        "legal_priv_contact_body":
+            "For all requests concerning your personal data please use the operator contact "
+            "address shown below.",
+        "legal_priv_section_authority": "9. Supervisory authority",
+        "legal_priv_authority_body":
+            "You have the right to lodge a complaint with a data-protection supervisory authority "
+            "— typically the one responsible for your place of residence or for the operator's seat.",
+        "legal_priv_authority_default":
+            "Since the operator has not specified a particular supervisory authority, please "
+            "contact the authority responsible for your place of residence "
+            "(in Germany: see the "
+            "<a href=\"https://www.bfdi.bund.de/DE/Service/Anschriften/Laender/Laender-node.html\" "
+            "target=\"_blank\" rel=\"noopener\">BfDI overview</a>).",
+        "legal_priv_section_changes": "10. Changes to this policy",
+        "legal_priv_changes_body":
+            "This policy is updated when the underlying software changes. The date of the last "
+            "change is shown at the bottom of the page.",
+        "legal_priv_section_ios":    "11. Notes on the MySecurePrint iOS app",
+        "legal_priv_ios_body":
+            "<p>The optional <em>MySecurePrint</em> iOS companion app additionally processes:</p>"
+            "<ul>"
+            "<li><strong>NFC card UIDs</strong> — when you enrol an employee card.</li>"
+            "<li><strong>Document content</strong> — uploaded print files are transmitted to "
+            "this server and deleted after being forwarded to Printix.</li>"
+            "<li><strong>OAuth tokens</strong> — stored securely in the iOS keychain, "
+            "never disclosed to third parties.</li>"
+            "</ul>"
+            "<p>The app contains no analytics, advertising or tracking SDKs. "
+            "The App Privacy Manifest is filed with the App Store listing.</p>",
+
+        # Imprint
+        "legal_page_title_imprint":  "Imprint",
+        "legal_imp_intro":           "Information pursuant to § 5 TMG / § 18 MStV",
+        "legal_imp_intro_generic":   "Information about the operator of this server instance",
+        "legal_imp_operator":        "Operator",
+        "legal_imp_address":         "Postal address",
+        "legal_imp_email":           "Email",
+        "legal_imp_phone":           "Phone",
+        "legal_imp_vat":             "VAT ID",
+        "legal_imp_dpo":             "Data Protection Officer",
+        "legal_imp_hosting":         "Hosting",
+        "legal_imp_authority":       "Supervisory authority",
+        "legal_imp_country":         "Country / Jurisdiction",
+        "legal_imp_disclaimer_title": "Disclaimer for external links",
+        "legal_imp_disclaimer_body":
+            "This software and the reports it generates may contain links to external sites "
+            "(e.g. the Printix cloud or Microsoft). The respective provider is solely responsible "
+            "for the content of those external sites. Continuous monitoring of linked content "
+            "without specific cause is not reasonable.",
+        "legal_imp_copyright_title": "Copyright",
+        "legal_imp_copyright_body":
+            "This web UI and the associated server software are independent open-source "
+            "components. The 'Printix' trademark belongs to Tungsten Automation Corp. and is used "
+            "here only to identify the integration — this instance is <strong>not</strong> an "
+            "official Tungsten Automation Corp. product.",
+
+        # Admin Settings — Legal section
+        "legal_admin_card_title":    "Legal Information",
+        "legal_admin_card_sub":      "Required for the public /privacy and /imprint pages. Must be filled in before the MySecurePrint iOS app can be submitted to the App Store.",
+        "legal_admin_warn_required": "Required fields missing: operator name, postal address and email must be filled in.",
+        "legal_admin_field_name":         "Full legal name of the operator",
+        "legal_admin_field_name_hint":    "e.g. 'Jane Smith' or 'Acme Inc.'",
+        "legal_admin_field_address":      "Postal address",
+        "legal_admin_field_address_hint": "Street, ZIP, city, country — multi-line allowed. A P.O. box is not sufficient under German § 5 TMG.",
+        "legal_admin_field_email":        "Contact email",
+        "legal_admin_field_phone":        "Phone (optional)",
+        "legal_admin_field_country":      "Country / Jurisdiction",
+        "legal_admin_field_country_hint": "If set to 'Germany', 'DE' or 'Deutschland' a TMG-conformant imprint is rendered; otherwise a generic variant.",
+        "legal_admin_field_vat":          "VAT ID (optional)",
+        "legal_admin_field_dpo":          "Data Protection Officer (optional)",
+        "legal_admin_field_hosting":      "Hosting provider (optional)",
+        "legal_admin_field_hosting_hint": "e.g. 'self-hosted on private hardware' or 'Hetzner Online GmbH'",
+        "legal_admin_field_authority":    "Data-protection supervisory authority (optional)",
+        "legal_admin_field_authority_hint": "e.g. 'Landesbeauftragte für Datenschutz und Informationsfreiheit Niedersachsen'",
+        "legal_admin_save":               "Save legal information",
+        "legal_admin_saved":              "Legal information saved.",
     },
 
     # ──────────────────────────────────────────────────────────────────────

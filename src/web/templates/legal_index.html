@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}{{ _('legal_index_title') }} — {{ _('brand_console_name') }}{% endblock %}
+{% block content %}
+<div class="container" style="max-width: 920px;">
+  <div class="card" style="margin: 30px auto;">
+    <h1 class="section-title" style="font-size: 1.6em;">⚖ {{ _('legal_index_title') }}</h1>
+    <p class="section-sub" style="margin-bottom: 24px;">{{ _('legal_index_sub') }}</p>
+
+    {% if not legal_configured %}
+    <div class="alert alert-warning" style="margin-bottom: 24px;">
+      <div>{{ _('legal_unconfigured_banner') | safe }}</div>
+    </div>
+    {% endif %}
+
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 18px;">
+      <a href="/privacy" style="text-decoration: none; color: inherit;">
+        <div class="card" style="padding: 22px; border-left: 4px solid var(--ta-cyan); height: 100%;">
+          <div style="font-size: 1.8em;">🔒</div>
+          <h3 style="color: var(--ta-navy); margin: 8px 0 6px;">{{ _('legal_index_privacy_card') }}</h3>
+          <p style="color: #475569; font-size: .9em; line-height: 1.5;">{{ _('legal_index_privacy_desc') }}</p>
+          <div style="color: var(--ta-cyan-dark); font-weight: 700; margin-top: 12px;">{{ _('legal_index_open') }}</div>
+        </div>
+      </a>
+
+      <a href="/imprint" style="text-decoration: none; color: inherit;">
+        <div class="card" style="padding: 22px; border-left: 4px solid var(--ta-gold); height: 100%;">
+          <div style="font-size: 1.8em;">🏛</div>
+          <h3 style="color: var(--ta-navy); margin: 8px 0 6px;">{{ _('legal_index_imprint_card') }}</h3>
+          <p style="color: #475569; font-size: .9em; line-height: 1.5;">{{ _('legal_index_imprint_desc') }}</p>
+          <div style="color: var(--ta-cyan-dark); font-weight: 700; margin-top: 12px;">{{ _('legal_index_open') }}</div>
+        </div>
+      </a>
+
+      <a href="/admin/mcp-reports-cookbook" style="text-decoration: none; color: inherit;">
+        <div class="card" style="padding: 22px; border-left: 4px solid var(--ta-green); height: 100%;">
+          <div style="font-size: 1.8em;">📚</div>
+          <h3 style="color: var(--ta-navy); margin: 8px 0 6px;">{{ _('legal_index_docs_card') }}</h3>
+          <p style="color: #475569; font-size: .9em; line-height: 1.5;">{{ _('legal_index_docs_desc') }}</p>
+          <div style="color: var(--ta-cyan-dark); font-weight: 700; margin-top: 12px;">{{ _('legal_index_open') }}</div>
+        </div>
+      </a>
+    </div>
+  </div>
+</div>
+{% endblock %}

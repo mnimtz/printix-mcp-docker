@@ -135,6 +135,95 @@
     </form>
   </div>
 
+  <!-- ── Rechtliche Angaben / Legal Information (v7.9.4) ─────────────────── -->
+  <div id="legal" class="card" style="max-width:680px; margin:0 auto 20px auto;">
+    <div style="display:flex; align-items:center; gap:10px; margin-bottom:8px;">
+      <div style="font-size:1.4em;">🏛</div>
+      <div>
+        <div class="section-title" style="margin:0;">{{ _('legal_admin_card_title') }}</div>
+        <div style="font-size:.85em; color:#666;">{{ _('legal_admin_card_sub') }}</div>
+      </div>
+    </div>
+
+    {% if request.query_params.get('ok') == 'legal_saved' %}
+      <div class="alert alert-success" style="margin:10px 0 14px;">✓ {{ _('legal_admin_saved') }}</div>
+    {% endif %}
+
+    {% if not legal_configured %}
+      <div class="alert alert-warning" style="margin:10px 0 14px;">
+        ⚠ {{ _('legal_admin_warn_required') }}
+      </div>
+    {% endif %}
+
+    <form method="post" action="/admin/settings/legal/save"
+          style="display:flex; flex-direction:column; gap:14px; margin-top:10px;">
+      <div class="form-group" style="margin:0;">
+        <label>{{ _('legal_admin_field_name') }} *</label>
+        <input type="text" name="legal_operator_name" value="{{ legal.operator_name }}"
+               placeholder="z. B. Acme GmbH">
+        <small class="hint">{{ _('legal_admin_field_name_hint') }}</small>
+      </div>
+
+      <div class="form-group" style="margin:0;">
+        <label>{{ _('legal_admin_field_address') }} *</label>
+        <textarea name="legal_operator_address" rows="4"
+                  placeholder="Musterstraße 1&#10;12345 Musterstadt&#10;Germany">{{ legal.operator_address }}</textarea>
+        <small class="hint">{{ _('legal_admin_field_address_hint') }}</small>
+      </div>
+
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px;">
+        <div class="form-group" style="margin:0;">
+          <label>{{ _('legal_admin_field_email') }} *</label>
+          <input type="email" name="legal_operator_email" value="{{ legal.operator_email }}">
+        </div>
+        <div class="form-group" style="margin:0;">
+          <label>{{ _('legal_admin_field_phone') }}</label>
+          <input type="text" name="legal_operator_phone" value="{{ legal.operator_phone }}">
+        </div>
+      </div>
+
+      <div class="form-group" style="margin:0;">
+        <label>{{ _('legal_admin_field_country') }}</label>
+        <input type="text" name="legal_operator_country" value="{{ legal.operator_country }}"
+               placeholder="Germany">
+        <small class="hint">{{ _('legal_admin_field_country_hint') }}</small>
+      </div>
+
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px;">
+        <div class="form-group" style="margin:0;">
+          <label>{{ _('legal_admin_field_vat') }}</label>
+          <input type="text" name="legal_operator_vat_id" value="{{ legal.vat_id }}"
+                 placeholder="DE123456789">
+        </div>
+        <div class="form-group" style="margin:0;">
+          <label>{{ _('legal_admin_field_dpo') }}</label>
+          <input type="text" name="legal_data_protection_officer"
+                 value="{{ legal.data_protection_officer }}"
+                 placeholder="Name + Kontakt">
+        </div>
+      </div>
+
+      <div class="form-group" style="margin:0;">
+        <label>{{ _('legal_admin_field_hosting') }}</label>
+        <input type="text" name="legal_hosting_provider" value="{{ legal.hosting_provider }}">
+        <small class="hint">{{ _('legal_admin_field_hosting_hint') }}</small>
+      </div>
+
+      <div class="form-group" style="margin:0;">
+        <label>{{ _('legal_admin_field_authority') }}</label>
+        <input type="text" name="legal_supervisory_authority"
+               value="{{ legal.supervisory_authority }}">
+        <small class="hint">{{ _('legal_admin_field_authority_hint') }}</small>
+      </div>
+
+      <div style="display:flex; gap:10px; align-items:center; margin-top:4px;">
+        <button type="submit" class="btn btn-primary">💾 {{ _('legal_admin_save') }}</button>
+        <a href="/privacy" target="_blank" class="btn btn-secondary btn-sm">🔒 /privacy</a>
+        <a href="/imprint" target="_blank" class="btn btn-secondary btn-sm">🏛 /imprint</a>
+      </div>
+    </form>
+  </div>
+
   <div class="card" style="max-width:680px;margin:0 auto 40px auto;">
     <h2 class="section-title">{{ _('admin_settings') }}</h2>
     <p class="section-sub" style="margin-bottom:24px;">

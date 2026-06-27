@@ -3532,6 +3532,124 @@ def create_app(session_secret: str) -> FastAPI:
 </body></html>"""
         return HTMLResponse(html)
 
+    # ─── Public Legal Pages (v7.9.4) ─────────────────────────────────────
+    # Privacy policy + Imprint required for App-Store review of the
+    # MySecurePrint iOS companion app (Apple Guideline 5.1.1) and the
+    # German § 5 TMG / § 18 MStV imprint duty for self-hosted instances.
+    # All five routes work without a session.
+
+    _LEGAL_SETTING_KEYS = (
+        ("operator_name",            "legal_operator_name"),
+        ("operator_address",         "legal_operator_address"),
+        ("operator_email",           "legal_operator_email"),
+        ("operator_phone",           "legal_operator_phone"),
+        ("operator_country",         "legal_operator_country"),
+        ("vat_id",                   "legal_operator_vat_id"),
+        ("data_protection_officer",  "legal_data_protection_officer"),
+        ("hosting_provider",         "legal_hosting_provider"),
+        ("supervisory_authority",    "legal_supervisory_authority"),
+    )
+
+    def _legal_settings() -> dict:
+        """Reads the legal operator block from DB settings. All values
+        are plain strings; missing keys become ''."""
+        try:
+            from db import get_setting
+            out = {tmpl_key: (get_setting(db_key, "") or "")
+                   for tmpl_key, db_key in _LEGAL_SETTING_KEYS}
+        except Exception:
+            out = {tmpl_key: "" for tmpl_key, _ in _LEGAL_SETTING_KEYS}
+        # Default country = Germany when unset (matches the operator's
+        # most likely scenario — the bundled iOS app is German-targeted).
+        if not out.get("operator_country"):
+            out["operator_country"] = "Germany"
+        return out
+
+    def _legal_configured(legal: dict) -> bool:
+        return bool(
+            (legal.get("operator_name")    or "").strip()
+            and (legal.get("operator_address") or "").strip()
+            and (legal.get("operator_email")   or "").strip()
+        )
+
+    def _legal_last_updated() -> str:
+        """Date of last change — file mtime of this app.py serves as a
+        sensible auto-tracker (touched on every server release)."""
+        try:
+            import datetime as _dt
+            mtime = os.path.getmtime(__file__)
+            return _dt.datetime.fromtimestamp(mtime).strftime("%Y-%m-%d")
+        except Exception:
+            return "2026-06-27"
+
+    def _legal_lang(request: Request) -> str:
+        """Resolves the active language for legal pages — explicit ?lang= param
+        wins, then session, then Accept-Language. Persists the override in the
+        session so the rest of the navigation stays in the chosen language."""
+        q = (request.query_params.get("lang") or "").strip().lower()
+        if q in SUPPORTED_LANGUAGES:
+            request.session["lang"] = q
+            return q
+        return get_lang(request)
+
+    def _legal_ctx(request: Request) -> dict:
+        _legal_lang(request)  # honour ?lang=
+        legal = _legal_settings()
+        ctx = t_ctx(request)
+        ctx.update({
+            "request": request,
+            "user": get_session_user(request),
+            "legal": legal,
+            "legal_configured": _legal_configured(legal),
+            "legal_last_updated": _legal_last_updated(),
+            "is_germany": (legal.get("operator_country") or "").strip().lower()
+                          in ("germany", "de", "deutschland"),
+        })
+        return ctx
+
+    _LEGAL_CACHE_HEADERS = {"Cache-Control": "public, max-age=3600"}
+
+    @app.get("/legal", response_class=HTMLResponse)
+    async def legal_index(request: Request):
+        return templates.TemplateResponse(
+            "legal_index.html", _legal_ctx(request),
+            headers=_LEGAL_CACHE_HEADERS,
+        )
+
+    @app.get("/privacy", response_class=HTMLResponse)
+    async def legal_privacy(request: Request):
+        return templates.TemplateResponse(
+            "legal_privacy.html", _legal_ctx(request),
+            headers=_LEGAL_CACHE_HEADERS,
+        )
+
+    @app.get("/datenschutz", response_class=HTMLResponse)
+    async def legal_privacy_de(request: Request):
+        # German alias — force DE for first-time visitors that haven't
+        # picked a language yet.
+        if "lang" not in request.session and not request.query_params.get("lang"):
+            request.session["lang"] = "de"
+        return templates.TemplateResponse(
+            "legal_privacy.html", _legal_ctx(request),
+            headers=_LEGAL_CACHE_HEADERS,
+        )
+
+    @app.get("/imprint", response_class=HTMLResponse)
+    async def legal_imprint(request: Request):
+        return templates.TemplateResponse(
+            "legal_imprint.html", _legal_ctx(request),
+            headers=_LEGAL_CACHE_HEADERS,
+        )
+
+    @app.get("/impressum", response_class=HTMLResponse)
+    async def legal_imprint_de(request: Request):
+        if "lang" not in request.session and not request.query_params.get("lang"):
+            request.session["lang"] = "de"
+        return templates.TemplateResponse(
+            "legal_imprint.html", _legal_ctx(request),
+            headers=_LEGAL_CACHE_HEADERS,
+        )
+
     @app.get("/manuals/gdpr-compliance.pdf")
     async def download_gdpr_compliance(request: Request):
         """v7.2.25: Download the GDPR Compliance Guide.
@@ -5274,6 +5392,9 @@ def create_app(session_secret: str) -> FastAPI:
             "restore_success": restore_success,
             "saved": saved, "error": error,
             "license_status": license_status,
+            # v7.9.4: Legal-Block für die neue Karte in admin_settings.html
+            "legal":             _legal_settings(),
+            "legal_configured":  _legal_configured(_legal_settings()),
             **_license_context(),
             **_timezone_context(),
             **t_ctx(request),
@@ -5467,6 +5588,45 @@ def create_app(session_secret: str) -> FastAPI:
             return RedirectResponse(
                 f"/admin/settings?err=tz_invalid#timezone", status_code=302,
             )
+
+    # v7.9.4: Legal information (operator name/address/email + DPO, hosting, etc.)
+    # POST target for the new "Legal Information" card in admin_settings.html.
+    @app.post("/admin/settings/legal/save")
+    async def admin_settings_legal_save(
+        request: Request,
+        legal_operator_name:        str = Form(""),
+        legal_operator_address:     str = Form(""),
+        legal_operator_email:       str = Form(""),
+        legal_operator_phone:       str = Form(""),
+        legal_operator_country:     str = Form(""),
+        legal_operator_vat_id:      str = Form(""),
+        legal_data_protection_officer: str = Form(""),
+        legal_hosting_provider:     str = Form(""),
+        legal_supervisory_authority: str = Form(""),
+    ):
+        user = get_session_user(request)
+        if not user or not user.get("is_admin"):
+            return RedirectResponse("/login", status_code=302)
+        from db import set_setting, audit
+        values = {
+            "legal_operator_name":           (legal_operator_name or "").strip(),
+            "legal_operator_address":        (legal_operator_address or "").strip(),
+            "legal_operator_email":          (legal_operator_email or "").strip(),
+            "legal_operator_phone":          (legal_operator_phone or "").strip(),
+            "legal_operator_country":        (legal_operator_country or "").strip(),
+            "legal_operator_vat_id":         (legal_operator_vat_id or "").strip(),
+            "legal_data_protection_officer": (legal_data_protection_officer or "").strip(),
+            "legal_hosting_provider":        (legal_hosting_provider or "").strip(),
+            "legal_supervisory_authority":   (legal_supervisory_authority or "").strip(),
+        }
+        for k, v in values.items():
+            set_setting(k, v)
+        audit(user["id"], "admin_set_legal",
+              f"Legal info updated (operator={values['legal_operator_name'] or '?'})",
+              object_type="setting", object_id="legal_info")
+        return RedirectResponse(
+            "/admin/settings?ok=legal_saved#legal", status_code=302,
+        )
 
     # v7.2.39: Pro-Feature-Aktivierung — Code unter /admin/settings einreichen
     @app.post("/admin/settings/license/activate")

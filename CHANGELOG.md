@@ -1,3 +1,85 @@
+## 7.9.4 — 2026-06-27 — Public Privacy Policy + Imprint pages (App-Review-Ready)
+
+Voraussetzung für die kommende App-Store-Einreichung der iOS-Begleit-App
+**MySecurePrint**: Apple Guideline 5.1.1 verlangt eine öffentlich
+erreichbare Privacy-Policy-URL, und beim Self-Hosting in Deutschland
+greift zusätzlich § 5 TMG / § 18 MStV mit der Impressumspflicht.
+
+### Neu
+
+- **Öffentliche Routen ohne Login** in `src/web/app.py`:
+  - `GET /privacy` und `GET /datenschutz` — Datenschutzerklärung
+  - `GET /imprint` und `GET /impressum` — Impressum (TMG-konform für DE,
+    sonst generische „About"-Variante)
+  - `GET /legal` — Landing-Page mit Kacheln zu beiden Dokumenten
+- **Footer in allen Seiten** (`base.html`) mit
+  `Privacy · Imprint · Legal · Docs · Version` — auch auf `/login`,
+  `/register*`, `/setup*` sowie auf allen `/admin/*`, `/reports/*`,
+  `/my/*` Seiten sichtbar. App-Review verlangt, dass die Privacy-URL
+  ohne Login erreichbar ist.
+- **Admin-Settings-Karte „🏛 Rechtliche Angaben"** in
+  `admin_settings.html` — Betreiber-Name, Postanschrift, E-Mail,
+  Telefon, Land/Jurisdiktion, USt-ID, DSB, Hosting, Aufsichtsbehörde.
+  Speicher-Route: `POST /admin/settings/legal/save` mit Audit-Log-Eintrag
+  `admin_set_legal`.
+- **9 neue DB-Settings**: `legal_operator_name`,
+  `legal_operator_address`, `legal_operator_email`,
+  `legal_operator_phone`, `legal_operator_country`,
+  `legal_operator_vat_id`, `legal_data_protection_officer`,
+  `legal_hosting_provider`, `legal_supervisory_authority` — alle als
+  Klartext (keine Verschlüsselung, da sie sowieso öffentlich
+  publiziert werden).
+- **i18n**: 60+ neue Keys in `de` + `en` komplett; alle anderen Sprachen
+  fallen automatisch auf EN zurück (Projekt-Konvention via
+  `make_translator`).
+
+### Inhalt der Datenschutzerklärung
+
+Spiegelt wider, was die Software *tatsächlich* verarbeitet:
+
+- Kontodaten (Username, Name, E-Mail, Passwort-Hash, Entra-OID)
+- iOS-App-spezifisch: Bearer-Token, Gerätename, NFC-Karten-UIDs,
+  Druckauftrags-Metadaten
+- Audit-Log mit allen Admin-Aktionen und MCP-Tool-Calls
+- Per-Tenant-Settings: Printix-API-, Entra- und SMTP-Credentials,
+  alle Fernet-verschlüsselt
+- Datenweitergabe an Printix Cloud (Tungsten Automation),
+  Microsoft Graph/Entra, ausgehenden SMTP, KI-Assistenten
+- DSGVO Art. 13–22 mit Verweis auf die bestehenden MCP-Tools
+  `printix_personal_data_export` und `printix_personal_data_purge_request`
+- Iso-Tab speziell zur MySecurePrint-iOS-App: NFC-UIDs,
+  Document-Uploads, Keychain-Token, App-Privacy-Manifest
+
+### Verhalten bei nicht konfigurierten Angaben
+
+Wenn `legal_operator_name`, `_address` oder `_email` leer sind, zeigen
+sowohl `/privacy` als auch `/imprint` einen gelben „Operator must
+configure this"-Banner und sind weiterhin renderbar (kein 500). Damit
+der Server auch frisch installiert bootet, ohne die Admin-Konfiguration
+zu blockieren.
+
+### Geändert
+
+- `src/web/app.py` — neue Routen + Helper (`_legal_settings`,
+  `_legal_configured`, `_legal_ctx`), `_admin_settings_ctx` reicht den
+  Legal-Block ans Template
+- `src/web/i18n.py` — neue Keys in DE/EN-Blöcken
+- `src/web/templates/base.html` — globaler Footer
+- `src/web/templates/admin_settings.html` — neue Karte „Rechtliche
+  Angaben" nach der Zeitzone-Karte
+- `src/web/templates/legal_index.html` (neu)
+- `src/web/templates/legal_privacy.html` (neu)
+- `src/web/templates/legal_imprint.html` (neu)
+- `VERSION` 7.9.3 → 7.9.4
+
+### Migration
+
+Keine — alte Sessions, Tenants, Settings bleiben unverändert. Der
+Admin muss einmalig unter `/admin/settings#legal` die Pflichtfelder
+ausfüllen, bevor die iOS-App-Einreichung losgehen kann.
+
+---
+
 ## 7.9.3 — 2026-06-27 — iOS-App-Rebrand: `printixmobileprint://` → `mysecureprint://`
 
 Die begleitende iOS-App wurde von *Printix MobilePrint* (Bundle
