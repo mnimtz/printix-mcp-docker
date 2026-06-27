@@ -1,3 +1,47 @@
+## 7.9.3 — 2026-06-27 — iOS-App-Rebrand: `printixmobileprint://` → `mysecureprint://`
+
+Die begleitende iOS-App wurde von *Printix MobilePrint* (Bundle
+`com.mnimtz.printixmobileprint`) auf *MySecurePrint* (Bundle
+`de.nimtz.mysecureprint`) umbenannt — komplett neuer App-Store-Eintrag,
+fresh start als Version 1.0.0. Der OAuth-Redirect-URI wechselt
+entsprechend von `printixmobileprint://oauth/callback` auf
+`mysecureprint://oauth/callback`.
+
+### Server-Side Impact: keiner
+
+Der Server reicht das vom Client gelieferte `redirect_uri` 1:1 an
+Microsoft durch und prüft NICHT gegen eine Whitelist. Die Umstellung
+ist also eine reine Doku-/Setup-Anleitungs-Änderung — keine Logik-
+oder Behaviour-Änderung.
+
+### Geändert
+
+- `README.md` — Schritt-für-Schritt-Anleitung „Step 2 – Add a redirect
+  URI" + Flow-Tabelle + Smoketest-Curl referenzieren jetzt
+  `mysecureprint://oauth/callback`
+- `src/entra.py` + `src/web/desktop_routes.py` — Doc-Kommentare
+  aktualisiert (Code unverändert)
+
+### Migration für bestehende Setups
+
+Wer noch die alte *Printix MobilePrint* TestFlight-App nutzt:
+- Im Entra-Portal zusätzlich `mysecureprint://oauth/callback`
+  registrieren (`Authentication → Mobile and desktop applications →
+  Add URI`)
+- Beide URIs können parallel laufen
+- Sobald alle Tester auf *MySecurePrint* 1.0.0+ migriert sind, kann
+  die alte URI aus dem Entra-Portal entfernt werden
+
+### Warum der Rebrand?
+
+Trademark-Sicherheit. „Printix" ist eingetragene Marke der Tungsten
+Automation Corp. — der App-Name darf das nicht enthalten. Plus eigenes
+App-Store-Listing für das Self-Hosted-Companion-Use-Case. Siehe
+Repo-Wechselseite `printix-mcp-addon/MobileApp/ios-client/` für die
+neue App-Identität + den App-Store-Listing-Entwurf.
+
+---
+
 ## 7.9.0 — 2026-06-13 — Sidebar Navigation & UI Redesign
 
 ### Added

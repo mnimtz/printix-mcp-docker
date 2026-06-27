@@ -1174,7 +1174,7 @@ def register_desktop_routes(app: FastAPI, get_app_version) -> None:
     #
     # Voraussetzung in der Entra App-Registration:
     #   Authentication → Mobile and desktop applications → Add URI
-    #   z.B. printixmobileprint://oauth/callback
+    #   z.B. mysecureprint://oauth/callback
 
     @app.post("/desktop/auth/entra/authcode/start")
     async def desktop_entra_authcode_start(request: Request,

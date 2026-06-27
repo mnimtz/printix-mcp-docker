@@ -357,14 +357,14 @@ Lets users sign in with their work Microsoft account instead of a local password
 
 ### Step 2 — Add a redirect URI for the iOS app *(only if you use the mobile app)*
 
-The iOS app uses Authorization Code Flow with PKCE. Microsoft treats the custom URL scheme `printixmobileprint://` as a **public client**, so it needs an extra platform on the App Registration:
+The iOS app (*MySecurePrint*, 1.0.0+) uses Authorization Code Flow with PKCE. Microsoft treats the custom URL scheme `mysecureprint://` as a **public client**, so it needs an extra platform on the App Registration:
 
 1. Open <https://portal.azure.com> → *Microsoft Entra ID* → *App registrations* → tab **All applications** → search for the Client-ID shown in the MCP web UI (or the name *„Printix Management Console"*).
 2. Open the app → *Authentication* → click **+ Add a platform** → choose **Mobile and desktop applications**.
 3. In *Custom redirect URIs* enter exactly:
 
    ```
-   printixmobileprint://oauth/callback
+   mysecureprint://oauth/callback
    ```
 
    No `https://`, no trailing slash, no spaces.
@@ -376,7 +376,7 @@ That's it. The same App Registration now serves all four flows:
 |------|---------|-----------------|
 | Auth Code (confidential) | Web UI | `https://<your-host>/auth/entra/callback` |
 | Device Code | macOS, Windows clients, admin auto-setup | none — code-based |
-| Auth Code + PKCE (public) | iOS *Printix MobilePrint* | `printixmobileprint://oauth/callback` |
+| Auth Code + PKCE (public) | iOS *MySecurePrint* | `mysecureprint://oauth/callback` |
 | Auth Code (confidential) | Guest-Print mailbox onboarding | `https://<your-host>/admin/guestprint/...` |
 
 ### Step 3 — Verify
@@ -389,7 +389,7 @@ That's it. The same App Registration now serves all four flows:
 # Server smoketest for the iOS-PKCE endpoint:
 curl -sS -X POST https://<your-host>/desktop/auth/entra/authcode/start \
      -d 'device_name=test' \
-     -d 'redirect_uri=printixmobileprint://oauth/callback' \
+     -d 'redirect_uri=mysecureprint://oauth/callback' \
 | python3 -m json.tool
 # Expected: {session_id, auth_url, state, expires_in: 600}
 ```

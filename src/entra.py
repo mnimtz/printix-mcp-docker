@@ -180,7 +180,7 @@ def exchange_code_for_user(code: str, redirect_uri: str) -> dict | None:
 #
 # Voraussetzung in der Entra App-Registration:
 #   Authentication → Mobile and desktop applications → Add URI:
-#     z.B. printixmobileprint://oauth/callback
+#     z.B. mysecureprint://oauth/callback
 
 
 def generate_pkce_pair() -> tuple[str, str]:
@@ -247,7 +247,7 @@ def exchange_code_pkce(code: str,
 
     # WICHTIG: KEIN client_secret beim PKCE-Flow fuer Mobile/Desktop-Apps!
     # Wenn die Redirect-URI ein Custom-Scheme ist (z.B.
-    # `printixmobileprint://...`) erkennt Microsoft das als
+    # `mysecureprint://...`) erkennt Microsoft das als
     # Public-Client-Flow und lehnt jeden Request mit client_secret ab:
     #   AADSTS700025: Client is public so neither 'client_assertion' nor
     #                 'client_secret' should be presented
